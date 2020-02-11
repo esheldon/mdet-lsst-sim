@@ -22,14 +22,15 @@ def run(*,
         full_output=False,
         show=False,
         show_sim=False,
-        nostack=False):
+        nostack=False,
+        loglevel='info'):
 
     rng = np.random.RandomState(seed)
     mdet_config = util.get_config(nostack=nostack)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
-    logger.setLevel(getattr(logging, 'INFO'))
+    logger.setLevel(getattr(logging, loglevel.upper()))
 
     dlist_p = []
     dlist_m = []
@@ -82,6 +83,7 @@ def run(*,
                     psf_dims=[psf_dim]*2,
                     byband=False,
                     show=show,
+                    loglevel=loglevel,
                 )
 
                 coadd_obs = mbc.coadds['all']
@@ -92,6 +94,7 @@ def run(*,
                     coadd_mbobs,
                     trial_rng,
                     show=show,
+                    loglevel=loglevel,
                 )
 
             md.go()
