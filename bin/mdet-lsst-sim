@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+import sys
+import copy
+import logging
+import numpy as np
+
+from descwl_shear_sims import Sim
+from descwl_coadd.coadd import MultiBandCoadds
+from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
+from metadetect.lsst_metadetect import LSSTMetadetect
+from metadetect.metadetect import Metadetect
+import fitsio
+import esutil as eu
+import argparse
+
+from mdet_lsst_sim import util, vis
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--seed', type=int, required=True)
+
+    parser.add_argument('--nostack', action='store_true',
+                        help=('just do weighted sum coadd and run '
+                              'metadetect'))
+
+    parser.add_argument('--full-output',
+                        action='store_true',
+                        help='write all output columns')
+
+    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--show-sim', action='store_true',
+                        help='show the sim image')
+
+    return parser.parse_args()
+
+
+def main():
+
+    args = get_args()
+
+    sim_config = eu.io.read(args.config)
+
+    rng = np.random.RandomState(args.seed)
+    mdet_config = util.get_config(nostack=args.nostack)
+
+    logging.basicConfig(stream=sys.stdout)
+    logger = logging.getLogger('mdet_lsst_sim')
+    logger.setLevel(getattr(logging, 'INFO'))
+
+    dlist_p = []
+    dlist_m = []
+
+    for trial in range(args.ntrial):
+        logger.info('-'*70)
+        logger.info('trial: %d/%d' % (trial+1, args.ntrial))
+
+        trial_seed = rng.randint(0, 2**30)
+
+        for shear_type in ('1p', '1m'):
+            logger.info(str(shear_type))
+
+            sim_kw = copy.deepcopy(sim_config)
+            sim_kw['g2'] = 0.0
+
+            trial_rng = np.random.RandomState(trial_seed)
+
+            if shear_type == '1p':
+                sim_kw['g1'] = 0.02
+            else:
+                sim_kw['g1'] = -0.02
+
+            sim = Sim(rng=trial_rng, **sim_kw)
+            data = sim.gen_sim()
+
+            if args.show_sim:
+                vis.show_sim(data)
+
+            if args.nostack:
+                coadd_obs = MultiBandCoaddsSimple(data=data)
+
+                coadd_mbobs = util.make_mbobs(coadd_obs)
+                md = Metadetect(
+                    mdet_config,
+                    coadd_mbobs,
+                    trial_rng,
+                    show=args.show,
+                )
+            else:
+
+                psf_dim = int(sim.psf_dim/np.sqrt(3))
+                if psf_dim % 2 == 0:
+                    psf_dim -= 1
+
+                mbc = MultiBandCoadds(
+                    data=data,
+                    coadd_wcs=sim.coadd_wcs,
+                    coadd_dims=[sim.coadd_dim]*2,
+                    psf_dims=[psf_dim]*2,
+                    byband=False,
+                    show=args.show,
+                )
+
+                coadd_obs = mbc.coadds['all']
+                coadd_mbobs = util.make_mbobs(coadd_obs)
+
+                md = LSSTMetadetect(
+                    mdet_config,
+                    coadd_mbobs,
+                    trial_rng,
+                    show=args.show,
+                )
+
+            md.go()
+            res = md.result
+
+            comb_data = util.make_comb_data(args, res)
+            if len(comb_data) > 0:
+                if shear_type == '1p':
+                    dlist_p.append(comb_data)
+                else:
+                    dlist_m.append(comb_data)
+
+    data_1p = eu.numpy_util.combine_arrlist(dlist_p)
+    data_1m = eu.numpy_util.combine_arrlist(dlist_m)
+
+    logger.info('writing: %s' % args.output)
+    with fitsio.FITS(args.output, 'rw', clobber=True) as fits:
+        fits.write(data_1p, extname='1p')
+        fits.write(data_1m, extname='1m')
+
+
+if __name__ == '__main__':
+    main()

@@ -1,2 +1,2 @@
 # mcal-lsst-sim
-Run metacalibration on the lsst simulations
+Run metacalibration with detection on the lsst simulations
