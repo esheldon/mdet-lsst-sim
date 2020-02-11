@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+import os
+import numpy as np
+import argparse
+import shutil
+
+
+template = r"""
+command: |
+    export OMP_NUM_THREADS=1
+    . ~/.bashrc
+    source activate mystack
+
+    mdet-lsst-sim \
+        --seed %(seed)d \
+        --config %(sim_config)s \
+        --ntrial %(ntrial)d \
+        --output %(output)s
+
+job_name: "%(job_name)s"
+"""
+
+
+def get_script_file(run, num):
+    return '%s-%07d.yaml' % (run, num)
+
+
+def get_output(run, num):
+    return '%s-%07d.fits' % (run, num)
+
+
+def copy_config_file(config_file):
+    print('copying', config_file)
+    shutil.copy(config_file, '.')
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+    parser.add_argument('--njobs', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run for each job')
+    parser.add_argument('--config', required=True, help='simulation config')
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    copy_config_file(args.config)
+    sim_config_base = os.path.basename(args.config)
+
+    rng = np.random.RandomState(args.seed)
+
+    for i in range(args.njobs):
+
+        while True:
+            seed = rng.randint(0, 2**19)
+            script_fname = get_script_file(args.run, seed)
+            if not os.path.exists(script_fname):
+                break
+
+        output = get_output(args.run, seed)
+        job_name = '%s-%06d' % (args.run, seed)
+
+        text = template % {
+            'job_name': job_name,
+            'seed': seed,
+            'sim_config': sim_config_base,
+            'ntrial': args.ntrial,
+            'output': output,
+        }
+
+        print(script_fname)
+        with open(script_fname, 'w') as fobj:
+            fobj.write(text)
+
+
+main()
