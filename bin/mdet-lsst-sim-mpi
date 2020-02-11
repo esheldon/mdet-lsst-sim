@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+
+import argparse
+import numpy as np
+from mdet_lsst_sim.run import run
+import esutil as eu
+import navy
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True,
+                        help='run name for output files')
+    parser.add_argument('--njobs', type=int, required=True,
+                        help='number of jobs')
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run per job')
+    parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+
+    return parser.parse_args()
+
+
+def dorun(inputs):
+    sim_config, seed, ntrial, output = inputs
+    run(
+        sim_config=sim_config,
+        seed=seed,
+        ntrial=ntrial,
+        output=output,
+        loglevel='warn',
+    )
+
+
+def main():
+
+    args = get_args()
+
+    if navy.rank == navy.ADMIRAL:
+        sim_config = eu.io.read(args.config)
+
+        rng = np.random.RandomState(args.seed)
+
+        inputs = []
+        for i in range(args.njobs):
+            seed = rng.randint(0, 2**19)
+            output = '%s-%07d.fits' % (args.run, seed)
+
+            tinput = (sim_config, seed, args.ntrial, output)
+
+            inputs.append(tinput)
+
+        admiral = navy.Admiral(inputs)
+        admiral.orchestrate()
+
+    else:
+        ship = navy.Ship(dorun)
+        ship.go()
+
+
+if __name__ == '__main__':
+    main()
