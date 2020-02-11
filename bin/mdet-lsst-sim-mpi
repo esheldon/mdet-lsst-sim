@@ -18,17 +18,20 @@ def get_args():
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
+    parser.add_argument('--loglevel', default='warn',
+                        help='log level, defauling to warn for mpi')
+
     return parser.parse_args()
 
 
 def dorun(inputs):
-    sim_config, seed, ntrial, output = inputs
+    sim_config, seed, ntrial, output, loglevel = inputs
     run(
         sim_config=sim_config,
         seed=seed,
         ntrial=ntrial,
         output=output,
-        loglevel='warn',
+        loglevel=loglevel,
     )
 
 
@@ -46,7 +49,7 @@ def main():
             seed = rng.randint(0, 2**19)
             output = '%s-%07d.fits' % (args.run, seed)
 
-            tinput = (sim_config, seed, args.ntrial, output)
+            tinput = (sim_config, seed, args.ntrial, output, args.loglevel)
 
             inputs.append(tinput)
 
