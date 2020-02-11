@@ -18,9 +18,11 @@ from mdet_lsst_sim import util, vis
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output', required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run')
+    parser.add_argument('--output', required=True, help='output file path')
     parser.add_argument('--config', required=True, help='simulation config')
-    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
     parser.add_argument('--nostack', action='store_true',
                         help=('just do weighted sum coadd and run '
@@ -116,7 +118,7 @@ def main():
             md.go()
             res = md.result
 
-            comb_data = util.make_comb_data(args, res)
+            comb_data = util.make_comb_data(res, full_output=args.full_output)
             if len(comb_data) > 0:
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
