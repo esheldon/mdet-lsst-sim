@@ -19,7 +19,7 @@ def get_args():
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
     parser.add_argument('--loglevel', default='warn',
-                        help='log level, defauling to warn for mpi')
+                        help='log level, defaulting to warn for mpi')
 
     return parser.parse_args()
 
