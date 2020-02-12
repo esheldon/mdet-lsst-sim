@@ -12,6 +12,7 @@ SLURM_TEMPLATE = r"""#!/bin/bash
 #SBATCH --nodes=%(nodes)d
 #SBATCH --ntasks-per-node=36
 #SBATCH --output=%(logfile)s
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=esheldon@lcrc.anl.gov
 #SBATCH --time=%(walltime)s
 

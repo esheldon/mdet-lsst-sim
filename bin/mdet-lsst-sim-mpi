@@ -5,6 +5,7 @@ import numpy as np
 from mdet_lsst_sim.run import run
 import esutil as eu
 import navy
+import time
 
 
 def get_args():
@@ -40,6 +41,7 @@ def main():
     args = get_args()
 
     if navy.rank == navy.ADMIRAL:
+        tm0 = time.time()
         sim_config = eu.io.read(args.config)
 
         rng = np.random.RandomState(args.seed)
@@ -56,6 +58,8 @@ def main():
         admiral = navy.Admiral(inputs)
         admiral.orchestrate()
 
+        tm_minutes = (time.time()-tm0)/60.0
+        print('time: %g minutes' % tm_minutes)
     else:
         ship = navy.Ship(dorun)
         ship.go()
