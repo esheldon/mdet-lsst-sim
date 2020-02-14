@@ -3,7 +3,7 @@ import numpy as np
 import argparse
 import fitsio
 import esutil as eu
-import navy
+from mpi4py.futures import MPIPoolExecutor
 
 
 def get_summed(data):
@@ -168,34 +168,27 @@ def get_args():
 
 def main():
 
-    if navy.rank == navy.ADMIRAL:
+    args = get_args()
+    flist = get_flist(args)
+    print('processing:', len(flist))
 
-        args = get_args()
-        flist = get_flist(args)
-        print('processing:', len(flist))
+    nf = len(flist)
+    inputs = [(i, nf, f) for i, f in enumerate(flist)]
 
-        nf = len(flist)
-        inputs = [(i, nf, f) for i, f in enumerate(flist)]
+    with MPIPoolExecutor() as executor:
+        dlist = list(executor.map(read_one, inputs))
 
-        admiral = navy.Admiral(inputs)
-        admiral.orchestrate()
+    print('processed:', len(flist))
 
-        dlist = admiral.reports
+    data = eu.numpy_util.combine_arrlist(dlist)
 
-        print('processed:', len(flist))
+    m1, m1err, c2, c2err = jackknife(data)
+    tup = (m1, m1err*args.nsigma, args.nsigma)
+    print('m1: %g +/- %g (%d sigma)' % tup)
 
-        data = eu.numpy_util.combine_arrlist(dlist)
-
-        m1, m1err, c2, c2err = jackknife(data)
-        tup = (m1, m1err*args.nsigma, args.nsigma)
-        print('m1: %g +/- %g (%d sigma)' % tup)
-
-        tup = (c2, c2err*args.nsigma, args.nsigma)
-        print('c2: %g +/- %g (%d sigma)' % tup)
-
-    else:
-        ship = navy.Ship(read_one)
-        ship.go()
+    tup = (c2, c2err*args.nsigma, args.nsigma)
+    print('c2: %g +/- %g (%d sigma)' % tup)
 
 
-main()
+if __name__ == '__main__':
+    main()
