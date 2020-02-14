@@ -4,8 +4,8 @@ import argparse
 import numpy as np
 from mdet_lsst_sim.run import run
 import esutil as eu
-import navy
 import time
+from mpi4py.futures import MPIPoolExecutor
 
 
 def get_args():
@@ -40,29 +40,25 @@ def main():
 
     args = get_args()
 
-    if navy.rank == navy.ADMIRAL:
-        tm0 = time.time()
-        sim_config = eu.io.read(args.config)
+    tm0 = time.time()
+    sim_config = eu.io.read(args.config)
 
-        rng = np.random.RandomState(args.seed)
+    rng = np.random.RandomState(args.seed)
 
-        inputs = []
-        for i in range(args.njobs):
-            seed = rng.randint(0, 2**19)
-            output = '%s-%07d.fits' % (args.run, seed)
+    inputs = []
+    for i in range(args.njobs):
+        seed = rng.randint(0, 2**19)
+        output = '%s-%07d.fits' % (args.run, seed)
 
-            tinput = (sim_config, seed, args.ntrial, output, args.loglevel)
+        tinput = (sim_config, seed, args.ntrial, output, args.loglevel)
 
-            inputs.append(tinput)
+        inputs.append(tinput)
 
-        admiral = navy.Admiral(inputs)
-        admiral.orchestrate()
+    with MPIPoolExecutor() as executor:
+        executor.map(dorun, inputs)
 
-        tm_minutes = (time.time()-tm0)/60.0
-        print('time: %g minutes' % tm_minutes)
-    else:
-        ship = navy.Ship(dorun)
-        ship.go()
+    tm_minutes = (time.time()-tm0)/60.0
+    print('time: %g minutes' % tm_minutes)
 
 
 if __name__ == '__main__':

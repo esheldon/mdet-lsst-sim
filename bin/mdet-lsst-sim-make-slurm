@@ -20,7 +20,8 @@ export OMP_NUM_THREADS=1
 
 echo `which python`
 
-srun -n %(total_cores)d mdet-lsst-sim-mpi \
+srun -n $SLURM_NTASKS --mpi=pmi2 \
+    python -m mpi4py.futures $(which mdet-lsst-sim-mpi) \
     --run %(run)s \
     --config %(sim_config)s \
     --njobs %(njobs)d \
@@ -82,15 +83,12 @@ def main():
     if os.path.exists(slurm_file):
         raise RuntimeError('script already exists: %s' % slurm_file)
 
-    total_cores = args.nodes * 36
-
     with open(slurm_file, 'w') as fobj:
         text = SLURM_TEMPLATE % {
             'job_name': job_name,
             'nodes': args.nodes,
             'logfile': logfile,
             'walltime': args.walltime,
-            'total_cores': total_cores,
             'run': args.run,
             'sim_config': sim_config_base,
             'njobs': args.njobs,
