@@ -3,7 +3,6 @@ import os
 import numpy as np
 import argparse
 import shutil
-import esutil as eu
 
 
 CONDOR_SUBMIT_HEAD = """
@@ -12,7 +11,7 @@ Universe = vanilla
 Notification = Never
 
 # Run this exe with these args
-Executable = mdet-lsst-sim
+Executable = run.sh
 
 Image_Size =  1000000
 
@@ -23,9 +22,8 @@ kill_sig = SIGINT
 should_transfer_files = YES
 transfer_input_files = %(sim_config)s
 
-# we don't want open file handles, so transfer when
-# the job completes or is evicted
-when_to_transfer_output = ON_EXIT_OR_EVICT
+# so transfer when the job completes
+when_to_transfer_output = ON_EXIT
 
 environment = "OMP_NUM_THREADS=1"
 
@@ -34,23 +32,14 @@ environment = "OMP_NUM_THREADS=1"
 
 CONDOR_JOB_TEMPLATE = """
 +job_name = "%(job_name)s"
-Output = %(logfile)s
-Arguments = "--seed %(seed)d --config %(sim_config)s --ntrial %(ntrial)d --output %(output)s"
+transfer_output_files = %(output)s,%(logfile)s
+Arguments = %(seed)d %(output)s %(logfile)s
 Queue
 """  # noqa
 
 
-def get_script_file_full():
-    res = eu.ostools.exec_process(['which', 'mdet-lsst-sim'])
-    assert res[0] == 0
-
-    return str(res[1], 'utf-8').strip()
-
-
-def copy_script_file():
-    script_file = get_script_file_full()
-    print('copying', script_file)
-    shutil.copy(script_file, '.')
+def get_script_file():
+    return 'run.sh'
 
 
 def copy_config_file(config_file):
@@ -77,6 +66,33 @@ def get_logfile(run, seed):
     return '%s.log' % name
 
 
+SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
+seed=$1
+output=$2
+logfile=$3
+
+mdet-lsst-sim \
+    --seed ${seed} \
+    --config %(sim_config)s \
+    --ntrial %(ntrial)d \
+    --output ${output} &> ${logfile}
+"""
+
+
+def write_script(*, ntrial, sim_config):
+
+    script_file = get_script_file()
+    print('writing:', script_file)
+    with open(script_file, 'w') as fobj:
+        text = SCRIPT_TEMPLATE % {
+            'ntrial': ntrial,
+            'sim_config': sim_config,
+        }
+        fobj.write(text)
+
+    os.system('chmod 755 %s' % script_file)
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', required=True)
@@ -92,7 +108,6 @@ def get_args():
 def main():
     args = get_args()
 
-    copy_script_file()
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
 
@@ -102,6 +117,8 @@ def main():
 
     if os.path.exists(condor_file):
         raise RuntimeError('script already exists: %s' % condor_file)
+
+    write_script(ntrial=args.ntrial, sim_config=sim_config_base)
 
     with open(condor_file, 'w') as fobj:
         fobj.write(CONDOR_SUBMIT_HEAD % {
@@ -117,11 +134,9 @@ def main():
 
             job_text = CONDOR_JOB_TEMPLATE % {
                 'job_name': job_name,
-                'logfile': logfile,
                 'seed': seed,
-                'sim_config': sim_config_base,
-                'ntrial': args.ntrial,
                 'output': output,
+                'logfile': logfile,
             }
 
             fobj.write(job_text)
