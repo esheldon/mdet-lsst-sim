@@ -23,9 +23,14 @@ def get_args():
                         help='write all output columns')
 
     parser.add_argument('--show', action='store_true')
+    parser.add_argument('--show-sheared', action='store_true',
+                        help='show sheared images')
+    parser.add_argument('--show-masks', action='store_true',
+                        help='just show image/masks in ds9')
     parser.add_argument('--show-sim', action='store_true',
                         help='show the sim image')
 
+    parser.add_argument('--loglevel', default='info', help='logging level')
     return parser.parse_args()
 
 
@@ -44,8 +49,11 @@ def main():
         output=args.output,
         full_output=args.full_output,
         show=args.show,
+        show_sheared=args.show_sheared,
+        show_masks=args.show_masks,
         show_sim=args.show_sim,
         nostack=args.nostack,
+        loglevel=args.loglevel,
     )
 
     tm_seconds = time.time()-tm0

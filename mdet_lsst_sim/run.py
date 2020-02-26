@@ -4,6 +4,7 @@ import logging
 import numpy as np
 
 from descwl_shear_sims import Sim
+import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
 from metadetect.lsst_metadetect import LSSTMetadetect
@@ -21,6 +22,8 @@ def run(*,
         output,
         full_output=False,
         show=False,
+        show_sheared=False,
+        show_masks=False,
         show_sim=False,
         nostack=False,
         loglevel='info'):
@@ -43,6 +46,11 @@ def run(*,
 
         for shear_type in ('1p', '1m'):
             logger.info(str(shear_type))
+
+            if shear_type == '1p':
+                send_show=show
+            else:
+                send_show=False
 
             sim_kw = copy.deepcopy(sim_config)
             sim_kw['g2'] = 0.0
@@ -68,7 +76,7 @@ def run(*,
                     mdet_config,
                     coadd_mbobs,
                     trial_rng,
-                    show=show,
+                    show=send_show,
                 )
             else:
 
@@ -82,9 +90,11 @@ def run(*,
                     coadd_dims=[sim.coadd_dim]*2,
                     psf_dims=[psf_dim]*2,
                     byband=False,
-                    show=show,
+                    show=send_show,
                     loglevel=loglevel,
                 )
+                if show_masks and shear_type == '1p':
+                    show_all_masks(mbc.exps)
 
                 coadd_obs = mbc.coadds['all']
                 coadd_mbobs = util.make_mbobs(coadd_obs)
@@ -93,7 +103,7 @@ def run(*,
                     mdet_config,
                     coadd_mbobs,
                     trial_rng,
-                    show=show,
+                    show=show_sheared,
                     loglevel=loglevel,
                 )
 
@@ -114,3 +124,9 @@ def run(*,
     with fitsio.FITS(output, 'rw', clobber=True) as fits:
         fits.write(data_1p, extname='1p')
         fits.write(data_1m, extname='1m')
+
+def show_all_masks(exps):
+    for exp in exps:
+        descwl_coadd.vis.show_image_and_mask(exp)
+        if 'q' == input('hit a key (q to quit) '):
+            raise KeyboardInterrupt('halting at user request')
