@@ -111,7 +111,9 @@ def run(*,
             res = md.result
 
             comb_data = util.make_comb_data(res, full_output=full_output)
+
             if len(comb_data) > 0:
+                comb_data['star_density'] = sim.star_density
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:

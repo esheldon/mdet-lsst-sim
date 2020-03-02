@@ -93,7 +93,10 @@ def trim_output(data):
 
 
 def make_comb_data(res, full_output=False):
-    add_dt = [('shear_type', 'S7')]
+    add_dt = [
+        ('shear_type', 'S7'),
+        ('star_density', 'f4'),
+    ]
 
     dlist = []
     for stype in res.keys():
