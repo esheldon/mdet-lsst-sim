@@ -83,6 +83,7 @@ def jackknife(data):
 def get_sums(data, stype):
     w, = np.where(
         (data['wmom_s2n'] > 10) &
+        (data['wmom_s2n'] < 100) &
         (data['wmom_T_ratio'] > 1.2) &
         (data['flags'] == 0) &
         (data['shear_type'] == stype)
@@ -91,9 +92,17 @@ def get_sums(data, stype):
     return g_sum, w.size
 
 
+def cut_star_density(*, data, max_star_density):
+    w, = np.where(data['star_density'] < max_star_density)
+    if w.size == 0:
+        return None
+    else:
+        return data[w]
+
+
 def read_one(inputs):
 
-    index, nf, fname = inputs
+    index, nf, fname, max_star_density = inputs
     print('%d/%d %s' % (index+1, nf, fname))
 
     dt = [
@@ -116,9 +125,18 @@ def read_one(inputs):
 
     d = np.zeros(1, dtype=dt)
 
-    with fitsio.FITS(fname) as fobj:
-        data_1p = fobj['1p'].read()
-        data_1m = fobj['1m'].read()
+    try:
+        with fitsio.FITS(fname) as fobj:
+            data_1p = fobj['1p'].read()
+            data_1m = fobj['1m'].read()
+    except OSError as err:
+        print(err)
+        return None
+
+    data_1p = cut_star_density(data=data_1p, max_star_density=max_star_density)
+    data_1m = cut_star_density(data=data_1m, max_star_density=max_star_density)
+    if data_1p is None or data_1m is None:
+        return None
 
     # from 1p ext
     tg_sum, tn = get_sums(data_1p, 'noshear')
@@ -163,6 +181,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--flist', '-F', required=True)
     parser.add_argument('--nsigma', type=int, default=3)
+    parser.add_argument('--max-star-density', type=float, default=20)
     return parser.parse_args()
 
 
@@ -173,12 +192,14 @@ def main():
     print('processing:', len(flist))
 
     nf = len(flist)
-    inputs = [(i, nf, f) for i, f in enumerate(flist)]
+    inputs = [(i, nf, f, args.max_star_density) for i, f in enumerate(flist)]
 
     with MPIPoolExecutor() as executor:
         dlist = list(executor.map(read_one, inputs))
 
     print('processed:', len(flist))
+
+    dlist = [d for d in dlist if d is not None]
 
     data = eu.numpy_util.combine_arrlist(dlist)
 
