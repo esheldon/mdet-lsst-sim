@@ -26,10 +26,11 @@ def run(*,
         show_masks=False,
         show_sim=False,
         nostack=False,
+        use_sx=False,
         loglevel='info'):
 
     rng = np.random.RandomState(seed)
-    mdet_config = util.get_config(nostack=nostack)
+    mdet_config = util.get_config(nostack=nostack, use_sx=use_sx)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
@@ -99,13 +100,21 @@ def run(*,
                 coadd_obs = mbc.coadds['all']
                 coadd_mbobs = util.make_mbobs(coadd_obs)
 
-                md = LSSTMetadetect(
-                    mdet_config,
-                    coadd_mbobs,
-                    trial_rng,
-                    show=show_sheared,
-                    loglevel=loglevel,
-                )
+                if use_sx:
+                    md = Metadetect(
+                        mdet_config,
+                        coadd_mbobs,
+                        trial_rng,
+                        show=send_show,
+                    )
+                else:
+                    md = LSSTMetadetect(
+                        mdet_config,
+                        coadd_mbobs,
+                        trial_rng,
+                        show=show_sheared,
+                        loglevel=loglevel,
+                    )
 
             md.go()
             res = md.result
