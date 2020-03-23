@@ -2,7 +2,7 @@ import esutil as eu
 import ngmix
 
 
-def get_config(nostack=False):
+def get_config(nostack=False, use_sx=False):
     """
     metadetect configuration
     """
@@ -23,7 +23,7 @@ def get_config(nostack=False):
         'meds': {},
     }
 
-    if nostack:
+    if nostack or use_sx:
         config['sx'] = {
             # in sky sigma
             # DETECT_THRESH
@@ -84,6 +84,8 @@ def get_config(nostack=False):
 def trim_output(data):
     cols2keep = [
         'flags',
+        'row',
+        'col',
         'wmom_s2n',
         'wmom_T_ratio',
         'wmom_g',
