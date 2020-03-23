@@ -102,7 +102,7 @@ def cut_star_density(*, data, max_star_density):
 
 def read_one(inputs):
 
-    index, nf, fname, max_star_density, args = inputs
+    index, nf, fname, args = inputs
     print('%d/%d %s' % (index+1, nf, fname))
 
     dt = [
@@ -133,8 +133,10 @@ def read_one(inputs):
         print(err)
         return None
 
-    data_1p = cut_star_density(data=data_1p, max_star_density=max_star_density)
-    data_1m = cut_star_density(data=data_1m, max_star_density=max_star_density)
+    data_1p = cut_star_density(data=data_1p,
+                               max_star_density=args.max_star_density)
+    data_1m = cut_star_density(data=data_1m,
+                               max_star_density=args.max_star_density)
     if data_1p is None or data_1m is None:
         return None
 
@@ -193,7 +195,7 @@ def main():
     print('processing:', len(flist))
 
     nf = len(flist)
-    inputs = [(i, nf, f, args.max_star_density, args) for i, f in enumerate(flist)]
+    inputs = [(i, nf, f, args) for i, f in enumerate(flist)]
 
     with MPIPoolExecutor() as executor:
         dlist = list(executor.map(read_one, inputs))
