@@ -14,6 +14,9 @@ def get_args():
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
+    parser.add_argument('--use-sx', action='store_true',
+                        help=('use sx based metadetect'))
+
     parser.add_argument('--nostack', action='store_true',
                         help=('just do weighted sum coadd and run '
                               'metadetect'))
@@ -52,6 +55,7 @@ def main():
         show_sheared=args.show_sheared,
         show_masks=args.show_masks,
         show_sim=args.show_sim,
+        use_sx=args.use_sx,
         nostack=args.nostack,
         loglevel=args.loglevel,
     )
