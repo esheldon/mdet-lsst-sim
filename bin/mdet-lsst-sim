@@ -16,6 +16,8 @@ def get_args():
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
 
     parser.add_argument('--nostack', action='store_true',
                         help=('just do weighted sum coadd and run '
@@ -56,6 +58,7 @@ def main():
         show_masks=args.show_masks,
         show_sim=args.show_sim,
         use_sx=args.use_sx,
+        deblend=args.deblend,
         nostack=args.nostack,
         loglevel=args.loglevel,
     )
