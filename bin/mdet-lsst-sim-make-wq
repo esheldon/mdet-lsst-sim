@@ -14,6 +14,7 @@ command: |
     mdet-lsst-sim \
         --seed %(seed)d \
         %(use_sx)s \
+        %(deblend)s \
         --config %(sim_config)s \
         --ntrial %(ntrial)d \
         --output %(output)s
@@ -46,6 +47,8 @@ def get_args():
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
 
     return parser.parse_args()
 
@@ -63,6 +66,11 @@ def main():
     else:
         use_sx = ''
 
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
     for i in range(args.njobs):
 
         while True:
@@ -78,6 +86,7 @@ def main():
             'job_name': job_name,
             'seed': seed,
             'use_sx': use_sx,
+            'deblend': deblend,
             'sim_config': sim_config_base,
             'ntrial': args.ntrial,
             'output': output,
