@@ -89,6 +89,7 @@ def trim_output(data):
         'flags',
         'row',
         'col',
+        'ormask',
         'wmom_s2n',
         'wmom_T_ratio',
         'wmom_g',
