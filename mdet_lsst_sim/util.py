@@ -21,7 +21,7 @@ def get_config(nostack=False, use_sx=False):
             'fwhm': 1.2,
         },
         'detect': {
-            'thresh': 5.0,
+            'thresh': 10.0,
         },
         'meds': {},
     }
