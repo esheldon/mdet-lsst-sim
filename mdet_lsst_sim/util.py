@@ -20,6 +20,9 @@ def get_config(nostack=False, use_sx=False):
         'weight': {
             'fwhm': 1.2,
         },
+        'detect': {
+            'thresh': 5.0,
+        },
         'meds': {},
     }
 
