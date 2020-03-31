@@ -7,7 +7,7 @@ from descwl_shear_sims import Sim
 import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
-from metadetect.lsst_metadetect import LSSTMetadetect
+from metadetect.lsst_metadetect import LSSTMetadetect, LSSTDeblendMetadetect
 from metadetect.metadetect import Metadetect
 import fitsio
 import esutil as eu
@@ -26,10 +26,12 @@ def run(*,
         show_masks=False,
         show_sim=False,
         nostack=False,
+        use_sx=False,
+        deblend=False,
         loglevel='info'):
 
     rng = np.random.RandomState(seed)
-    mdet_config = util.get_config(nostack=nostack)
+    mdet_config = util.get_config(nostack=nostack, use_sx=use_sx)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
@@ -48,9 +50,9 @@ def run(*,
             logger.info(str(shear_type))
 
             if shear_type == '1p':
-                send_show=show
+                send_show = show
             else:
-                send_show=False
+                send_show = False
 
             sim_kw = copy.deepcopy(sim_config)
             sim_kw['g2'] = 0.0
@@ -99,13 +101,29 @@ def run(*,
                 coadd_obs = mbc.coadds['all']
                 coadd_mbobs = util.make_mbobs(coadd_obs)
 
-                md = LSSTMetadetect(
-                    mdet_config,
-                    coadd_mbobs,
-                    trial_rng,
-                    show=show_sheared,
-                    loglevel=loglevel,
-                )
+                if use_sx:
+                    md = Metadetect(
+                        mdet_config,
+                        coadd_mbobs,
+                        trial_rng,
+                        show=send_show,
+                    )
+                elif deblend:
+                    md = LSSTDeblendMetadetect(
+                        mdet_config,
+                        coadd_mbobs,
+                        trial_rng,
+                        show=show_sheared,
+                        loglevel=loglevel,
+                    )
+                else:
+                    md = LSSTMetadetect(
+                        mdet_config,
+                        coadd_mbobs,
+                        trial_rng,
+                        show=show_sheared,
+                        loglevel=loglevel,
+                    )
 
             md.go()
             res = md.result
@@ -126,6 +144,7 @@ def run(*,
     with fitsio.FITS(output, 'rw', clobber=True) as fits:
         fits.write(data_1p, extname='1p')
         fits.write(data_1m, extname='1m')
+
 
 def show_all_masks(exps):
     for exp in exps:

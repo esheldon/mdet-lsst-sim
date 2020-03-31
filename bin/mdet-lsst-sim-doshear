@@ -80,9 +80,9 @@ def jackknife(data):
     return m1, m1err, c2, c2err
 
 
-def get_sums(data, stype):
+def get_sums(args, data, stype):
     w, = np.where(
-        (data['wmom_s2n'] > 10) &
+        (data['wmom_s2n'] > args.s2n_min) &
         (data['wmom_s2n'] < 100) &
         (data['wmom_T_ratio'] > 1.2) &
         (data['flags'] == 0) &
@@ -102,7 +102,7 @@ def cut_star_density(*, data, max_star_density):
 
 def read_one(inputs):
 
-    index, nf, fname, max_star_density = inputs
+    index, nf, fname, args = inputs
     print('%d/%d %s' % (index+1, nf, fname))
 
     dt = [
@@ -133,16 +133,18 @@ def read_one(inputs):
         print(err)
         return None
 
-    data_1p = cut_star_density(data=data_1p, max_star_density=max_star_density)
-    data_1m = cut_star_density(data=data_1m, max_star_density=max_star_density)
+    data_1p = cut_star_density(data=data_1p,
+                               max_star_density=args.max_star_density)
+    data_1m = cut_star_density(data=data_1m,
+                               max_star_density=args.max_star_density)
     if data_1p is None or data_1m is None:
         return None
 
     # from 1p ext
-    tg_sum, tn = get_sums(data_1p, 'noshear')
+    tg_sum, tn = get_sums(args, data_1p, 'noshear')
 
-    tg_sum_1p, tn_1p = get_sums(data_1p, '1p')
-    tg_sum_1m, tn_1m = get_sums(data_1p, '1m')
+    tg_sum_1p, tn_1p = get_sums(args, data_1p, '1p')
+    tg_sum_1m, tn_1m = get_sums(args, data_1p, '1m')
 
     d['g_ns_sum_1p'] = tg_sum
     d['g_1p_sum_1p'] = tg_sum_1p
@@ -153,10 +155,10 @@ def read_one(inputs):
     d['n_1m_1p'] = tn_1m
 
     # from 1m ext
-    tg_sum, tn = get_sums(data_1m, 'noshear')
+    tg_sum, tn = get_sums(args, data_1m, 'noshear')
 
-    tg_sum_1p, tn_1p = get_sums(data_1m, '1p')
-    tg_sum_1m, tn_1m = get_sums(data_1m, '1m')
+    tg_sum_1p, tn_1p = get_sums(args, data_1m, '1p')
+    tg_sum_1m, tn_1m = get_sums(args, data_1m, '1m')
 
     d['g_ns_sum_1m'] = tg_sum
     d['g_1p_sum_1m'] = tg_sum_1p
@@ -182,6 +184,7 @@ def get_args():
     parser.add_argument('--flist', '-F', required=True)
     parser.add_argument('--nsigma', type=int, default=3)
     parser.add_argument('--max-star-density', type=float, default=20)
+    parser.add_argument('--s2n-min', type=float, default=10)
     return parser.parse_args()
 
 
@@ -192,7 +195,7 @@ def main():
     print('processing:', len(flist))
 
     nf = len(flist)
-    inputs = [(i, nf, f, args.max_star_density) for i, f in enumerate(flist)]
+    inputs = [(i, nf, f, args) for i, f in enumerate(flist)]
 
     with MPIPoolExecutor() as executor:
         dlist = list(executor.map(read_one, inputs))

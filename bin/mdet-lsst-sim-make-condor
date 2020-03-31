@@ -75,11 +75,13 @@ mdet-lsst-sim \
     --seed ${seed} \
     --config %(sim_config)s \
     --ntrial %(ntrial)d \
+    %(use_sx)s \
+    %(deblend)s \
     --output ${output} &> ${logfile}
 """
 
 
-def write_script(*, ntrial, sim_config):
+def write_script(*, ntrial, sim_config, use_sx, deblend):
 
     script_file = get_script_file()
     print('writing:', script_file)
@@ -87,6 +89,8 @@ def write_script(*, ntrial, sim_config):
         text = SCRIPT_TEMPLATE % {
             'ntrial': ntrial,
             'sim_config': sim_config,
+            'use_sx': use_sx,
+            'deblend': deblend,
         }
         fobj.write(text)
 
@@ -102,6 +106,11 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
 
+    parser.add_argument('--use-sx', action='store_true',
+                        help=('use sx based metadetect'))
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
     return parser.parse_args()
 
 
@@ -111,6 +120,16 @@ def main():
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
 
+    if args.use_sx:
+        use_sx = '--use-sx'
+    else:
+        use_sx = ''
+
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
     rng = np.random.RandomState(args.seed)
 
     condor_file = get_condor_script_file(args.run, args.seed)
@@ -118,7 +137,12 @@ def main():
     if os.path.exists(condor_file):
         raise RuntimeError('script already exists: %s' % condor_file)
 
-    write_script(ntrial=args.ntrial, sim_config=sim_config_base)
+    write_script(
+        ntrial=args.ntrial,
+        sim_config=sim_config_base,
+        use_sx=use_sx,
+        deblend=deblend,
+    )
 
     with open(condor_file, 'w') as fobj:
         fobj.write(CONDOR_SUBMIT_HEAD % {
