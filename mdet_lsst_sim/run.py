@@ -82,9 +82,7 @@ def run(*,
                 )
             else:
 
-                psf_dim = int(sim.psf_dim/np.sqrt(3))
-                if psf_dim % 2 == 0:
-                    psf_dim -= 1
+                psf_dim = sim.psf_dim
 
                 mbc = MultiBandCoadds(
                     data=data,
