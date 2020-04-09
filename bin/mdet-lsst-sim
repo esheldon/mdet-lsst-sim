@@ -23,10 +23,10 @@ def get_args():
                         help=('just do weighted sum coadd and run '
                               'metadetect'))
 
-    parser.add_argument('--replace-bright-stars', action='store_true',
-                        help='replace bright stars with noise')
-    parser.add_argument('--interp-bright-stars', action='store_true',
-                        help='interpolate bright star masked regions')
+    parser.add_argument('--replace-bright', action='store_true',
+                        help='replace regions marked bright with noise')
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
 
     parser.add_argument('--full-output',
                         action='store_true',
@@ -65,8 +65,8 @@ def main():
         use_sx=args.use_sx,
         deblend=args.deblend,
         nostack=args.nostack,
-        interp_bright_stars=args.interp_bright_stars,
-        replace_bright_stars=args.replace_bright_stars,
+        interp_bright=args.interp_bright,
+        replace_bright=args.replace_bright,
         loglevel=args.loglevel,
     )
 

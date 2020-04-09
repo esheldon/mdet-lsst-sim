@@ -28,8 +28,8 @@ def run(*,
         nostack=False,
         use_sx=False,
         deblend=False,
-        interp_bright_stars=False,
-        replace_bright_stars=False,
+        interp_bright=False,
+        replace_bright=False,
         loglevel='info'):
 
     rng = np.random.RandomState(seed)
@@ -88,8 +88,8 @@ def run(*,
 
                 mbc = MultiBandCoadds(
                     rng=trial_rng,
-                    interp_bright_stars=interp_bright_stars,
-                    replace_bright_stars=replace_bright_stars,
+                    interp_bright=interp_bright,
+                    replace_bright=replace_bright,
                     data=data,
                     coadd_wcs=sim.coadd_wcs,
                     coadd_dims=[sim.coadd_dim]*2,
