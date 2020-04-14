@@ -19,6 +19,13 @@ def get_args():
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
+    parser.add_argument('--replace-bright', action='store_true',
+                        help='replace regions marked bright with noise')
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
     parser.add_argument('--loglevel', default='warn',
                         help='log level, defaulting to warn for mpi')
 
@@ -26,13 +33,16 @@ def get_args():
 
 
 def dorun(inputs):
-    sim_config, seed, ntrial, output, loglevel = inputs
+    args, sim_config, seed, output = inputs
     run(
         sim_config=sim_config,
         seed=seed,
-        ntrial=ntrial,
+        ntrial=args.ntrial,
+        deblend=args.deblend,
+        interp_bright=args.interp_bright,
+        replace_bright=args.replace_bright,
         output=output,
-        loglevel=loglevel,
+        loglevel=args.loglevel,
     )
 
 
@@ -50,7 +60,12 @@ def main():
         seed = rng.randint(0, 2**19)
         output = '%s-%07d.fits' % (args.run, seed)
 
-        tinput = (sim_config, seed, args.ntrial, output, args.loglevel)
+        tinput = (
+            args,
+            sim_config,
+            seed,
+            output,
+        )
 
         inputs.append(tinput)
 

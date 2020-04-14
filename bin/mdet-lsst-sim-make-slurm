@@ -26,6 +26,9 @@ srun -n $SLURM_NTASKS --mpi=pmi2 \
     --config %(sim_config)s \
     --njobs %(njobs)d \
     --ntrial %(ntrial)d \
+    %(deblend)s \
+    %(replace_bright)s \
+    %(interp_bright)s \
     --seed %(seed)d
 """
 
@@ -83,6 +86,21 @@ def main():
     if os.path.exists(slurm_file):
         raise RuntimeError('script already exists: %s' % slurm_file)
 
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
+    if args.replace_bright:
+        replace_bright = '--replace-bright'
+    else:
+        replace_bright = ''
+
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
     with open(slurm_file, 'w') as fobj:
         text = SLURM_TEMPLATE % {
             'job_name': job_name,
@@ -93,6 +111,9 @@ def main():
             'sim_config': sim_config_base,
             'njobs': args.njobs,
             'ntrial': args.ntrial,
+            'deblend': deblend,
+            'replace_bright': replace_bright,
+            'interp_bright': interp_bright,
             'seed': args.seed,
         }
         fobj.write(text)
