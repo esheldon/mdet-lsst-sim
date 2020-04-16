@@ -23,6 +23,11 @@ def get_args():
                         help=('just do weighted sum coadd and run '
                               'metadetect'))
 
+    parser.add_argument('--replace-bright', action='store_true',
+                        help='replace regions marked bright with noise')
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+
     parser.add_argument('--full-output',
                         action='store_true',
                         help='write all output columns')
@@ -60,6 +65,8 @@ def main():
         use_sx=args.use_sx,
         deblend=args.deblend,
         nostack=args.nostack,
+        interp_bright=args.interp_bright,
+        replace_bright=args.replace_bright,
         loglevel=args.loglevel,
     )
 

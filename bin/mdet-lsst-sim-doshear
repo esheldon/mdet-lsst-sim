@@ -3,7 +3,20 @@ import numpy as np
 import argparse
 import fitsio
 import esutil as eu
+from descwl_shear_sims.lsst_bits import BRIGHT
 from mpi4py.futures import MPIPoolExecutor
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--flist', '-F', required=True)
+    parser.add_argument('--max-star-density', type=float, default=20)
+    parser.add_argument('--s2n-min', type=float, default=10)
+    parser.add_argument('--s2n-max', type=float, default=1000)
+    parser.add_argument('--Tratio-min', type=float, default=1.2)
+    parser.add_argument('--cut-bright', action='store_true',
+                        help='cut objects found in regions marked BRIGHT')
+    return parser.parse_args()
 
 
 def get_summed(data):
@@ -81,13 +94,18 @@ def jackknife(data):
 
 
 def get_sums(args, data, stype):
-    w, = np.where(
-        (data['wmom_s2n'] > args.s2n_min) &
-        (data['wmom_s2n'] < 100) &
-        (data['wmom_T_ratio'] > 1.2) &
+    logic = (
         (data['flags'] == 0) &
-        (data['shear_type'] == stype)
+        (data['shear_type'] == stype) &
+        (data['wmom_s2n'] > args.s2n_min) &
+        (data['wmom_s2n'] < args.s2n_max) &
+        (data['wmom_T_ratio'] > args.Tratio_min)
     )
+    if args.cut_bright:
+        logic = logic & (
+            (data['ormask'] & BRIGHT == 0)
+        )
+    w, = np.where(logic)
     g_sum = data['wmom_g'][w].sum(axis=0)
     return g_sum, w.size
 
@@ -179,13 +197,19 @@ def get_flist(args):
     return flist
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--flist', '-F', required=True)
-    parser.add_argument('--nsigma', type=int, default=3)
-    parser.add_argument('--max-star-density', type=float, default=20)
-    parser.add_argument('--s2n-min', type=float, default=10)
-    return parser.parse_args()
+def print_range(val, err, name):
+    """
+    print the confidence range 99.7% confidence
+    """
+
+    nsigma = 3
+    tup = (
+        val - err*nsigma,
+        name,
+        val + err*nsigma,
+    )
+
+    print('%g < %s < %g (99.7%%)' % tup)
 
 
 def main():
@@ -207,11 +231,9 @@ def main():
     data = eu.numpy_util.combine_arrlist(dlist)
 
     m1, m1err, c2, c2err = jackknife(data)
-    tup = (m1, m1err*args.nsigma, args.nsigma)
-    print('m1: %g +/- %g (%d sigma)' % tup)
 
-    tup = (c2, c2err*args.nsigma, args.nsigma)
-    print('c2: %g +/- %g (%d sigma)' % tup)
+    print_range(m1, m1err, 'm1')
+    print_range(c2, c2err, 'c2')
 
 
 if __name__ == '__main__':

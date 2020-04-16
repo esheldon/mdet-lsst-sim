@@ -26,6 +26,9 @@ srun -n $SLURM_NTASKS --mpi=pmi2 \
     --config %(sim_config)s \
     --njobs %(njobs)d \
     --ntrial %(ntrial)d \
+    %(deblend)s \
+    %(replace_bright)s \
+    %(interp_bright)s \
     --seed %(seed)d
 """
 
@@ -64,6 +67,14 @@ def get_args():
                         help='number of jobs to run in our homespun queue')
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to do in each job')
+
+    parser.add_argument('--replace-bright', action='store_true',
+                        help='replace regions marked bright with noise')
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
     parser.add_argument('--walltime', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
@@ -83,6 +94,21 @@ def main():
     if os.path.exists(slurm_file):
         raise RuntimeError('script already exists: %s' % slurm_file)
 
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
+    if args.replace_bright:
+        replace_bright = '--replace-bright'
+    else:
+        replace_bright = ''
+
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
     with open(slurm_file, 'w') as fobj:
         text = SLURM_TEMPLATE % {
             'job_name': job_name,
@@ -93,6 +119,9 @@ def main():
             'sim_config': sim_config_base,
             'njobs': args.njobs,
             'ntrial': args.ntrial,
+            'deblend': deblend,
+            'replace_bright': replace_bright,
+            'interp_bright': interp_bright,
             'seed': args.seed,
         }
         fobj.write(text)
