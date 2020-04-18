@@ -93,6 +93,7 @@ def trim_output(data):
         'wmom_s2n',
         'wmom_T_ratio',
         'wmom_g',
+        'wmom_g_cov',
     ]
 
     return eu.numpy_util.extract_fields(data, cols2keep)
