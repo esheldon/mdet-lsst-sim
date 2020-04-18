@@ -16,6 +16,7 @@ def get_args():
     parser.add_argument('--Tratio-min', type=float, default=1.2)
     parser.add_argument('--cut-bright', action='store_true',
                         help='cut objects found in regions marked BRIGHT')
+    parser.add_argument('--use-weights', action='store_true')
     return parser.parse_args()
 
 
@@ -38,17 +39,17 @@ def sub1(data, subdata):
 
 
 def get_m1(data):
-    g1_1p = data['g_ns_sum_1p'][0]/data['n_ns_1p']
-    g1_1p_1p = data['g_1p_sum_1p'][0]/data['n_1p_1p']
-    g1_1m_1p = data['g_1m_sum_1p'][0]/data['n_1m_1p']
+    g1_1p = data['g_ns_sum_1p'][0]/data['wsum_ns_1p']
+    g1_1p_1p = data['g_1p_sum_1p'][0]/data['wsum_1p_1p']
+    g1_1m_1p = data['g_1m_sum_1p'][0]/data['wsum_1m_1p']
 
     R11_1p = (g1_1p_1p - g1_1m_1p)/0.02  # noqa
 
     s1_1p = g1_1p/R11_1p
 
-    g1_1m = data['g_ns_sum_1m'][0]/data['n_ns_1m']
-    g1_1p_1m = data['g_1p_sum_1m'][0]/data['n_1p_1m']
-    g1_1m_1m = data['g_1m_sum_1m'][0]/data['n_1m_1m']
+    g1_1m = data['g_ns_sum_1m'][0]/data['wsum_ns_1m']
+    g1_1p_1m = data['g_1p_sum_1m'][0]/data['wsum_1p_1m']
+    g1_1m_1m = data['g_1m_sum_1m'][0]/data['wsum_1m_1m']
 
     R11_1m = (g1_1p_1m - g1_1m_1m)/0.02  # noqa
 
@@ -59,8 +60,8 @@ def get_m1(data):
 
 
 def get_c2(data):
-    g2_1p = data['g_ns_sum_1p'][1]/data['n_ns_1p']
-    g2_1m = data['g_ns_sum_1m'][1]/data['n_ns_1m']
+    g2_1p = data['g_ns_sum_1p'][1]/data['wsum_ns_1p']
+    g2_1m = data['g_ns_sum_1m'][1]/data['wsum_ns_1m']
 
     c2 = (g2_1p + g2_1m)/2
     return c2
@@ -93,6 +94,11 @@ def jackknife(data):
     return m1, m1err, c2, c2err
 
 
+def get_weights(data, ind):
+    err_term = (2/data['wmom_s2n'][ind])
+    return 1.0/(0.2**2 + err_term**2)
+
+
 def get_sums(args, data, stype):
     logic = (
         (data['flags'] == 0) &
@@ -106,8 +112,20 @@ def get_sums(args, data, stype):
             (data['ormask'] & BRIGHT == 0)
         )
     w, = np.where(logic)
-    g_sum = data['wmom_g'][w].sum(axis=0)
-    return g_sum, w.size
+
+    g_sum = np.zeros(2)
+
+    if args.use_weights:
+        wts = get_weights(data, w)
+        g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
+        g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
+        wsum = wts.sum()
+    else:
+        g_sum[0] = data['wmom_g'][w, 0].sum()
+        g_sum[1] = data['wmom_g'][w, 1].sum()
+        wsum = w.size
+
+    return g_sum, wsum
 
 
 def cut_star_density(*, data, max_star_density):
@@ -128,17 +146,17 @@ def read_one(inputs):
         ('g_1p_sum_1p', ('f8', 2)),
         ('g_1m_sum_1p', ('f8', 2)),
 
-        ('n_ns_1p', 'i8'),
-        ('n_1p_1p', 'i8'),
-        ('n_1m_1p', 'i8'),
+        ('wsum_ns_1p', 'f8'),
+        ('wsum_1p_1p', 'f8'),
+        ('wsum_1m_1p', 'f8'),
 
         ('g_ns_sum_1m', ('f8', 2)),
         ('g_1p_sum_1m', ('f8', 2)),
         ('g_1m_sum_1m', ('f8', 2)),
 
-        ('n_ns_1m', 'i8'),
-        ('n_1p_1m', 'i8'),
-        ('n_1m_1m', 'i8'),
+        ('wsum_ns_1m', 'f8'),
+        ('wsum_1p_1m', 'f8'),
+        ('wsum_1m_1m', 'f8'),
     ]
 
     d = np.zeros(1, dtype=dt)
@@ -159,32 +177,32 @@ def read_one(inputs):
         return None
 
     # from 1p ext
-    tg_sum, tn = get_sums(args, data_1p, 'noshear')
+    tg_sum, wsum = get_sums(args, data_1p, 'noshear')
 
-    tg_sum_1p, tn_1p = get_sums(args, data_1p, '1p')
-    tg_sum_1m, tn_1m = get_sums(args, data_1p, '1m')
+    tg_sum_1p, wsum_1p = get_sums(args, data_1p, '1p')
+    tg_sum_1m, wsum_1m = get_sums(args, data_1p, '1m')
 
     d['g_ns_sum_1p'] = tg_sum
     d['g_1p_sum_1p'] = tg_sum_1p
     d['g_1m_sum_1p'] = tg_sum_1m
 
-    d['n_ns_1p'] = tn
-    d['n_1p_1p'] = tn_1p
-    d['n_1m_1p'] = tn_1m
+    d['wsum_ns_1p'] = wsum
+    d['wsum_1p_1p'] = wsum_1p
+    d['wsum_1m_1p'] = wsum_1m
 
     # from 1m ext
-    tg_sum, tn = get_sums(args, data_1m, 'noshear')
+    tg_sum, wsum = get_sums(args, data_1m, 'noshear')
 
-    tg_sum_1p, tn_1p = get_sums(args, data_1m, '1p')
-    tg_sum_1m, tn_1m = get_sums(args, data_1m, '1m')
+    tg_sum_1p, wsum_1p = get_sums(args, data_1m, '1p')
+    tg_sum_1m, wsum_1m = get_sums(args, data_1m, '1m')
 
     d['g_ns_sum_1m'] = tg_sum
     d['g_1p_sum_1m'] = tg_sum_1p
     d['g_1m_sum_1m'] = tg_sum_1m
 
-    d['n_ns_1m'] = tn
-    d['n_1p_1m'] = tn_1p
-    d['n_1m_1m'] = tn_1m
+    d['wsum_ns_1m'] = wsum
+    d['wsum_1p_1m'] = wsum_1p
+    d['wsum_1m_1m'] = wsum_1m
 
     return d
 
