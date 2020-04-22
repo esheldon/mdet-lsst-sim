@@ -253,7 +253,7 @@ def main():
 
     m1, m1err, c2, c2err = jackknife(data)
 
-    print('m1err:', m1err)
+    print('m1err: %g (99.7%%)' % (m1err*3,))
 
     print_range(m1, m1err, 'm1')
     print_range(c2, c2err, 'c2')

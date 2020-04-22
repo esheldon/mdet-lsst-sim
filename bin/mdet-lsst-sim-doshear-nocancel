@@ -17,6 +17,10 @@ def get_args():
     parser.add_argument('--cut-bright', action='store_true',
                         help='cut objects found in regions marked BRIGHT')
     parser.add_argument('--use-weights', action='store_true')
+
+    parser.add_argument('--nojack', action='store_true',
+                        help='do not jackknife')
+
     return parser.parse_args()
 
 
@@ -49,6 +53,41 @@ def get_m1(data):
 
     m1 = s1/0.02 - 1
     return m1
+
+
+def get_m1_nojack(data):
+    g1 = data['g_ns_sum'][0]/data['wsum_ns']
+    g1_1p = data['g_1p_sum'][0]/data['wsum_1p']
+    g1_1m = data['g_1m_sum'][0]/data['wsum_1m']
+
+    R11 = (g1_1p - g1_1m)/0.02  # noqa
+
+    s1 = g1/R11
+
+    gerrsq_sum = data['gsq_ns_sum'][0] - g1**2 * data['wsq_ns_sum']
+    g1err = np.sqrt(gerrsq_sum)/data['wsum_ns']
+    s1err = g1err/R11
+
+    m1 = s1/0.02 - 1
+    m1err = s1err/0.02
+    return m1, m1err
+
+
+def get_c2_nojack(data):
+    c2 = data['g_ns_sum'][1]/data['wsum_ns']
+
+    gerrsq_sum = data['gsq_ns_sum'][1] - c2**2 * data['wsq_ns_sum']
+    c2err = np.sqrt(gerrsq_sum)/data['wsum_ns']
+
+    return c2, c2err
+
+
+def get_averages(data):
+    sdata = get_summed(data)
+    m1, m1err = get_m1_nojack(sdata)
+    c2, c2err = get_c2_nojack(sdata)
+
+    return m1, m1err, c2, c2err
 
 
 def get_c2(data):
@@ -106,18 +145,25 @@ def get_sums(args, data, stype):
     w, = np.where(logic)
 
     g_sum = np.zeros(2)
+    gsq_sum = np.zeros(2)
 
     if args.use_weights:
         wts = get_weights(data, w)
         g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
         g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
+        gsq_sum[0] = (wts*data['wmom_g'][w, 0]**2).sum()
+        gsq_sum[1] = (wts*data['wmom_g'][w, 1]**2).sum()
         wsum = wts.sum()
+        wsq_sum = (wts**2).sum()
     else:
         g_sum[0] = data['wmom_g'][w, 0].sum()
         g_sum[1] = data['wmom_g'][w, 1].sum()
+        gsq_sum[0] = (data['wmom_g'][w, 0]**2).sum()
+        gsq_sum[1] = (data['wmom_g'][w, 1]**2).sum()
         wsum = w.size
+        wsq_sum = w.size
 
-    return g_sum, wsum
+    return g_sum, gsq_sum, wsum, wsq_sum
 
 
 def cut_star_density(*, data, max_star_density):
@@ -135,10 +181,12 @@ def read_one(inputs):
 
     dt = [
         ('g_ns_sum', ('f8', 2)),
+        ('gsq_ns_sum', ('f8', 2)),
         ('g_1p_sum', ('f8', 2)),
         ('g_1m_sum', ('f8', 2)),
 
         ('wsum_ns', 'f8'),
+        ('wsq_ns_sum', 'f8'),
         ('wsum_1p', 'f8'),
         ('wsum_1m', 'f8'),
     ]
@@ -164,33 +212,37 @@ def read_one(inputs):
     # data_1m['wmom_g'][:, 0] *= -1
 
     # from 1p ext
-    tg_sum, wsum = get_sums(args, data_1p, 'noshear')
+    tg_sum, tgsq_sum, wsum, wsq_sum = get_sums(args, data_1p, 'noshear')
 
-    tg_sum_1p, wsum_1p = get_sums(args, data_1p, '1p')
-    tg_sum_1m, wsum_1m = get_sums(args, data_1p, '1m')
+    tg_sum_1p, _, wsum_1p, _ = get_sums(args, data_1p, '1p')
+    tg_sum_1m, _, wsum_1m, _ = get_sums(args, data_1p, '1m')
 
     d['g_ns_sum'] = tg_sum
+    d['gsq_ns_sum'] = tgsq_sum
     d['g_1p_sum'] = tg_sum_1p
     d['g_1m_sum'] = tg_sum_1m
 
     d['wsum_ns'] = wsum
+    d['wsq_ns_sum'] = wsq_sum
     d['wsum_1p'] = wsum_1p
     d['wsum_1m'] = wsum_1m
 
     # from 1m ext
-    tg_sum, wsum = get_sums(args, data_1m, 'noshear')
+    tg_sum, tgsq_sum, wsum, wsq_sum = get_sums(args, data_1m, 'noshear')
 
     # we are not tryin to cancel
     tg_sum[0] *= -1
 
-    tg_sum_1p, wsum_1p = get_sums(args, data_1m, '1p')
-    tg_sum_1m, wsum_1m = get_sums(args, data_1m, '1m')
+    tg_sum_1p, _, wsum_1p, _ = get_sums(args, data_1m, '1p')
+    tg_sum_1m, _, wsum_1m, _ = get_sums(args, data_1m, '1m')
 
     d['g_ns_sum'] += tg_sum
+    d['gsq_ns_sum'] += tgsq_sum
     d['g_1p_sum'] += tg_sum_1p
     d['g_1m_sum'] += tg_sum_1m
 
     d['wsum_ns'] += wsum
+    d['wsq_ns_sum'] += wsq_sum
     d['wsum_1p'] += wsum_1p
     d['wsum_1m'] += wsum_1m
 
@@ -238,9 +290,12 @@ def main():
 
     data = eu.numpy_util.combine_arrlist(dlist)
 
-    m1, m1err, c2, c2err = jackknife(data)
+    if args.nojack:
+        m1, m1err, c2, c2err = get_averages(data)
+    else:
+        m1, m1err, c2, c2err = jackknife(data)
 
-    print('m1err:', m1err)
+    print('m1err: %g (99.7%%)' % (m1err*3,))
 
     print_range(m1, m1err, 'm1')
     print_range(c2, c2err, 'c2')
