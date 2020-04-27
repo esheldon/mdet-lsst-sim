@@ -103,6 +103,7 @@ def make_comb_data(res, full_output=False):
     add_dt = [
         ('shear_type', 'S7'),
         ('star_density', 'f4'),
+        ('mask_frac', 'f4'),
     ]
 
     dlist = []
