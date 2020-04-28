@@ -11,6 +11,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--flist', '-F', required=True)
     parser.add_argument('--max-star-density', type=float, default=20)
+    parser.add_argument('--max-mask-frac', type=float, default=1.0)
     parser.add_argument('--s2n-min', type=float, default=10)
     parser.add_argument('--s2n-max', type=float, default=1000)
     parser.add_argument('--Tratio-min', type=float, default=1.2)
@@ -108,7 +109,9 @@ def get_sums(args, data, stype):
         (data['shear_type'] == stype) &
         (data['wmom_s2n'] > args.s2n_min) &
         (data['wmom_s2n'] < args.s2n_max) &
-        (data['wmom_T_ratio'] > args.Tratio_min)
+        (data['wmom_T_ratio'] > args.Tratio_min) &
+        (data['star_density'] < args.max_star_density) &
+        (data['mask_frac'] < args.max_mask_frac)
     )
     if args.cut_bright:
         logic = logic & (
@@ -117,26 +120,21 @@ def get_sums(args, data, stype):
     w, = np.where(logic)
 
     g_sum = np.zeros(2)
+    wsum = 0.0
 
-    if args.use_weights:
-        wts = get_weights(data, w)
-        g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
-        g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
-        wsum = wts.sum()
-    else:
-        g_sum[0] = data['wmom_g'][w, 0].sum()
-        g_sum[1] = data['wmom_g'][w, 1].sum()
-        wsum = w.size
+    if w.size > 0:
+
+        if args.use_weights:
+            wts = get_weights(data, w)
+            g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
+            g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
+            wsum = wts.sum()
+        else:
+            g_sum[0] = data['wmom_g'][w, 0].sum()
+            g_sum[1] = data['wmom_g'][w, 1].sum()
+            wsum = w.size
 
     return g_sum, wsum
-
-
-def cut_star_density(*, data, max_star_density):
-    w, = np.where(data['star_density'] < max_star_density)
-    if w.size == 0:
-        return None
-    else:
-        return data[w]
 
 
 def read_one(inputs):
@@ -172,10 +170,9 @@ def read_one(inputs):
         print(err)
         return None
 
-    data_1p = cut_star_density(data=data_1p,
-                               max_star_density=args.max_star_density)
-    data_1m = cut_star_density(data=data_1m,
-                               max_star_density=args.max_star_density)
+    # data_1p = do_nonshear_cuts(data=data_1p, args=args)
+    # data_1m = do_nonshear_cuts(data=data_1m, args=args)
+
     if data_1p is None or data_1m is None:
         return None
 
