@@ -1,12 +1,10 @@
-# from ..run import run
+from ..run import run
 
 
 def test_nothing():
     pass
 
 
-"""
-Can't run this until we setup dependency installation
 def test_run_smoke():
     run(
         sim_config={},
@@ -14,4 +12,3 @@ def test_run_smoke():
         ntrial=1,
         output=None,
     )
-"""
