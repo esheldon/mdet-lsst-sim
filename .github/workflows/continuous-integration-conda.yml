@@ -31,6 +31,7 @@ jobs:
         run: |
           pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
           pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
+          pip install --no-deps git+https://github.com/esheldon/metadetect.git
       - name: Lint with flake8
         shell: bash -l {0}
         run: |
