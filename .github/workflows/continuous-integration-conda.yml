@@ -42,4 +42,4 @@ jobs:
         shell: bash -l {0}
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          pytest -vv test_github_actions
+          pytest -vv mdet_lsst_sim
