@@ -177,13 +177,16 @@ def run(
 
             comb_data = util.make_comb_data(res, full_output=full_output)
 
+            truth_summary = util.make_truth_summary(sim.object_data)
+
             if shear_type == '1p':
-                truth_summary = util.make_truth_summary(sim.object_data)
                 truth_summary_list.append(truth_summary)
 
             if len(comb_data) > 0:
                 comb_data['star_density'] = sim.star_density
                 comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+                comb_data['min_star_mag'] = truth_summary['min_star_mag']
+
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:

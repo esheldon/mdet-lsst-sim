@@ -104,6 +104,7 @@ def make_comb_data(res, full_output=False):
     add_dt = [
         ('shear_type', 'S7'),
         ('star_density', 'f4'),
+        ('min_star_mag', 'f4'),
         ('mask_frac', 'f4'),
     ]
 
@@ -143,9 +144,8 @@ def make_truth_data_full(object_data):
 
     for i, obj_data in enumerate(object_data):
 
-        otype = obj_data[band]['type']
+        otype = obj_data[bands[0]]['type']
         data['type'][i] = otype
-
 
         if otype == 'star':
             # ordered dict
