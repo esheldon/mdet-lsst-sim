@@ -11,6 +11,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--flist', '-F', required=True)
     parser.add_argument('--max-star-density', type=float, default=20)
+    parser.add_argument('--max-mask-frac', type=float, default=1.0)
     parser.add_argument('--s2n-min', type=float, default=10)
     parser.add_argument('--s2n-max', type=float, default=1000)
     parser.add_argument('--Tratio-min', type=float, default=1.2)
@@ -38,7 +39,7 @@ def sub1(data, subdata):
     return odata
 
 
-def get_m1(data):
+def get_m1_c1(data):
     g1_1p = data['g_ns_sum_1p'][0]/data['wsum_ns_1p']
     g1_1p_1p = data['g_1p_sum_1p'][0]/data['wsum_1p_1p']
     g1_1m_1p = data['g_1m_sum_1p'][0]/data['wsum_1m_1p']
@@ -56,7 +57,8 @@ def get_m1(data):
     s1_1m = g1_1m/R11_1m
 
     m1 = (s1_1p - s1_1m)/0.04 - 1
-    return m1
+    c1 = (g1_1p + g1_1m)/2
+    return m1, c1
 
 
 def get_c2(data):
@@ -69,17 +71,19 @@ def get_c2(data):
 
 def jackknife(data):
     sdata = get_summed(data)
-    m1 = get_m1(sdata)
+    m1, c1 = get_m1_c1(sdata)
     c2 = get_c2(sdata)
 
     m1vals = np.zeros(data.size)
+    c1vals = np.zeros(data.size)
     c2vals = np.zeros(data.size)
 
     for i in range(m1vals.size):
         subdata = sub1(sdata, data[i])
-        tm1 = get_m1(subdata)
+        tm1, tc1 = get_m1_c1(subdata)
         tc2 = get_c2(subdata)
         m1vals[i] = tm1
+        c1vals[i] = tc1
         c2vals[i] = tc2
 
     nchunks = m1vals.size
@@ -88,10 +92,13 @@ def jackknife(data):
     m1cov = fac*((m1 - m1vals)**2).sum()
     m1err = np.sqrt(m1cov)
 
+    c1cov = fac*((c1 - c1vals)**2).sum()
+    c1err = np.sqrt(c1cov)
+
     c2cov = fac*((c2 - c2vals)**2).sum()
     c2err = np.sqrt(c2cov)
 
-    return m1, m1err, c2, c2err
+    return m1, m1err, c1, c1err, c2, c2err
 
 
 def get_weights(data, ind):
@@ -108,7 +115,9 @@ def get_sums(args, data, stype):
         (data['shear_type'] == stype) &
         (data['wmom_s2n'] > args.s2n_min) &
         (data['wmom_s2n'] < args.s2n_max) &
-        (data['wmom_T_ratio'] > args.Tratio_min)
+        (data['wmom_T_ratio'] > args.Tratio_min) &
+        (data['star_density'] < args.max_star_density) &
+        (data['mask_frac'] < args.max_mask_frac)
     )
     if args.cut_bright:
         logic = logic & (
@@ -117,26 +126,21 @@ def get_sums(args, data, stype):
     w, = np.where(logic)
 
     g_sum = np.zeros(2)
+    wsum = 0.0
 
-    if args.use_weights:
-        wts = get_weights(data, w)
-        g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
-        g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
-        wsum = wts.sum()
-    else:
-        g_sum[0] = data['wmom_g'][w, 0].sum()
-        g_sum[1] = data['wmom_g'][w, 1].sum()
-        wsum = w.size
+    if w.size > 0:
+
+        if args.use_weights:
+            wts = get_weights(data, w)
+            g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
+            g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
+            wsum = wts.sum()
+        else:
+            g_sum[0] = data['wmom_g'][w, 0].sum()
+            g_sum[1] = data['wmom_g'][w, 1].sum()
+            wsum = w.size
 
     return g_sum, wsum
-
-
-def cut_star_density(*, data, max_star_density):
-    w, = np.where(data['star_density'] < max_star_density)
-    if w.size == 0:
-        return None
-    else:
-        return data[w]
 
 
 def read_one(inputs):
@@ -172,10 +176,9 @@ def read_one(inputs):
         print(err)
         return None
 
-    data_1p = cut_star_density(data=data_1p,
-                               max_star_density=args.max_star_density)
-    data_1m = cut_star_density(data=data_1m,
-                               max_star_density=args.max_star_density)
+    # data_1p = do_nonshear_cuts(data=data_1p, args=args)
+    # data_1m = do_nonshear_cuts(data=data_1m, args=args)
+
     if data_1p is None or data_1m is None:
         return None
 
@@ -251,11 +254,12 @@ def main():
 
     data = eu.numpy_util.combine_arrlist(dlist)
 
-    m1, m1err, c2, c2err = jackknife(data)
+    m1, m1err, c1, c1err, c2, c2err = jackknife(data)
 
     print('m1err: %g (99.7%%)' % (m1err*3,))
 
     print_range(m1, m1err, 'm1')
+    print_range(c1, c1err, 'c1')
     print_range(c2, c2err, 'c2')
 
 
