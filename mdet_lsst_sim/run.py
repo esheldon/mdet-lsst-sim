@@ -80,6 +80,7 @@ def run(
 
     dlist_p = []
     dlist_m = []
+    truth_summary_list = []
 
     for trial in range(ntrial):
         logger.info('-'*70)
@@ -176,6 +177,10 @@ def run(
 
             comb_data = util.make_comb_data(res, full_output=full_output)
 
+            if shear_type == '1p':
+                truth_summary = util.make_truth_summary(sim.object_data)
+                truth_summary_list.append(truth_summary)
+
             if len(comb_data) > 0:
                 comb_data['star_density'] = sim.star_density
                 comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
@@ -186,11 +191,13 @@ def run(
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     data_1m = eu.numpy_util.combine_arrlist(dlist_m)
+    truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
 
     logger.info('writing: %s' % output)
     with fitsio.FITS(output, 'rw', clobber=True) as fits:
         fits.write(data_1p, extname='1p')
         fits.write(data_1m, extname='1m')
+        fits.write(truth_summary, extname='truth_summary')
 
 
 def show_all_masks(exps):

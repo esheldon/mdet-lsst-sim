@@ -1,3 +1,4 @@
+import numpy as np
 import esutil as eu
 import ngmix
 
@@ -122,6 +123,75 @@ def make_comb_data(res, full_output=False):
         return eu.numpy_util.combine_arrlist(dlist)
     else:
         return []
+
+
+def make_truth_data_full(object_data):
+
+    nobj = len(object_data)
+
+    obj0 = object_data[0]
+    bands = list(obj0.keys())
+
+    nband = len(bands)
+
+    dt = [
+        ('type', 'S6'),
+        ('mag', 'f4', nband),
+    ]
+    data = np.zeros(nobj, dtype=dt)
+    data['mag'] = 9999.0
+
+    for i, obj_data in enumerate(object_data):
+
+        otype = obj_data[band]['type']
+        data['type'][i] = otype
+
+
+        if otype == 'star':
+            # ordered dict
+            for iband, band in enumerate(obj_data):
+                data['mag'][i, iband] = obj_data[band]['mag']
+
+    return data
+
+
+def make_truth_summary(object_data):
+    nobj = len(object_data)
+
+    obj0 = object_data[0]
+    bands = list(obj0.keys())
+
+    dt = [
+        ('nobj', 'i8'),
+        ('ngal', 'i8'),
+        ('nstar', 'i8'),
+        ('min_star_mag', 'f4'),
+    ]
+
+    data = np.zeros(1, dtype=dt)
+    data['nobj'] = nobj
+    data['nstar'] = 0
+    data['ngal'] = 0
+    data['min_star_mag'] = 9999.0
+
+    for i, obj_data in enumerate(object_data):
+
+        otype = obj_data[bands[0]]['type']
+
+        if otype == 'galaxy':
+            data['ngal'][0] += 1
+        else:
+            data['nstar'][0] += 1
+
+            # ordered dict
+            for iband, band in enumerate(obj_data):
+
+                if otype == 'star':
+                    mag = obj_data[band]['mag']
+                    if mag < data['min_star_mag'][0]:
+                        data['min_star_mag'][0] = mag
+
+    return data
 
 
 def make_mbobs(obs):
