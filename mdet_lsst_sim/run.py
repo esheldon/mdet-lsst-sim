@@ -42,7 +42,8 @@ def run(
     ntrial: int
         Number of trials to run, paired by simulation plus and minus shear
     output: string
-        Output file path
+        Output file path.  If output is None, this is a dry
+        run and no output is written.
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool
@@ -196,11 +197,14 @@ def run(
     data_1m = eu.numpy_util.combine_arrlist(dlist_m)
     truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
 
-    logger.info('writing: %s' % output)
-    with fitsio.FITS(output, 'rw', clobber=True) as fits:
-        fits.write(data_1p, extname='1p')
-        fits.write(data_1m, extname='1m')
-        fits.write(truth_summary, extname='truth_summary')
+    if output is None:
+        logger.info('doing dry run, not writing')
+    else:
+        logger.info('writing: %s' % output)
+        with fitsio.FITS(output, 'rw', clobber=True) as fits:
+            fits.write(data_1p, extname='1p')
+            fits.write(data_1m, extname='1m')
+            fits.write(truth_summary, extname='truth_summary')
 
 
 def show_all_masks(exps):
