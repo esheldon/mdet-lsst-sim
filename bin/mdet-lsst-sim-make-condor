@@ -20,7 +20,7 @@ GetEnv = True
 kill_sig = SIGINT
 
 should_transfer_files = YES
-transfer_input_files = %(sim_config)s
+transfer_input_files = %(sim_config)s,%(mdet_config)s
 
 # so transfer when the job completes
 when_to_transfer_output = ON_EXIT
@@ -74,6 +74,7 @@ logfile=$3
 mdet-lsst-sim \
     --seed ${seed} \
     --config %(sim_config)s \
+    --mdet-config %(mdet_config)s \
     --ntrial %(ntrial)d \
     %(use_sx)s \
     %(deblend)s \
@@ -81,7 +82,7 @@ mdet-lsst-sim \
 """
 
 
-def write_script(*, ntrial, sim_config, use_sx, deblend):
+def write_script(*, ntrial, sim_config, use_sx, deblend, mdet_config):
 
     script_file = get_script_file()
     print('writing:', script_file)
@@ -91,6 +92,7 @@ def write_script(*, ntrial, sim_config, use_sx, deblend):
             'sim_config': sim_config,
             'use_sx': use_sx,
             'deblend': deblend,
+            'mdet_config': mdet_config,
         }
         fobj.write(text)
 
@@ -105,6 +107,7 @@ def get_args():
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--mdet-config', required=True, help='mdet config')
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
@@ -118,7 +121,9 @@ def main():
     args = get_args()
 
     copy_config_file(args.config)
+    copy_config_file(args.mdet_config)
     sim_config_base = os.path.basename(args.config)
+    mdet_config_base = os.path.basename(args.mdet_config)
 
     if args.use_sx:
         use_sx = '--use-sx'
@@ -142,11 +147,13 @@ def main():
         sim_config=sim_config_base,
         use_sx=use_sx,
         deblend=deblend,
+        mdet_config=mdet_config_base,
     )
 
     with open(condor_file, 'w') as fobj:
         fobj.write(CONDOR_SUBMIT_HEAD % {
             'sim_config': sim_config_base,
+            'mdet_config': mdet_config_base,
         })
 
         for i in range(args.njobs):
