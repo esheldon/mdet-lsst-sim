@@ -56,6 +56,8 @@ def main():
 
     if args.mdet_config is not None:
         mdet_config = eu.io.read(args.mdet_config)
+    else:
+        mdet_config = None
 
     run(
         sim_config=sim_config,
