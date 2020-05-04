@@ -21,6 +21,7 @@ def run(
     seed,
     ntrial,
     output,
+    mdet_config=None,
     full_output=False,
     show=False,
     show_sheared=False,
@@ -44,6 +45,9 @@ def run(
     output: string
         Output file path.  If output is None, this is a dry
         run and no output is written.
+    mdet_config: dict
+        The mdet config, if not set it is generated internally.  All parts
+        of the config must be set, not including 'sx' and 'meds' entries.
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool
@@ -73,7 +77,12 @@ def run(
         are interpolated.
     """
     rng = np.random.RandomState(seed)
-    mdet_config = util.get_config(nostack=nostack, use_sx=use_sx)
+    mdet_config = util.get_config(
+        config=mdet_config,
+        nostack=nostack,
+        use_sx=use_sx,
+    )
+    print(mdet_config)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')

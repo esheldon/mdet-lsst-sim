@@ -1,31 +1,36 @@
+from copy import deepcopy
 import numpy as np
 import esutil as eu
 import ngmix
 
 
-def get_config(nostack=False, use_sx=False):
+DEFAULT_MDET_CONFIG = {
+    'bmask_flags': 0,
+    'metacal': {
+        'use_noise_image': True,
+        'psf': 'fitgauss',
+    },
+    'psf': {
+        'model': 'gauss',
+        'lm_pars': {},
+        'ntry': 2,
+    },
+    'weight': {
+        'fwhm': 1.2,
+    },
+    'detect': {
+        'thresh': 10.0,
+    },
+    'meds': {},
+}
+
+
+def get_config(config=None, nostack=False, use_sx=False):
     """
     metadetect configuration
     """
-    config = {
-        'bmask_flags': 0,
-        'metacal': {
-            'use_noise_image': True,
-            'psf': 'fitgauss',
-        },
-        'psf': {
-            'model': 'gauss',
-            'lm_pars': {},
-            'ntry': 2,
-        },
-        'weight': {
-            'fwhm': 1.2,
-        },
-        'detect': {
-            'thresh': 10.0,
-        },
-        'meds': {},
-    }
+    if config is None:
+        config = deepcopy(DEFAULT_MDET_CONFIG)
 
     if nostack or use_sx:
         config['sx'] = {

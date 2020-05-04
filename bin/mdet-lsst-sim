@@ -14,6 +14,8 @@ def get_args():
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
+    parser.add_argument('--mdet-config', help='optional config file')
+
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
     parser.add_argument('--deblend', action='store_true',
@@ -52,11 +54,15 @@ def main():
 
     sim_config = eu.io.read(args.config)
 
+    if args.mdet_config is not None:
+        mdet_config = eu.io.read(args.mdet_config)
+
     run(
         sim_config=sim_config,
         seed=args.seed,
         ntrial=args.ntrial,
         output=args.output,
+        mdet_config=mdet_config,
         full_output=args.full_output,
         show=args.show,
         show_sheared=args.show_sheared,
