@@ -7,7 +7,6 @@ on:
         branches: [ master ]
 
 jobs:
-
     build:
         runs-on: 'ubuntu-latest'
         container: beckermr/stackvana
@@ -29,6 +28,7 @@ jobs:
             - name: flake8
               shell: bash -l {0}
               run: |
+                  . /usr/local/share/stackvana-activate.sh
                   # stop the build if there are Python syntax errors or undefined names
                   flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
                   # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
@@ -37,5 +37,6 @@ jobs:
             - name: pytest
               shell: bash -l {0}
               run: |
+                  . /usr/local/share/stackvana-activate.sh
                   # stop the build if there are Python syntax errors or undefined names
                   pytest -vv
