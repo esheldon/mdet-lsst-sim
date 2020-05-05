@@ -22,21 +22,18 @@ jobs:
                   pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
                   pip install --no-deps git+https://github.com/esheldon/metadetect.git
 
-            - name: Checkout
+            - name: Checkout code
               uses: actions/checkout@v2
 
-            - name: flake8
+            - name: Lint with flake8
               shell: bash -l {0}
               run: |
                   . /usr/local/share/stackvana-activate.sh
-                  # stop the build if there are Python syntax errors or undefined names
                   flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-                  # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
                   flake8 . --count --exit-zero --max-line-length=79 --statistics
 
-            - name: pytest
+            - name: Run pytest
               shell: bash -l {0}
               run: |
                   . /usr/local/share/stackvana-activate.sh
-                  # stop the build if there are Python syntax errors or undefined names
                   pytest -vv
