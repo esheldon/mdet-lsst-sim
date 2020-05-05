@@ -1,46 +1,40 @@
 name: mdet-lsst-sims
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
+    push:
+        branches: [ master ]
+    pull_request:
+        branches: [ master ]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: ['ubuntu-latest']
-        python-version: [3.7]
-    runs-on: ${{ matrix.os }}
+
+    runs-on: 'ubuntu-latest'
+    container: beckermr/stackvana
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Setup Miniconda
-        uses: goanpeca/setup-miniconda@v1
-        with:
-          auto-update-conda: true
-          auto-activate-base: false
-          miniconda-version: 'latest'
-          python-version: ${{ matrix.python-version }}
-          environment-file: environment.yml
-          activate-environment: stack
-      - name: Install special dependencies with pip
+
+        - name: Install special dependencies with conda and pip
         shell: bash -l {0}
         run: |
-          pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
-          pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
-          pip install --no-deps git+https://github.com/esheldon/metadetect.git
-      - name: Lint with flake8
-        shell: bash -l {0}
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-line-length=79 --statistics
-      - name: Run pytest
-        shell: bash -l {0}
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          pytest -vv mdet_lsst_sim
+            . /usr/local/share/stackvana-activate.sh
+            conda install -q -y ngmix meds
+            pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
+            pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
+            pip install --no-deps git+https://github.com/esheldon/metadetect.git
+
+        - name: Checkout
+          uses: actions/checkout@v2
+
+        - name: flake8
+          shell: bash -l {0}
+          run: |
+              # stop the build if there are Python syntax errors or undefined names
+              flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+              # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+              flake8 . --count --exit-zero --max-line-length=79 --statistics
+
+        - name: pytest
+          shell: bash -l {0}
+          run: |
+              # stop the build if there are Python syntax errors or undefined names
+              pytest -vv

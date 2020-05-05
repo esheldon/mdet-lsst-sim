@@ -4,14 +4,6 @@ channels:
   - conda-forge
   - default
 dependencies:
-  - python
-  - pip
-  - pytest
-  - flake8
   - stackvana
-  - galsim
-  - esutil
-  - fitsio
-  - numba
   - ngmix
   - meds
