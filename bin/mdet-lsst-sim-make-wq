@@ -15,6 +15,7 @@ command: |
         --seed %(seed)d \
         %(use_sx)s \
         %(deblend)s \
+        %(interp_bright)s \
         %(mdet_config)s \
         --config %(sim_config)s \
         --ntrial %(ntrial)d \
@@ -46,6 +47,9 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--mdet-config', help='mdet config')
+
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
@@ -80,6 +84,11 @@ def main():
     else:
         mdet_config = ''
 
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
     for i in range(args.njobs):
 
         while True:
@@ -96,6 +105,7 @@ def main():
             'seed': seed,
             'use_sx': use_sx,
             'deblend': deblend,
+            'interp_bright': interp_bright,
             'mdet_config': mdet_config,
             'sim_config': sim_config_base,
             'ntrial': args.ntrial,

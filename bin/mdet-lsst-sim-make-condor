@@ -78,11 +78,12 @@ mdet-lsst-sim \
     --ntrial %(ntrial)d \
     %(use_sx)s \
     %(deblend)s \
+    %(interp_bright)s \
     --output ${output} &> ${logfile}
 """
 
 
-def write_script(*, ntrial, sim_config, use_sx, deblend, mdet_config):
+def write_script(*, ntrial, sim_config, use_sx, deblend, mdet_config, interp_bright):
 
     script_file = get_script_file()
     print('writing:', script_file)
@@ -92,6 +93,7 @@ def write_script(*, ntrial, sim_config, use_sx, deblend, mdet_config):
             'sim_config': sim_config,
             'use_sx': use_sx,
             'deblend': deblend,
+            'interp_bright': interp_bright,
             'mdet_config': mdet_config,
         }
         fobj.write(text)
@@ -108,6 +110,9 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--mdet-config', required=True, help='mdet config')
+
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
@@ -135,6 +140,11 @@ def main():
     else:
         deblend = ''
 
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
     rng = np.random.RandomState(args.seed)
 
     condor_file = get_condor_script_file(args.run, args.seed)
@@ -147,6 +157,7 @@ def main():
         sim_config=sim_config_base,
         use_sx=use_sx,
         deblend=deblend,
+        interp_bright=interp_bright,
         mdet_config=mdet_config_base,
     )
 
