@@ -5,12 +5,13 @@ import argparse
 import shutil
 
 
-CONDOR_SUBMIT_HEAD = """
+CONDOR_SUBMIT_HEAD = r"""
 universe     = vanilla
 
 +ProjectName = "duke.lsst"
 
-Requirements = HAS_SINGULARITY == TRUE && \
+Requirements = \
+        HAS_SINGULARITY == TRUE && \
         OSG_HOST_KERNEL_VERSION >= 31000 && \
         (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6")
 
