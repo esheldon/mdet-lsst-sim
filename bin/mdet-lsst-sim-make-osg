@@ -10,7 +10,10 @@ universe     = vanilla
 
 +ProjectName = "duke.lsst"
 
-Requirements = HAS_SINGULARITY == TRUE
+Requirements = HAS_SINGULARITY == TRUE && \
+        OSG_HOST_KERNEL_VERSION >= 31000 && \
+        (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6")
+
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
 # this will pick up /cvmfs/stash.osgstorage.org/user/esheldon/public/
@@ -20,7 +23,7 @@ Requirements = HAS_SINGULARITY == TRUE
 # +SingularityBindCVMFS = True
 
 should_transfer_files = YES
-transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,catsim-data
+transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,/stash/user/esheldon/public/catsim-data
 
 # transfer only if the job completes
 when_to_transfer_output = ON_EXIT
@@ -76,9 +79,20 @@ def get_logfile(run, seed):
 
 
 SCRIPT_TEMPLATE = r"""#!/usr/bin/env bash
+
+# argh, -u is bound to fail in this environment it turns out
+# set -euo pipefail
+set -e
+
 seed=$1
 output=$2
 logfile=$3
+
+uname -a
+
+if [[ -e /etc/redhat-release ]]; then
+    cat /etc/redhat-release
+fi
 
 export OMP_NUM_THREADS=1
 
@@ -86,15 +100,13 @@ export OMP_NUM_THREADS=1
 
 # pip needs a place to write, /tmp seems to be full or not writeable
 export TMPDIR=.
+export CATSIM_DIR=catsim-data
+export PATH=$HOME/.local/bin:$PATH
 
 pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@7ba7fddc38aa639c176dc37c3138058e053a9264
 pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@09f3ce40101c7707fe80abbb9d85169e1740ad01
 pip install --no-deps git+https://github.com/esheldon/metadetect.git@a63236f063fe2979c7fbf89563080e6fe66895fb
 pip install --no-deps git+https://github.com/esheldon/mdet-lsst-sim.git@0c30e0c63a368b43e5011d6069b23f827828a33b
-
-export CATSIM_DIR=catsim-data
-export PATH=$HOME/.local/bin:$PATH
-export PYTHONPATH=$HOME/.local/lib/python3.6/site-packages:$PYTHONPATH
 
 mdet-lsst-sim \
     --seed ${seed} \
