@@ -1,0 +1,222 @@
+#!/usr/bin/env python
+import os
+import random
+import argparse
+import shutil
+
+
+CONDOR_SUBMIT_HEAD = """
+universe     = vanilla
+
++ProjectName = "duke.lsst"
+
+Requirements = HAS_SINGULARITY == TRUE
++SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
+
+# this will pick up /cvmfs/stash.osgstorage.org/user/esheldon/public/
+# +WantsCvmfsStash = true
+
+# do we need this?
+# +SingularityBindCVMFS = True
+
+should_transfer_files = YES
+transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,catsim-data
+
+# transfer only if the job completes
+when_to_transfer_output = ON_EXIT
+
+Executable = %(script)s
+"""
+
+CONDOR_JOB_TEMPLATE = """
++job_name = "%(job_name)s"
+Output = %(condor_output)s
+Error = %(condor_error)s
+Arguments = %(seed)d %(output)s %(logfile)s
+Queue
+"""  # noqa
+
+
+def get_script_file(seed):
+    return 'run-%010d.sh' % seed
+
+
+def copy_config_file(config_file):
+    print('copying', config_file)
+    shutil.copy(config_file, '.')
+
+
+def get_name_base(run, seed):
+    return '%s-%010d' % (run, seed)
+
+
+def get_condor_script_file(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.condor' % name
+
+
+def get_output(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.fits' % name
+
+
+def get_condor_output(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.out' % name
+
+
+def get_condor_error(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.err' % name
+
+
+def get_logfile(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.log' % name
+
+
+SCRIPT_TEMPLATE = r"""#!/usr/bin/env bash
+seed=$1
+output=$2
+logfile=$3
+
+export OMP_NUM_THREADS=1
+
+. /usr/local/share/stackvana-activate.sh
+
+# pip needs a place to write, /tmp seems to be full or not writeable
+export TMPDIR=.
+
+pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@7ba7fddc38aa639c176dc37c3138058e053a9264
+pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@09f3ce40101c7707fe80abbb9d85169e1740ad01
+pip install --no-deps git+https://github.com/esheldon/metadetect.git@a63236f063fe2979c7fbf89563080e6fe66895fb
+pip install --no-deps git+https://github.com/esheldon/mdet-lsst-sim.git@0c30e0c63a368b43e5011d6069b23f827828a33b
+
+export CATSIM_DIR=catsim-data
+export PATH=$HOME/.local/bin:$PATH
+export PYTHONPATH=$HOME/.local/lib/python3.6/site-packages:$PYTHONPATH
+
+mdet-lsst-sim \
+    --seed ${seed} \
+    --config %(sim_config)s \
+    --mdet-config %(mdet_config)s \
+    --ntrial %(ntrial)d \
+    %(use_sx)s \
+    %(deblend)s \
+    %(interp_bright)s \
+    --output ${output} &> ${logfile}
+"""
+
+
+def write_script(*, seed, ntrial, sim_config, use_sx, deblend, mdet_config, interp_bright):
+
+    script_file = get_script_file(seed)
+    print('writing:', script_file)
+    with open(script_file, 'w') as fobj:
+        text = SCRIPT_TEMPLATE % {
+            'ntrial': ntrial,
+            'sim_config': sim_config,
+            'use_sx': use_sx,
+            'deblend': deblend,
+            'interp_bright': interp_bright,
+            'mdet_config': mdet_config,
+        }
+        fobj.write(text)
+
+    os.system('chmod 755 %s' % script_file)
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+    parser.add_argument('--njobs', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run for each job')
+    parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--mdet-config', required=True, help='mdet config')
+
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+
+    parser.add_argument('--use-sx', action='store_true',
+                        help=('use sx based metadetect'))
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    copy_config_file(args.config)
+    copy_config_file(args.mdet_config)
+    sim_config_base = os.path.basename(args.config)
+    mdet_config_base = os.path.basename(args.mdet_config)
+
+    if args.use_sx:
+        use_sx = '--use-sx'
+    else:
+        use_sx = ''
+
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
+    random.seed(args.seed)
+
+    condor_file = get_condor_script_file(args.run, args.seed)
+
+    if os.path.exists(condor_file):
+        raise RuntimeError('script already exists: %s' % condor_file)
+
+    write_script(
+        seed=args.seed,
+        ntrial=args.ntrial,
+        sim_config=sim_config_base,
+        use_sx=use_sx,
+        deblend=deblend,
+        interp_bright=interp_bright,
+        mdet_config=mdet_config_base,
+    )
+    script_file = get_script_file(args.seed)
+
+    with open(condor_file, 'w') as fobj:
+        fobj.write(CONDOR_SUBMIT_HEAD % {
+            'sim_config': sim_config_base,
+            'mdet_config': mdet_config_base,
+            'script': script_file,
+        })
+
+        for i in range(args.njobs):
+
+            seed = random.randint(0, 2**31)
+            output = get_output(args.run, seed)
+            condor_output = get_condor_output(args.run, seed)
+            condor_error = get_condor_error(args.run, seed)
+            logfile = get_logfile(args.run, seed)
+            job_name = '%s-%010d' % (args.run, seed)
+
+            job_text = CONDOR_JOB_TEMPLATE % {
+                'job_name': job_name,
+                'seed': seed,
+                'output': output,
+                'condor_output': condor_output,
+                'condor_error': condor_error,
+                'logfile': logfile,
+            }
+
+            fobj.write(job_text)
+
+    print(condor_file)
+    print('wrote:', args.njobs)
+
+
+main()
