@@ -10,10 +10,12 @@ universe     = vanilla
 
 +ProjectName = "duke.lsst"
 
+# usatlas sites don't seem to work
 Requirements = \
         HAS_SINGULARITY == TRUE && \
         OSG_HOST_KERNEL_VERSION >= 31000 && \
-        (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6")
+        (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6") && \
+        regexp("usatlas", target.machine) == FALSE
 
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
