@@ -11,11 +11,13 @@ universe     = vanilla
 +ProjectName = "duke.lsst"
 
 # usatlas sites don't seem to work
+# the others are black holes with no http access
 Requirements = \
         HAS_SINGULARITY == TRUE && \
         OSG_HOST_KERNEL_VERSION >= 31000 && \
         (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6") && \
-        regexp("usatlas", target.machine) == FALSE
+        regexp("usatlas", target.machine) == FALSE && \
+        regexp("7c7d97844f-6qsnd", target.machine) == FALSE
 
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
@@ -26,7 +28,7 @@ Requirements = \
 # +SingularityBindCVMFS = True
 
 should_transfer_files = YES
-transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,/stash/user/esheldon/public/catsim-data
+transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,/local-scratch/esheldon/catsim-data
 
 # transfer only if the job completes
 when_to_transfer_output = ON_EXIT
