@@ -3,6 +3,8 @@ import os
 import random
 import argparse
 import shutil
+import yaml
+import time
 
 
 CONDOR_SUBMIT_HEAD = r"""
@@ -16,8 +18,11 @@ Requirements = \
         HAS_SINGULARITY == TRUE && \
         OSG_HOST_KERNEL_VERSION >= 31000 && \
         (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6") && \
-        regexp("usatlas", target.machine) == FALSE && \
-        regexp("7c7d97844f-6qsnd", target.machine) == FALSE
+        regexp("usatlas", target.machine) == FALSE
+
+# regexp("7c7d97844f-6qsnd", target.machine) == FALSE && \
+# regexp("7c7d97844f-772lr", target.machine) == FALSE && \
+# regexp("campuscluster", target.machine) == FALSE
 
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
@@ -28,7 +33,7 @@ Requirements = \
 # +SingularityBindCVMFS = True
 
 should_transfer_files = YES
-transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,/local-scratch/esheldon/catsim-data
+transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,%(codes_tarfile)s,/local-scratch/esheldon/catsim-data
 
 # transfer only if the job completes
 when_to_transfer_output = ON_EXIT
@@ -108,10 +113,16 @@ export TMPDIR=.
 export CATSIM_DIR=catsim-data
 export PATH=$HOME/.local/bin:$PATH
 
-pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@7ba7fddc38aa639c176dc37c3138058e053a9264
-pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@09f3ce40101c7707fe80abbb9d85169e1740ad01
-pip install --no-deps git+https://github.com/esheldon/metadetect.git@a63236f063fe2979c7fbf89563080e6fe66895fb
-pip install --no-deps git+https://github.com/esheldon/mdet-lsst-sim.git@0c30e0c63a368b43e5011d6069b23f827828a33b
+tar xvfz codes.tar.gz
+
+for package in descwl-shear-sims descwl_coadd metadetect mdet-lsst-sim; do
+    code_dir="codes/${package}"
+    pushd $code_dir
+    pip install --no-deps .
+    popd
+done
+
+rm -rf codes
 
 mdet-lsst-sim \
     --seed ${seed} \
@@ -143,6 +154,35 @@ def write_script(*, seed, ntrial, sim_config, use_sx, deblend, mdet_config, inte
     os.system('chmod 755 %s' % script_file)
 
 
+def make_codes_tarball(*, codes_config, codes_tarfile):
+    if os.path.exists(codes_tarfile):
+        print('tarfile already exists:', codes_tarfile)
+        return
+
+    d = codes_tarfile.replace('.tar.gz', '')
+    if os.path.exists(d):
+        shutil.rmtree(d)
+
+    os.makedirs(d)
+    os.chdir(d)
+
+    for package in codes_config:
+        ret = os.system('git clone %s' % codes_config[package]['url'])
+        assert ret == 0
+
+        os.chdir(package)
+
+        ret = os.system('git checkout %s' % codes_config[package]['hash'])
+        assert ret == 0
+
+        os.chdir('..')
+
+    os.chdir('..')
+    time.sleep(1)
+    os.system('tar cvfz %s %s' % (codes_tarfile, d))
+    shutil.rmtree(d)
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', required=True)
@@ -152,6 +192,7 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--mdet-config', required=True, help='mdet config')
+    parser.add_argument('--codes-config', required=True, help='code url/hash config')
 
     parser.add_argument('--interp-bright', action='store_true',
                         help='interpolate regions marked bright')
@@ -164,6 +205,12 @@ def get_args():
     return parser.parse_args()
 
 
+def load_yaml(path):
+    with open(path) as fobj:
+        data = yaml.safe_load(fobj)
+    return data
+
+
 def main():
     args = get_args()
 
@@ -172,6 +219,10 @@ def main():
     sim_config_base = os.path.basename(args.config)
     mdet_config_base = os.path.basename(args.mdet_config)
 
+    codes_config = load_yaml(args.codes_config)
+
+    codes_tarfile = 'codes.tar.gz'
+    make_codes_tarball(codes_config=codes_config, codes_tarfile=codes_tarfile)
     if args.use_sx:
         use_sx = '--use-sx'
     else:
@@ -209,6 +260,7 @@ def main():
         fobj.write(CONDOR_SUBMIT_HEAD % {
             'sim_config': sim_config_base,
             'mdet_config': mdet_config_base,
+            'codes_tarfile': codes_tarfile,
             'script': script_file,
         })
 
