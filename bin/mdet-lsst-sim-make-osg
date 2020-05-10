@@ -5,6 +5,7 @@ import argparse
 import shutil
 import yaml
 import time
+import esutil as eu
 
 
 CONDOR_SUBMIT_HEAD = r"""
@@ -110,21 +111,22 @@ export OMP_NUM_THREADS=1
 
 # pip needs a place to write, /tmp seems to be full or not writeable
 export TMPDIR=.
-
 tar xvfz catsim-data.tar.gz
 export CATSIM_DIR=catsim-data
 export PATH=$HOME/.local/bin:$PATH
 
-tar xvfz codes.tar.gz
+codes_tarfile=%(codes_tarfile)s
+tar xvfz ${codes_tarfile}
+codes_dir=$(echo ${codes_tarfile} | sed 's/\.tar\.gz//')
 
 for package in descwl-shear-sims descwl_coadd metadetect mdet-lsst-sim; do
-    code_dir="codes/${package}"
-    pushd $code_dir
+    package_dir="${codes_dir}/${package}"
+    pushd $package_dir
     pip install --no-deps .
     popd
 done
 
-rm -rf codes
+rm -rf ${codes_dir}
 
 mdet-lsst-sim \
     --seed ${seed} \
@@ -140,51 +142,87 @@ rm -rfv catsim-data
 """
 
 
-def write_script(*, seed, ntrial, sim_config, use_sx, deblend, mdet_config, interp_bright):
+def write_script(*, args, sim_config, use_sx,
+                 deblend, mdet_config, interp_bright):
 
-    script_file = get_script_file(seed)
+    codes_tarfile = os.path.basename(get_tarfile_path(args.run))
+
+    script_file = get_script_file(args.seed)
     print('writing:', script_file)
     with open(script_file, 'w') as fobj:
         text = SCRIPT_TEMPLATE % {
-            'ntrial': ntrial,
+            'ntrial': args.ntrial,
             'sim_config': sim_config,
             'use_sx': use_sx,
             'deblend': deblend,
             'interp_bright': interp_bright,
             'mdet_config': mdet_config,
+            'codes_tarfile': codes_tarfile,
         }
         fobj.write(text)
 
     os.system('chmod 755 %s' % script_file)
 
 
+def get_tarfile_dir():
+    return '/local-scratch/esheldon/code-tarfiles'
+
+
+def get_tarfile_path(run):
+    dir = get_tarfile_dir()
+    return os.path.join(dir, '%s-codes.tar.gz' % run)
+
+
 def make_codes_tarball(*, codes_config, codes_tarfile):
+
+    ds = eu.ostools.DirStack()
+
     if os.path.exists(codes_tarfile):
         print('tarfile already exists:', codes_tarfile)
         return
 
-    d = codes_tarfile.replace('.tar.gz', '')
-    if os.path.exists(d):
-        shutil.rmtree(d)
+    tarfile_dir = get_tarfile_dir()
+    if not os.path.exists(tarfile_dir):
+        os.makedirs(tarfile_dir)
 
-    os.makedirs(d)
-    os.chdir(d)
+    ds.push(tarfile_dir)
+
+    basefile = os.path.basename(codes_tarfile)
+
+    packages_dir = basefile.replace('.tar.gz', '')
+    assert packages_dir != basefile
+
+    if os.path.exists(packages_dir):
+        shutil.rmtree(packages_dir)
+
+    os.makedirs(packages_dir)
+
+    # into the directory holding the packages
+    ds.push(packages_dir)
 
     for package in codes_config:
         ret = os.system('git clone %s' % codes_config[package]['url'])
         assert ret == 0
 
-        os.chdir(package)
+        ds.push(package)
 
         ret = os.system('git checkout %s' % codes_config[package]['hash'])
         assert ret == 0
 
-        os.chdir('..')
+        ret = os.system('rm -rf .git')
+        assert ret == 0
 
-    os.chdir('..')
+        ds.pop()
+
+    # back to the main tarfile dir
+    ds.pop()
     time.sleep(1)
-    os.system('tar cvfz %s %s' % (codes_tarfile, d))
-    shutil.rmtree(d)
+    os.system('tar cvfz %s %s' % (codes_tarfile, packages_dir))
+
+    shutil.rmtree(packages_dir)
+
+    # back to where we came from
+    ds.pop()
 
 
 def get_args():
@@ -225,7 +263,7 @@ def main():
 
     codes_config = load_yaml(args.codes_config)
 
-    codes_tarfile = 'codes.tar.gz'
+    codes_tarfile = get_tarfile_path(args.run)
     make_codes_tarball(codes_config=codes_config, codes_tarfile=codes_tarfile)
     if args.use_sx:
         use_sx = '--use-sx'
@@ -250,8 +288,7 @@ def main():
         raise RuntimeError('script already exists: %s' % condor_file)
 
     write_script(
-        seed=args.seed,
-        ntrial=args.ntrial,
+        args=args,
         sim_config=sim_config_base,
         use_sx=use_sx,
         deblend=deblend,
