@@ -33,7 +33,7 @@ Requirements = \
 # +SingularityBindCVMFS = True
 
 should_transfer_files = YES
-transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,%(codes_tarfile)s,/local-scratch/esheldon/catsim-data
+transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,%(codes_tarfile)s,/local-scratch/esheldon/catsim-data.tar.gz
 
 # transfer only if the job completes
 when_to_transfer_output = ON_EXIT
@@ -110,6 +110,8 @@ export OMP_NUM_THREADS=1
 
 # pip needs a place to write, /tmp seems to be full or not writeable
 export TMPDIR=.
+
+tar xvfz catsim-data.tar.gz
 export CATSIM_DIR=catsim-data
 export PATH=$HOME/.local/bin:$PATH
 
@@ -133,6 +135,8 @@ mdet-lsst-sim \
     %(deblend)s \
     %(interp_bright)s \
     --output ${output} &> ${logfile}
+
+rm -rfv catsim-data
 """
 
 
