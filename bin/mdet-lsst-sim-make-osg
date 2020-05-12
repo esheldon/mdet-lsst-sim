@@ -21,10 +21,6 @@ Requirements = \
         (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6") && \
         regexp("usatlas", target.machine) == FALSE
 
-# regexp("7c7d97844f-6qsnd", target.machine) == FALSE && \
-# regexp("7c7d97844f-772lr", target.machine) == FALSE && \
-# regexp("campuscluster", target.machine) == FALSE
-
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
 # this will pick up /cvmfs/stash.osgstorage.org/user/esheldon/public/
@@ -107,6 +103,7 @@ fi
 
 export OMP_NUM_THREADS=1
 
+unset PYTHONPATH
 . /usr/local/share/stackvana-activate.sh
 
 # pip needs a place to write, /tmp seems to be full or not writeable
