@@ -142,7 +142,7 @@ rm -rfv catsim-data
 def write_script(*, args, sim_config, use_sx,
                  deblend, mdet_config, interp_bright):
 
-    codes_tarfile = os.path.basename(get_tarfile_path(args.run))
+    codes_tarfile = os.path.basename(get_code_tarfile_path(args))
 
     script_file = get_script_file(args.seed)
     print('writing:', script_file)
@@ -161,13 +161,16 @@ def write_script(*, args, sim_config, use_sx,
     os.system('chmod 755 %s' % script_file)
 
 
-def get_tarfile_dir():
+def get_code_tarfile_dir():
     return '/local-scratch/esheldon/code-tarfiles'
 
 
-def get_tarfile_path(run):
-    dir = get_tarfile_dir()
-    return os.path.join(dir, '%s-codes.tar.gz' % run)
+def get_code_tarfile_path(args):
+    dir = get_code_tarfile_dir()
+    cf = os.path.basename(args.codes_config).replace('.yaml', '')
+    assert cf != args.codes_config
+
+    return os.path.join(dir, '%s-codes.tar.gz' % cf)
 
 
 def make_codes_tarball(*, codes_config, codes_tarfile):
@@ -178,7 +181,7 @@ def make_codes_tarball(*, codes_config, codes_tarfile):
         print('tarfile already exists:', codes_tarfile)
         return
 
-    tarfile_dir = get_tarfile_dir()
+    tarfile_dir = get_code_tarfile_dir()
     if not os.path.exists(tarfile_dir):
         os.makedirs(tarfile_dir)
 
@@ -260,7 +263,7 @@ def main():
 
     codes_config = load_yaml(args.codes_config)
 
-    codes_tarfile = get_tarfile_path(args.run)
+    codes_tarfile = get_code_tarfile_path(args)
     make_codes_tarball(codes_config=codes_config, codes_tarfile=codes_tarfile)
     if args.use_sx:
         use_sx = '--use-sx'
