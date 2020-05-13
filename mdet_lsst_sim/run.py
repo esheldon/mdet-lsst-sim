@@ -15,25 +15,74 @@ import esutil as eu
 from . import util, vis
 
 
-def run(*,
-        sim_config,
-        seed,
-        ntrial,
-        output,
-        full_output=False,
-        show=False,
-        show_sheared=False,
-        show_masks=False,
-        show_sim=False,
-        nostack=False,
-        use_sx=False,
-        deblend=False,
-        interp_bright=False,
-        replace_bright=False,
-        loglevel='info'):
-
+def run(
+    *,
+    sim_config,
+    seed,
+    ntrial,
+    output,
+    mdet_config=None,
+    full_output=False,
+    show=False,
+    show_sheared=False,
+    show_masks=False,
+    show_sim=False,
+    nostack=False,
+    use_sx=False,
+    deblend=False,
+    interp_bright=False,
+    replace_bright=False,
+    loglevel='info',
+    max_mask_frac=0.1,
+):
+    """
+    sim_config: dict
+        Dict with configuration for the simulation
+    seed: int
+        Seed for a random number generator
+    ntrial: int
+        Number of trials to run, paired by simulation plus and minus shear
+    output: string
+        Output file path.  If output is None, this is a dry
+        run and no output is written.
+    mdet_config: dict
+        The mdet config, if not set it is generated internally.  All parts
+        of the config must be set, not including 'sx' and 'meds' entries.
+    full_output: bool
+        If True, write full output rather than trimming.  Default False
+    show: bool
+        If True, show some images.  Default False
+    show_sheared: bool
+        If True, show the sheared images, default False
+    show_masks: bool
+        If True, show the masks, default False
+    show_sim: bool
+        If True, show the sims.  default False
+    nostack: bool
+        If True, don't use any lsst stack code, default False
+    use_sx: bool
+        If True, us sx for detection, default False
+    deblend: bool
+        If True, run the lsst deblender, default False
+    interp_bright: bool
+        If True, interpolate regions marked BRIGHT, default False.
+    replace_bright: bool
+        If True, replace regions marked BRIGHT with noise, default False.
+    loglevel: string
+        Log level, default 'info'
+    max_mask_frac: float
+        Maximum allowed masked fraction.  If the masked fraction
+        exceeds this amount, the exposure is rejected.  The masked
+        fraction is calculed base on the part of the images that
+        are interpolated.
+    """
     rng = np.random.RandomState(seed)
-    mdet_config = util.get_config(nostack=nostack, use_sx=use_sx)
+    mdet_config = util.get_config(
+        config=mdet_config,
+        nostack=nostack,
+        use_sx=use_sx,
+    )
+    print(mdet_config)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
@@ -41,6 +90,7 @@ def run(*,
 
     dlist_p = []
     dlist_m = []
+    truth_summary_list = []
 
     for trial in range(ntrial):
         logger.info('-'*70)
@@ -49,6 +99,7 @@ def run(*,
         trial_seed = rng.randint(0, 2**30)
 
         for shear_type in ('1p', '1m'):
+
             logger.info(str(shear_type))
 
             if shear_type == '1p':
@@ -102,6 +153,9 @@ def run(*,
                     show_all_masks(mbc.exps)
 
                 coadd_obs = mbc.coadds['all']
+
+                logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
+
                 coadd_mbobs = util.make_mbobs(coadd_obs)
 
                 if use_sx:
@@ -133,8 +187,16 @@ def run(*,
 
             comb_data = util.make_comb_data(res, full_output=full_output)
 
+            truth_summary = util.make_truth_summary(sim.object_data)
+
+            if shear_type == '1p':
+                truth_summary_list.append(truth_summary)
+
             if len(comb_data) > 0:
                 comb_data['star_density'] = sim.star_density
+                comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+                comb_data['min_star_mag'] = truth_summary['min_star_mag'][0]
+
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:
@@ -142,11 +204,16 @@ def run(*,
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     data_1m = eu.numpy_util.combine_arrlist(dlist_m)
+    truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
 
-    logger.info('writing: %s' % output)
-    with fitsio.FITS(output, 'rw', clobber=True) as fits:
-        fits.write(data_1p, extname='1p')
-        fits.write(data_1m, extname='1m')
+    if output is None:
+        logger.info('doing dry run, not writing')
+    else:
+        logger.info('writing: %s' % output)
+        with fitsio.FITS(output, 'rw', clobber=True) as fits:
+            fits.write(data_1p, extname='1p')
+            fits.write(data_1m, extname='1m')
+            fits.write(truth_summary, extname='truth_summary')
 
 
 def show_all_masks(exps):

@@ -1,0 +1,9 @@
+name: stack
+channels:
+  - stackvana
+  - conda-forge
+  - default
+dependencies:
+  - stackvana
+  - ngmix
+  - meds
