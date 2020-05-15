@@ -57,9 +57,10 @@ def get_m1_c1(data):
 
     s1_1m = g1_1m/R11_1m
 
+    R11 = 0.5*(R11_1p + R11_1m)  # noqa
     m1 = (s1_1p - s1_1m)/0.04 - 1
-    c1 = (g1_1p + g1_1m)/2
-    return m1, c1
+    c1 = (g1_1p + g1_1m)/2/R11
+    return m1, c1, R11
 
 
 def get_c2(data):
@@ -72,8 +73,9 @@ def get_c2(data):
 
 def jackknife(data):
     sdata = get_summed(data)
-    m1, c1 = get_m1_c1(sdata)
+    m1, c1, R11 = get_m1_c1(sdata)  # noqa
     c2 = get_c2(sdata)
+    c2 /= R11
 
     m1vals = np.zeros(data.size)
     c1vals = np.zeros(data.size)
@@ -81,11 +83,11 @@ def jackknife(data):
 
     for i in range(m1vals.size):
         subdata = sub1(sdata, data[i])
-        tm1, tc1 = get_m1_c1(subdata)
+        tm1, tc1, tR11 = get_m1_c1(subdata)
         tc2 = get_c2(subdata)
         m1vals[i] = tm1
         c1vals[i] = tc1
-        c2vals[i] = tc2
+        c2vals[i] = tc2/tR11
 
     nchunks = m1vals.size
     fac = (nchunks-1)/float(nchunks)
@@ -177,9 +179,6 @@ def read_one(inputs):
     except OSError as err:
         print(err)
         return None
-
-    # data_1p = do_nonshear_cuts(data=data_1p, args=args)
-    # data_1m = do_nonshear_cuts(data=data_1m, args=args)
 
     if data_1p is None or data_1m is None:
         return None
