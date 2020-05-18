@@ -48,7 +48,7 @@ def copy_config_file(config_file):
 
 
 def get_name_base(run, seed):
-    return '%s-%07d' % (run, seed)
+    return '%s-%010d' % (run, seed)
 
 
 def get_condor_script_file(run, seed):
@@ -169,10 +169,10 @@ def main():
 
         for i in range(args.njobs):
 
-            seed = rng.randint(0, 2**19)
+            seed = rng.randint(0, 2**31)
             output = get_output(args.run, seed)
             logfile = get_logfile(args.run, seed)
-            job_name = '%s-%07d' % (args.run, seed)
+            job_name = '%s-%010d' % (args.run, seed)
 
             job_text = CONDOR_JOB_TEMPLATE % {
                 'job_name': job_name,

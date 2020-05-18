@@ -26,11 +26,11 @@ job_name: "%(job_name)s"
 
 
 def get_script_file(run, num):
-    return '%s-%07d.yaml' % (run, num)
+    return '%s-%010d.yaml' % (run, num)
 
 
 def get_output(run, num):
-    return '%s-%07d.fits' % (run, num)
+    return '%s-%010d.fits' % (run, num)
 
 
 def copy_config_file(config_file):
@@ -92,7 +92,7 @@ def main():
     for i in range(args.njobs):
 
         while True:
-            seed = rng.randint(0, 2**19)
+            seed = rng.randint(0, 2**31)
             script_fname = get_script_file(args.run, seed)
             if not os.path.exists(script_fname):
                 break
