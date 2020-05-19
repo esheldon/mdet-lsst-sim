@@ -13,7 +13,7 @@ SLURM_TEMPLATE = r"""#!/bin/bash
 #SBATCH --ntasks-per-node=36
 #SBATCH --output=%(logfile)s
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=esheldon@lcrc.anl.gov
+#SBATCH --mail-user=esheldon@bnl.gov
 #SBATCH --time=%(walltime)s
 
 export OMP_NUM_THREADS=1
