@@ -39,7 +39,7 @@ def copy_config_file(config_file):
 
 
 def get_name_base(run, seed):
-    return '%s-%07d' % (run, seed)
+    return '%s-%010d' % (run, seed)
 
 
 def get_slurm_script_file(run, seed):
