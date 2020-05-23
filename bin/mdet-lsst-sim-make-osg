@@ -11,26 +11,22 @@ import esutil as eu
 CONDOR_SUBMIT_HEAD = r"""
 universe     = vanilla
 
-+ProjectName = "duke.lsst"
-
 # usatlas sites don't seem to work
 # the others are black holes with no http access
 Requirements = \
         HAS_SINGULARITY == TRUE && \
         OSG_HOST_KERNEL_VERSION >= 31000 && \
         (OSGVO_OS_VERSION == "7" || OSGVO_OS_VERSION == "6") && \
-        regexp("usatlas", target.machine) == FALSE
+        regexp("usatlas", target.machine) == FALSE && \
+        regexp("htc0296", target.machine) == FALSE
 
 +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/beckermr/stackvana:latest"
 
-# this will pick up /cvmfs/stash.osgstorage.org/user/esheldon/public/
-# +WantsCvmfsStash = true
-
-# do we need this?
+# +WantsStashCache = true
 # +SingularityBindCVMFS = True
 
 should_transfer_files = YES
-transfer_input_files = %(script)s,%(sim_config)s,%(mdet_config)s,%(codes_tarfile)s,/local-scratch/esheldon/catsim-data.tar.gz
+transfer_input_files = %(sim_config)s,%(mdet_config)s,%(codes_tarfile)s,/home/esheldon/test-lsst-mdet/catsim.tar.gz
 
 # transfer only if the job completes
 when_to_transfer_output = ON_EXIT
@@ -51,7 +47,7 @@ def get_script_file(seed):
     return 'run-%010d.sh' % seed
 
 
-def copy_config_file(config_file):
+def copy_file_to_rundir(config_file):
     print('copying', config_file)
     shutil.copy(config_file, '.')
 
@@ -87,8 +83,6 @@ def get_logfile(run, seed):
 
 SCRIPT_TEMPLATE = r"""#!/usr/bin/env bash
 
-# argh, -u is bound to fail in this environment it turns out
-# set -euo pipefail
 set -e
 
 seed=$1
@@ -97,19 +91,22 @@ logfile=$3
 
 uname -a
 
-if [[ -e /etc/redhat-release ]]; then
-    cat /etc/redhat-release
-fi
-
 export OMP_NUM_THREADS=1
 
+cdir=catsim
+tarfile=${cdir}.tar.gz
+# cp -v /cvmfs/stash.osgstorage.org/osgconnect/public/esheldon/${tarfile} .
+tar xvfz ${tarfile}
+# rm -v ${tarfile}
+export CATSIM_DIR=${cdir}
+
+# The rest of this is getting the python environment set up
 unset PYTHONPATH
 . /usr/local/share/stackvana-activate.sh
 
 # pip needs a place to write, /tmp seems to be full or not writeable
 export TMPDIR=.
-tar xvfz catsim-data.tar.gz
-export CATSIM_DIR=catsim-data
+# for pip installs
 export PATH=$HOME/.local/bin:$PATH
 
 codes_tarfile=%(codes_tarfile)s
@@ -135,7 +132,7 @@ mdet-lsst-sim \
     %(interp_bright)s \
     --output ${output} &> ${logfile}
 
-rm -rfv catsim-data
+rm -rfv ${cdir}
 """
 
 
@@ -162,7 +159,7 @@ def write_script(*, args, sim_config, use_sx,
 
 
 def get_code_tarfile_dir():
-    return '/local-scratch/esheldon/code-tarfiles'
+    return '/home/esheldon/test-lsst-mdet/code-tarfiles'
 
 
 def get_code_tarfile_path(args):
@@ -256,15 +253,18 @@ def load_yaml(path):
 def main():
     args = get_args()
 
-    copy_config_file(args.config)
-    copy_config_file(args.mdet_config)
+    copy_file_to_rundir(args.config)
+    copy_file_to_rundir(args.mdet_config)
     sim_config_base = os.path.basename(args.config)
     mdet_config_base = os.path.basename(args.mdet_config)
 
     codes_config = load_yaml(args.codes_config)
 
     codes_tarfile = get_code_tarfile_path(args)
+
     make_codes_tarball(codes_config=codes_config, codes_tarfile=codes_tarfile)
+    copy_file_to_rundir(codes_tarfile)
+
     if args.use_sx:
         use_sx = '--use-sx'
     else:
@@ -301,7 +301,7 @@ def main():
         fobj.write(CONDOR_SUBMIT_HEAD % {
             'sim_config': sim_config_base,
             'mdet_config': mdet_config_base,
-            'codes_tarfile': codes_tarfile,
+            'codes_tarfile': os.path.basename(codes_tarfile),
             'script': script_file,
         })
 
