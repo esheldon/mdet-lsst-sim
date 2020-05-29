@@ -199,9 +199,28 @@ def make_truth_summary(object_data):
     return data
 
 
-def make_mbobs(obs):
+def make_mbobs(mbc):
+    """
+    make a ngmix.MultiBandObsList from the coadds
+
+    Parameters
+    ----------
+    mbc: MultiBandCoadds
+        Must have attribute .coadds that is a dict keyed
+        by band
+    """
+
+    # dicts are now ordered
     mbobs = ngmix.MultiBandObsList()
-    obslist = ngmix.ObsList()
-    obslist.append(obs)
-    mbobs.append(obslist)
+    mask_frac_sum = 0.0
+    for band in mbc.coadds:
+        obs = mbc.coadds[band]
+        obslist = ngmix.ObsList()
+        obslist.append(obs)
+        mbobs.append(obslist)
+
+        mask_frac_sum += obs.meta['mask_frac']
+
+    nband = len(mbc.coadds)
+    mbobs.meta['mask_frac'] = mask_frac_sum/nband
     return mbobs

@@ -145,18 +145,13 @@ def run(
                     coadd_wcs=sim.coadd_wcs,
                     coadd_dims=[sim.coadd_dim]*2,
                     psf_dims=[psf_dim]*2,
-                    byband=False,
                     show=send_show,
                     loglevel=loglevel,
                 )
                 if show_masks and shear_type == '1p':
                     show_all_masks(mbc.exps)
 
-                coadd_obs = mbc.coadds['all']
-
-                logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
-
-                coadd_mbobs = util.make_mbobs(coadd_obs)
+                coadd_mbobs = util.make_mbobs(mbc)
 
                 if use_sx:
                     md = Metadetect(
@@ -194,7 +189,7 @@ def run(
 
             if len(comb_data) > 0:
                 comb_data['star_density'] = sim.star_density
-                comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+                comb_data['mask_frac'] = coadd_mbobs.meta['mask_frac']
                 comb_data['min_star_mag'] = truth_summary['min_star_mag'][0]
 
                 if shear_type == '1p':
