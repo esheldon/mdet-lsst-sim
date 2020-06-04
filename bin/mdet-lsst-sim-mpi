@@ -17,6 +17,7 @@ def get_args():
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run per job')
     parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--mdet-config', required=True, help='mdet config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
     parser.add_argument('--replace-bright', action='store_true',
@@ -33,9 +34,10 @@ def get_args():
 
 
 def dorun(inputs):
-    args, sim_config, seed, output = inputs
+    args, sim_config, mdet_config, seed, output = inputs
     run(
         sim_config=sim_config,
+        mdet_config=mdet_config,
         seed=seed,
         ntrial=args.ntrial,
         deblend=args.deblend,
@@ -52,6 +54,7 @@ def main():
 
     tm0 = time.time()
     sim_config = eu.io.read(args.config)
+    mdet_config = eu.io.read(args.mdet_config)
 
     rng = np.random.RandomState(args.seed)
 
@@ -63,6 +66,7 @@ def main():
         tinput = (
             args,
             sim_config,
+            mdet_config,
             seed,
             output,
         )
