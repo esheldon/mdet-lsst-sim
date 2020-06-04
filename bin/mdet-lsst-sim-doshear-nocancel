@@ -141,7 +141,7 @@ def get_sums(args, data, stype):
         (data['wmom_T_ratio'] > args.Tratio_min) &
         (data['star_density'] < args.max_star_density) &
         (data['min_star_mag'] > args.min_star_mag) &
-        (data['mask_frac'] < args.max_mask_frac)
+        (data['mask_frac'] < args.max_mask_frac) &
         between(data['wmom_g'][:, 0], -1, 1) &
         between(data['wmom_g'][:, 1], -1, 1)
     )
