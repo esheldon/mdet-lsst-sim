@@ -91,7 +91,7 @@ def get_config(config=None, nostack=False, use_sx=False):
 
 
 def trim_output(data):
-    cols2keep = [
+    cols2keep_orig = [
         'flags',
         'row',
         'col',
@@ -101,6 +101,11 @@ def trim_output(data):
         'wmom_g',
         'wmom_g_cov',
     ]
+
+    cols2keep = []
+    for col in cols2keep_orig:
+        if col in data.dtype.names:
+            cols2keep.append(col)
 
     return eu.numpy_util.extract_fields(data, cols2keep)
 

@@ -194,7 +194,8 @@ def run(
 
             if len(comb_data) > 0:
                 comb_data['star_density'] = sim.star_density
-                comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+                if 'mask_frac' in coadd_obs.meta:
+                    comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
                 comb_data['min_star_mag'] = truth_summary['min_star_mag'][0]
 
                 if shear_type == '1p':
