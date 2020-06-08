@@ -3,7 +3,7 @@ import copy
 import logging
 import numpy as np
 
-from descwl_shear_sims import Sim
+from descwl_shear_sims import Sim, make_trivial_sim
 import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
@@ -76,6 +76,12 @@ def run(
         fraction is calculed base on the part of the images that
         are interpolated.
     """
+
+    sim_config = copy.deepcopy(sim_config)
+    sim_type = sim_config.pop('sim_type', 'simple')
+    if sim_type == "trivial":
+        nostack = True
+
     rng = np.random.RandomState(seed)
     mdet_config = util.get_config(
         config=mdet_config,
@@ -117,14 +123,19 @@ def run(
             else:
                 sim_kw['g1'] = -0.02
 
-            sim = Sim(rng=trial_rng, **sim_kw)
-            data = sim.gen_sim()
+            if sim_type == 'simple':
+                sim = Sim(rng=trial_rng, **sim_kw)
+                data = sim.gen_sim()
+            else:
+                assert nostack
+                coadd_obs = make_trivial_sim(rng=trial_rng, **sim_kw)
 
             if show_sim:
                 vis.show_sim(data)
 
             if nostack:
-                coadd_obs = MultiBandCoaddsSimple(data=data)
+                if sim_type == 'simple':
+                    coadd_obs = MultiBandCoaddsSimple(data=data)
 
                 coadd_mbobs = util.make_mbobs(coadd_obs)
                 md = Metadetect(
@@ -187,16 +198,21 @@ def run(
 
             comb_data = util.make_comb_data(res, full_output=full_output)
 
-            truth_summary = util.make_truth_summary(sim.object_data)
+            if sim_type != 'trivial':
+                truth_summary = util.make_truth_summary(sim.object_data)
 
-            if shear_type == '1p':
-                truth_summary_list.append(truth_summary)
+                if shear_type == '1p':
+                    truth_summary_list.append(truth_summary)
 
             if len(comb_data) > 0:
-                comb_data['star_density'] = sim.star_density
-                if 'mask_frac' in coadd_obs.meta:
-                    comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
-                comb_data['min_star_mag'] = truth_summary['min_star_mag'][0]
+                if sim_type != 'trivial':
+                    comb_data['star_density'] = sim.star_density
+                    if 'mask_frac' in coadd_obs.meta:
+                        comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+
+                    comb_data['min_star_mag'] = (
+                        truth_summary['min_star_mag'][0]
+                    )
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
@@ -205,7 +221,8 @@ def run(
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     data_1m = eu.numpy_util.combine_arrlist(dlist_m)
-    truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
+    if sim_type != 'trivial':
+        truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
 
     if output is None:
         logger.info('doing dry run, not writing')
@@ -214,7 +231,8 @@ def run(
         with fitsio.FITS(output, 'rw', clobber=True) as fits:
             fits.write(data_1p, extname='1p')
             fits.write(data_1m, extname='1m')
-            fits.write(truth_summary, extname='truth_summary')
+            if sim_type != 'trivial':
+                fits.write(truth_summary, extname='truth_summary')
 
 
 def show_all_masks(exps):
