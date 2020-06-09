@@ -160,9 +160,9 @@ def run(
                     )
 
                 mbc = MultiBandCoadds(
-                    rng=trial_rng,
-                    interp_bright=interp_bright,
-                    replace_bright=replace_bright,
+                    # rng=trial_rng,
+                    # interp_bright=interp_bright,
+                    # replace_bright=replace_bright,
                     data=data,
                     coadd_wcs=sim.coadd_wcs,
                     coadd_dims=[sim.coadd_dim]*2,
@@ -176,7 +176,7 @@ def run(
 
                 coadd_obs = mbc.coadds['all']
 
-                logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
+                # logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
 
                 coadd_mbobs = util.make_mbobs(coadd_obs)
 
