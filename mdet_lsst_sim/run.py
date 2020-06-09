@@ -28,6 +28,7 @@ def run(
     show_masks=False,
     show_sim=False,
     nostack=False,
+    trim_psf=False,
     use_sx=False,
     deblend=False,
     interp_bright=False,
@@ -60,6 +61,9 @@ def run(
         If True, show the sims.  default False
     nostack: bool
         If True, don't use any lsst stack code, default False
+    trim_psf: bool
+        If True, trim the psf to psf_dim/np.sqrt(3) to avoid bad pixels
+        in coadded psf
     use_sx: bool
         If True, us sx for detection, default False
     deblend: bool
@@ -147,6 +151,13 @@ def run(
             else:
 
                 psf_dim = sim.psf_dim
+                if trim_psf:
+                    psf_dim = int(psf_dim/np.sqrt(3))
+                    if psf_dim % 2 == 0:
+                        psf_dim -= 1
+                    logger.info(
+                        "trimming psf %d -> %d" % (sim.psf_dim, psf_dim)
+                    )
 
                 mbc = MultiBandCoadds(
                     rng=trial_rng,
