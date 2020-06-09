@@ -3,7 +3,7 @@ import copy
 import logging
 import numpy as np
 
-from descwl_shear_sims import Sim, make_trivial_sim
+from descwl_shear_sims import Sim
 import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
@@ -132,6 +132,7 @@ def run(
                 data = sim.gen_sim()
             else:
                 assert nostack
+                from descwl_shear_sims import make_trivial_sim
                 coadd_obs = make_trivial_sim(rng=trial_rng, **sim_kw)
 
             if show_sim:
@@ -209,11 +210,11 @@ def run(
 
             comb_data = util.make_comb_data(res, full_output=full_output)
 
-            if sim_type != 'trivial':
-                truth_summary = util.make_truth_summary(sim.object_data)
-
-                if shear_type == '1p':
-                    truth_summary_list.append(truth_summary)
+            # if sim_type != 'trivial':
+            #     truth_summary = util.make_truth_summary(sim.object_data)
+            #
+            #     if shear_type == '1p':
+            #         truth_summary_list.append(truth_summary)
 
             if len(comb_data) > 0:
                 if sim_type != 'trivial':
@@ -221,9 +222,9 @@ def run(
                     if 'mask_frac' in coadd_obs.meta:
                         comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
 
-                    comb_data['min_star_mag'] = (
-                        truth_summary['min_star_mag'][0]
-                    )
+                    # comb_data['min_star_mag'] = (
+                    #     truth_summary['min_star_mag'][0]
+                    # )
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
@@ -232,8 +233,8 @@ def run(
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     data_1m = eu.numpy_util.combine_arrlist(dlist_m)
-    if sim_type != 'trivial':
-        truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
+    # if sim_type != 'trivial':
+    #     truth_summary = eu.numpy_util.combine_arrlist(truth_summary_list)
 
     if output is None:
         logger.info('doing dry run, not writing')
@@ -242,8 +243,8 @@ def run(
         with fitsio.FITS(output, 'rw', clobber=True) as fits:
             fits.write(data_1p, extname='1p')
             fits.write(data_1m, extname='1m')
-            if sim_type != 'trivial':
-                fits.write(truth_summary, extname='truth_summary')
+            # if sim_type != 'trivial':
+            #     fits.write(truth_summary, extname='truth_summary')
 
 
 def show_all_masks(exps):
