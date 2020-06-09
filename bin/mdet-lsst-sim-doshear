@@ -119,12 +119,18 @@ def get_sums(args, data, stype):
         (data['shear_type'] == stype) &
         between(data['wmom_s2n'], args.s2n_min, args.s2n_max) &
         (data['wmom_T_ratio'] > args.Tratio_min) &
-        (data['star_density'] < args.max_star_density) &
-        (data['min_star_mag'] > args.min_star_mag) &
-        (data['mask_frac'] < args.max_mask_frac) &
         between(data['wmom_g'][:, 0], -1, 1) &
         between(data['wmom_g'][:, 1], -1, 1)
     )
+    if 'min_star_mag' in data.dtype.names:
+        logic &= (data['min_star_mag'] > args.min_star_mag)
+
+    if 'mask_frac' in data.dtype.names:
+        logic &= (data['mask_frac'] < args.max_mask_frac)
+
+    if 'star_density' in data.dtype.names:
+        logic &= (data['star_density'] < args.max_star_density)
+
     if args.cut_bright:
         logic = logic & (
             (data['ormask'] & BRIGHT == 0)
