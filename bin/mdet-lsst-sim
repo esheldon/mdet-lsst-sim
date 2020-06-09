@@ -16,6 +16,10 @@ def get_args():
 
     parser.add_argument('--mdet-config', help='optional config file')
 
+    parser.add_argument('--trim-psf', action='store_true',
+                        help=("trim the psf to avoid bad pixels in coadd psf "
+                              "rather than relying on zeroing"))
+
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
     parser.add_argument('--deblend', action='store_true',
@@ -70,6 +74,7 @@ def main():
         show_sheared=args.show_sheared,
         show_masks=args.show_masks,
         show_sim=args.show_sim,
+        trim_psf=args.trim_psf,
         use_sx=args.use_sx,
         deblend=args.deblend,
         nostack=args.nostack,
