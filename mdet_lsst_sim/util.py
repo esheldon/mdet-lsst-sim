@@ -3,7 +3,6 @@ import numpy as np
 import esutil as eu
 import ngmix
 
-
 DEFAULT_MDET_CONFIG = {
     'bmask_flags': 0,
     'metacal': {
@@ -25,7 +24,7 @@ DEFAULT_MDET_CONFIG = {
 }
 
 
-def get_config(config=None, nostack=False, use_sx=False):
+def get_mdet_config(config=None, nostack=False, use_sx=False):
     """
     metadetect configuration
     """
