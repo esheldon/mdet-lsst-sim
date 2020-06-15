@@ -57,8 +57,8 @@ def main():
 
     config = eu.io.read(args.config)
 
-    sim_config = config.get('sim_config', {"type": "simple"})
-    mdet_config = config.get('mdet_config', None)
+    sim_config = config.get('sim', {"type": "simple"})
+    mdet_config = config.get('mdet', None)
 
     sim_type = sim_config.get("type", "simple")
     if sim_type == 'trivial':
