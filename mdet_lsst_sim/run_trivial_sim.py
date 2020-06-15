@@ -2,7 +2,11 @@ import sys
 import logging
 import numpy as np
 
-from descwl_shear_sims import make_trivial_sim, get_trivial_sim_config
+from descwl_shear_sims import (
+    make_trivial_sim,
+    get_trivial_sim_config,
+    make_galaxy_catalog,
+)
 from descwl_coadd.coadd import MultiBandCoadds
 from metadetect.lsst_metadetect import LSSTMetadetect
 import fitsio
@@ -73,6 +77,20 @@ def run_trivial_sim(
 
     logger.info(str(mdet_config))
 
+    if sim_config['gal_type'] != 'wldeblend':
+        gal_config = sim_config.get('gal_config', None)
+    else:
+        gal_config = None
+
+    galaxy_catalog = make_galaxy_catalog(
+        rng=rng,
+        gal_type=sim_config['gal_type'],
+        coadd_dim=sim_config['coadd_dim'],
+        buff=sim_config['buff'],
+        layout=sim_config['layout'],
+        gal_config=gal_config,
+    )
+
     dlist_p = []
     dlist_m = []
 
@@ -100,9 +118,15 @@ def run_trivial_sim(
             trial_rng = np.random.RandomState(trial_seed)
             sim_data = make_trivial_sim(
                 rng=trial_rng,
+                galaxy_catalog=galaxy_catalog,
+                coadd_dim=sim_config['coadd_dim'],
                 g1=g1,
                 g2=g2,
-                **sim_config
+                psf_dim=sim_config['psf_dim'],
+                dither=sim_config['dither'],
+                rotate=sim_config['rotate'],
+                bands=sim_config['bands'],
+                epochs_per_band=sim_config['epochs_per_band'],
             )
 
             if show_sim:
