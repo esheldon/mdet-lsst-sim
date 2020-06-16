@@ -75,21 +75,13 @@ def run_trivial_sim(
     logger = logging.getLogger('mdet_lsst_sim')
     logger.setLevel(getattr(logging, loglevel.upper()))
 
+    logger.info(str(sim_config))
     logger.info(str(mdet_config))
 
     if sim_config['gal_type'] != 'wldeblend':
         gal_config = sim_config.get('gal_config', None)
     else:
         gal_config = None
-
-    galaxy_catalog = make_galaxy_catalog(
-        rng=rng,
-        gal_type=sim_config['gal_type'],
-        coadd_dim=sim_config['coadd_dim'],
-        buff=sim_config['buff'],
-        layout=sim_config['layout'],
-        gal_config=gal_config,
-    )
 
     dlist_p = []
     dlist_m = []
@@ -98,6 +90,15 @@ def run_trivial_sim(
     for trial in range(ntrial):
         logger.info('-'*70)
         logger.info('trial: %d/%d' % (trial+1, ntrial))
+
+        galaxy_catalog = make_galaxy_catalog(
+            rng=rng,
+            gal_type=sim_config['gal_type'],
+            coadd_dim=sim_config['coadd_dim'],
+            buff=sim_config['buff'],
+            layout=sim_config['layout'],
+            gal_config=gal_config,
+        )
 
         trial_seed = rng.randint(0, 2**30)
 
