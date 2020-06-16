@@ -2,10 +2,11 @@ import sys
 import logging
 import numpy as np
 
-from descwl_shear_sims import (
+from descwl_shear_sims.trivial_sim import (
     make_trivial_sim,
     get_trivial_sim_config,
     make_galaxy_catalog,
+    make_psf,
 )
 from descwl_coadd.coadd import MultiBandCoadds
 from metadetect.lsst_metadetect import LSSTMetadetect
@@ -118,6 +119,8 @@ def run_trivial_sim(
             else:
                 g1 = -0.02
 
+            psf = make_psf(psf_type=sim_config["psf_type"])
+
             trial_rng = np.random.RandomState(trial_seed)
             sim_data = make_trivial_sim(
                 rng=trial_rng,
@@ -125,6 +128,7 @@ def run_trivial_sim(
                 coadd_dim=sim_config['coadd_dim'],
                 g1=g1,
                 g2=g2,
+                psf=psf,
                 psf_dim=sim_config['psf_dim'],
                 dither=sim_config['dither'],
                 rotate=sim_config['rotate'],
