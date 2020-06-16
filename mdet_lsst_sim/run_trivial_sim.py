@@ -134,6 +134,7 @@ def run_trivial_sim(
                 rotate=sim_config['rotate'],
                 bands=sim_config['bands'],
                 epochs_per_band=sim_config['epochs_per_band'],
+                noise_factor=sim_config['noise_factor'],
             )
 
             if show_sim:
