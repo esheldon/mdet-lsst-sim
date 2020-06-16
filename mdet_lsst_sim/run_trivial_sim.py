@@ -75,13 +75,15 @@ def run_trivial_sim(
     logger = logging.getLogger('mdet_lsst_sim')
     logger.setLevel(getattr(logging, loglevel.upper()))
 
-    logger.info(str(sim_config))
-    logger.info(str(mdet_config))
-
     if sim_config['gal_type'] != 'wldeblend':
         gal_config = sim_config.get('gal_config', None)
     else:
+        logger.info("setting wldeblend layout to None")
+        sim_config["layout"] = None
         gal_config = None
+
+    logger.info(str(sim_config))
+    logger.info(str(mdet_config))
 
     dlist_p = []
     dlist_m = []
