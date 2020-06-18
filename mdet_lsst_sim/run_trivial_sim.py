@@ -7,6 +7,8 @@ from descwl_shear_sims.trivial_sim import (
     get_trivial_sim_config,
     make_galaxy_catalog,
     make_psf,
+    make_ps_psf,
+    get_se_dim,
 )
 from descwl_coadd.coadd import MultiBandCoadds
 from metadetect.lsst_metadetect import LSSTMetadetect
@@ -109,6 +111,8 @@ def run_trivial_sim(
 
             logger.info(str(shear_type))
 
+            trial_rng = np.random.RandomState(trial_seed)
+
             if shear_type == '1p':
                 send_show = show
             else:
@@ -119,9 +123,12 @@ def run_trivial_sim(
             else:
                 g1 = -0.02
 
-            psf = make_psf(psf_type=sim_config["psf_type"])
+            if sim_config['psf_type'] == 'ps':
+                se_dim = get_se_dim(coadd_dim=sim_config['coadd_dim'])
+                psf = make_ps_psf(rng=trial_rng, dim=se_dim)
+            else:
+                psf = make_psf(psf_type=sim_config["psf_type"])
 
-            trial_rng = np.random.RandomState(trial_seed)
             sim_data = make_trivial_sim(
                 rng=trial_rng,
                 galaxy_catalog=galaxy_catalog,
