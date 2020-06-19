@@ -47,6 +47,8 @@ def run_trivial_sim(
     output: string
         Output file path.  If output is None, this is a dry
         run and no output is written.
+    shear: float
+        Magnitude of the shear.  Shears +/- shear will be applied
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool

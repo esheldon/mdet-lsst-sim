@@ -32,6 +32,23 @@ def test_run_trivial_layout(layout):
     )
 
 
+@pytest.mark.parametrize("shear", (0.01, 0.02))
+def test_run_trivial_shear(shear):
+
+    sim_config = {
+        "layout": "random",
+        "coadd_dim": 101,
+        "buff": 5,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        shear=shear,
+        seed=3125,
+        ntrial=1,
+        output=None,
+    )
+
+
 @pytest.mark.parametrize("model", ["wmom", "gauss"])
 def test_run_trivial_model(model):
 

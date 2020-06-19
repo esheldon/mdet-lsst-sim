@@ -21,6 +21,7 @@ def run(
     seed,
     ntrial,
     output,
+    shear=0.02,
     mdet_config=None,
     full_output=False,
     show=False,
@@ -48,6 +49,8 @@ def run(
     output: string
         Output file path.  If output is None, this is a dry
         run and no output is written.
+    shear: float
+        Magnitude of the shear.  Shears +/- shear will be applied
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool
@@ -123,9 +126,9 @@ def run(
             trial_rng = np.random.RandomState(trial_seed)
 
             if shear_type == '1p':
-                sim_kw['g1'] = 0.02
+                sim_kw['g1'] = shear
             else:
-                sim_kw['g1'] = -0.02
+                sim_kw['g1'] = -shear
 
             sim = Sim(rng=trial_rng, **sim_kw)
 
