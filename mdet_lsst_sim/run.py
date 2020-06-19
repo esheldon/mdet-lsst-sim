@@ -203,7 +203,11 @@ def run(
             md.go()
             res = md.result
 
-            comb_data = util.make_comb_data(res, full_output=full_output)
+            comb_data = util.make_comb_data(
+                res,
+                mdet_config["model"],
+                full_output=full_output,
+            )
 
             if sim.object_data is not None:
                 truth_summary = util.make_truth_summary(sim.object_data)

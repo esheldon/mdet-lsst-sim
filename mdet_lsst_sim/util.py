@@ -4,23 +4,24 @@ import esutil as eu
 import ngmix
 
 DEFAULT_MDET_CONFIG = {
-    'bmask_flags': 0,
-    'metacal': {
-        'use_noise_image': True,
-        'psf': 'fitgauss',
+    "model": "wmom",
+    "bmask_flags": 0,
+    "metacal": {
+        "use_noise_image": True,
+        "psf": "fitgauss",
     },
-    'psf': {
-        'model': 'gauss',
-        'lm_pars': {},
-        'ntry': 2,
+    "psf": {
+        "model": "gauss",
+        "lm_pars": {},
+        "ntry": 2,
     },
-    'weight': {
-        'fwhm': 1.2,
+    "weight": {
+        "fwhm": 1.2,
     },
-    'detect': {
-        'thresh': 10.0,
+    "detect": {
+        "thresh": 10.0,
     },
-    'meds': {},
+    "meds": {},
 }
 
 
@@ -29,7 +30,12 @@ def get_mdet_config(config=None, nostack=False, use_sx=False):
     metadetect configuration
     """
     if config is None:
-        config = deepcopy(DEFAULT_MDET_CONFIG)
+        config_in = {}
+    else:
+        config_in = deepcopy(config)
+
+    config = deepcopy(DEFAULT_MDET_CONFIG)
+    config.update(config_in)
 
     if nostack or use_sx:
         config['sx'] = {
@@ -89,16 +95,16 @@ def get_mdet_config(config=None, nostack=False, use_sx=False):
     return config
 
 
-def trim_output(data):
+def trim_output(data, model):
     cols2keep_orig = [
         'flags',
         'row',
         'col',
         'ormask',
-        'wmom_s2n',
-        'wmom_T_ratio',
-        'wmom_g',
-        'wmom_g_cov',
+        '%s_s2n' % model,
+        '%s_T_ratio' % model,
+        '%s_g' % model,
+        '%s_g_cov' % model,
     ]
 
     cols2keep = []
@@ -109,7 +115,7 @@ def trim_output(data):
     return eu.numpy_util.extract_fields(data, cols2keep)
 
 
-def make_comb_data(res, full_output=False):
+def make_comb_data(res, model, full_output=False):
     add_dt = [
         ('shear_type', 'S7'),
         ('star_density', 'f4'),
@@ -123,7 +129,7 @@ def make_comb_data(res, full_output=False):
         if data is not None:
 
             if not full_output:
-                data = trim_output(data)
+                data = trim_output(data, model)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             newdata['shear_type'] = stype

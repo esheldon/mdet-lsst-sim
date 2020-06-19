@@ -177,7 +177,11 @@ def run_trivial_sim(
             md.go()
             res = md.result
 
-            comb_data = util.make_comb_data(res, full_output=full_output)
+            comb_data = util.make_comb_data(
+                res,
+                mdet_config["model"],
+                full_output=full_output,
+            )
 
             if len(comb_data) > 0:
                 if shear_type == '1p':
