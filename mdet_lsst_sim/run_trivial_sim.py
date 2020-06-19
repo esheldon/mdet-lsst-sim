@@ -25,6 +25,7 @@ def run_trivial_sim(
     ntrial,
     output,
     shear=0.02,
+    nocancel=False,
     mdet_config=None,
     full_output=False,
     show=False,
@@ -49,6 +50,8 @@ def run_trivial_sim(
         run and no output is written.
     shear: float
         Magnitude of the shear.  Shears +/- shear will be applied
+    nocancel: bool
+        If True, don't run -shear
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool
@@ -94,6 +97,11 @@ def run_trivial_sim(
     dlist_p = []
     dlist_m = []
 
+    if nocancel:
+        shear_types = ('1p', )
+    else:
+        shear_types = ('1p', '1m')
+
     for trial in range(ntrial):
         logger.info('-'*70)
         logger.info('trial: %d/%d' % (trial+1, ntrial))
@@ -109,7 +117,7 @@ def run_trivial_sim(
 
         trial_seed = rng.randint(0, 2**30)
 
-        for shear_type in ('1p', '1m'):
+        for shear_type in shear_types:
 
             logger.info(str(shear_type))
 
@@ -192,7 +200,8 @@ def run_trivial_sim(
                     dlist_m.append(comb_data)
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
-    data_1m = eu.numpy_util.combine_arrlist(dlist_m)
+    if len(dlist_m) > 0:
+        data_1m = eu.numpy_util.combine_arrlist(dlist_m)
 
     if output is None:
         logger.info('doing dry run, not writing')
@@ -200,4 +209,6 @@ def run_trivial_sim(
         logger.info('writing: %s' % output)
         with fitsio.FITS(output, 'rw', clobber=True) as fits:
             fits.write(data_1p, extname='1p')
-            fits.write(data_1m, extname='1m')
+
+            if len(dlist_m) > 0:
+                fits.write(data_1m, extname='1m')
