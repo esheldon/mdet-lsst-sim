@@ -49,6 +49,23 @@ def test_run_trivial_shear(shear):
     )
 
 
+@pytest.mark.parametrize("nocancel", (False, True))
+def test_run_trivial_nocancel(nocancel):
+
+    sim_config = {
+        "layout": "random",
+        "coadd_dim": 101,
+        "buff": 5,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        nocancel=nocancel,
+        seed=3125,
+        ntrial=1,
+        output=None,
+    )
+
+
 @pytest.mark.parametrize("model", ["wmom", "gauss"])
 def test_run_trivial_model(model):
 
