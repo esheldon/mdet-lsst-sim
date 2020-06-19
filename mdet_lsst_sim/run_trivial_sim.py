@@ -24,6 +24,7 @@ def run_trivial_sim(
     seed,
     ntrial,
     output,
+    shear=0.02,
     mdet_config=None,
     full_output=False,
     show=False,
@@ -91,7 +92,6 @@ def run_trivial_sim(
     dlist_p = []
     dlist_m = []
 
-    g2 = 0.0
     for trial in range(ntrial):
         logger.info('-'*70)
         logger.info('trial: %d/%d' % (trial+1, ntrial))
@@ -119,9 +119,9 @@ def run_trivial_sim(
                 send_show = False
 
             if shear_type == '1p':
-                g1 = 0.02
+                g1 = shear
             else:
-                g1 = -0.02
+                g1 = -shear
 
             if sim_config['psf_type'] == 'ps':
                 se_dim = get_se_dim(coadd_dim=sim_config['coadd_dim'])
@@ -134,7 +134,7 @@ def run_trivial_sim(
                 galaxy_catalog=galaxy_catalog,
                 coadd_dim=sim_config['coadd_dim'],
                 g1=g1,
-                g2=g2,
+                g2=0.0,
                 psf=psf,
                 psf_dim=sim_config['psf_dim'],
                 dither=sim_config['dither'],

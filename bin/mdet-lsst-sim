@@ -15,6 +15,8 @@ def get_args():
     parser.add_argument('--config', required=True, help='simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
 
+    parser.add_argument('--shear', type=float, default=0.02)
+
     parser.add_argument('--trim-psf', action='store_true',
                         help=("trim the psf to avoid bad pixels in coadd psf "
                               "rather than relying on zeroing"))
@@ -68,6 +70,7 @@ def main():
             seed=args.seed,
             ntrial=args.ntrial,
             output=args.output,
+            shear=args.shear,
             full_output=args.full_output,
             show=args.show,
             show_sheared=args.show_sheared,
