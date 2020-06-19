@@ -87,6 +87,7 @@ def main():
             seed=args.seed,
             ntrial=args.ntrial,
             output=args.output,
+            shear=args.shear,
             full_output=args.full_output,
             show=args.show,
             show_sheared=args.show_sheared,
