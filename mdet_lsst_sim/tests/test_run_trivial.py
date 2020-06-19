@@ -32,6 +32,23 @@ def test_run_trivial_layout(layout):
     )
 
 
+@pytest.mark.parametrize("model", ["wmom", "gauss"])
+def test_run_trivial_model(model):
+
+    sim_config = {
+        "layout": "random",
+        "coadd_dim": 101,
+        "buff": 5,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        mdet_config={"model": model},
+        seed=3125,
+        ntrial=1,
+        output=None,
+    )
+
+
 @pytest.mark.skipif(
     "CATSIM_DIR" not in os.environ,
     reason="simulation input data is not present",
