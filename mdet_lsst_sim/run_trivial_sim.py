@@ -181,6 +181,8 @@ def run_trivial_sim(
             )
 
             coadd_obs = mbc.coadds['all']
+            if coadd_obs is None:
+                continue
 
             logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
 
@@ -206,6 +208,9 @@ def run_trivial_sim(
             if len(comb_data) > 0:
                 if sim_config['stars']:
                     comb_data['star_density'] = star_catalog.density
+                    logger.info('star_density: %g' % star_catalog.density)
+
+                comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
