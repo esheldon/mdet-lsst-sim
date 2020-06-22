@@ -100,3 +100,31 @@ def test_run_trivial_gal_wldeblend():
         ntrial=1,
         output=None,
     )
+
+
+@pytest.mark.skipif(
+    "CATSIM_DIR" not in os.environ,
+    reason="simulation input data is not present",
+)
+@pytest.mark.parametrize(
+    "gal_type,stars",
+    [("exp", True),
+     ("exp", False),
+     ("wldeblend", True),
+     ("wldeblend", False)]
+)
+def test_run_trivial_stars(gal_type, stars):
+
+    sim_config = {
+        "gal_type": gal_type,
+        "layout": "random",
+        "coadd_dim": 101,
+        "buff": 5,
+        "stars": stars,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        seed=125,
+        ntrial=1,
+        output=None,
+    )

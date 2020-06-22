@@ -9,6 +9,7 @@ from descwl_shear_sims.trivial_sim import (
     make_psf,
     make_ps_psf,
     get_se_dim,
+    StarCatalog,
 )
 from descwl_coadd.coadd import MultiBandCoadds
 from metadetect.lsst_metadetect import LSSTMetadetect
@@ -114,6 +115,14 @@ def run_trivial_sim(
             layout=sim_config['layout'],
             gal_config=gal_config,
         )
+        if sim_config['stars']:
+            star_catalog = StarCatalog(
+                rng=rng,
+                coadd_dim=sim_config['coadd_dim'],
+                buff=sim_config['buff'],
+            )
+        else:
+            star_catalog = None
 
         trial_seed = rng.randint(0, 2**30)
 
@@ -146,6 +155,7 @@ def run_trivial_sim(
                 g1=g1,
                 g2=0.0,
                 psf=psf,
+                star_catalog=star_catalog,
                 psf_dim=sim_config['psf_dim'],
                 dither=sim_config['dither'],
                 rotate=sim_config['rotate'],
