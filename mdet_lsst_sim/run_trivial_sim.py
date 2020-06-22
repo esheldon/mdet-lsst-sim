@@ -204,6 +204,9 @@ def run_trivial_sim(
             )
 
             if len(comb_data) > 0:
+                if sim_config['stars']:
+                    comb_data['star_density'] = star_catalog.density
+
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:
