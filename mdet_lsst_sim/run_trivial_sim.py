@@ -218,7 +218,7 @@ def run_trivial_sim(
                     dlist_m.append(comb_data)
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
-    if len(dlist_m) > 0:
+    if not nocancel:
         data_1m = eu.numpy_util.combine_arrlist(dlist_m)
 
     if output is None:
@@ -228,5 +228,5 @@ def run_trivial_sim(
         with fitsio.FITS(output, 'rw', clobber=True) as fits:
             fits.write(data_1p, extname='1p')
 
-            if len(dlist_m) > 0:
+            if not nocancel:
                 fits.write(data_1m, extname='1m')
