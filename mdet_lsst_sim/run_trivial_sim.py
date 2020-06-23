@@ -162,6 +162,8 @@ def run_trivial_sim(
                 bands=sim_config['bands'],
                 epochs_per_band=sim_config['epochs_per_band'],
                 noise_factor=sim_config['noise_factor'],
+                cosmic_rays=sim_config['cosmic_rays'],
+                bad_columns=sim_config['bad_columns'],
             )
 
             if show_sim:
