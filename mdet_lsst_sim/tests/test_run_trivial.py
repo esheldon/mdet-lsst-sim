@@ -83,6 +83,30 @@ def test_run_trivial_model(model):
     )
 
 
+@pytest.mark.parametrize(
+    "cosmic_rays, bad_columns",
+    [(True, True),
+     (True, False),
+     (False, True),
+     (True, True)],
+)
+def test_run_trivial_defects(cosmic_rays, bad_columns):
+
+    sim_config = {
+        "layout": "grid",
+        "coadd_dim": 101,
+        "buff": 5,
+        "cosmic_rays": cosmic_rays,
+        "bad_columns": bad_columns,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        seed=3125,
+        ntrial=1,
+        output=None,
+    )
+
+
 @pytest.mark.skipif(
     "CATSIM_DIR" not in os.environ,
     reason="simulation input data is not present",
