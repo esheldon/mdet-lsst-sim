@@ -85,19 +85,19 @@ def test_run_trivial_model(model):
 
 @pytest.mark.parametrize(
     "cosmic_rays, bad_columns",
-    [(True, True),
-     (True, False),
-     (False, True),
-     (True, True)],
+    [(True, False),
+     (False, True)],
 )
-def test_run_trivial_defects(cosmic_rays, bad_columns):
+def test_run_trivial_artifacts(cosmic_rays, bad_columns, star_bleeds):
 
     sim_config = {
         "layout": "grid",
         "coadd_dim": 101,
         "buff": 5,
+        "stars": True,
         "cosmic_rays": cosmic_rays,
         "bad_columns": bad_columns,
+        "star_bleeds": star_bleeds,
     }
     run_trivial_sim(
         sim_config=sim_config,
@@ -145,6 +145,28 @@ def test_run_trivial_stars(gal_type, stars):
         "coadd_dim": 101,
         "buff": 5,
         "stars": stars,
+    }
+    run_trivial_sim(
+        sim_config=sim_config,
+        seed=125,
+        ntrial=1,
+        output=None,
+    )
+
+
+@pytest.mark.skipif(
+    "CATSIM_DIR" not in os.environ,
+    reason="simulation input data is not present",
+)
+def test_run_trivial_star_bleeds():
+
+    sim_config = {
+        "gal_type": "wldeblend",
+        "layout": "random",
+        "coadd_dim": 101,
+        "buff": 5,
+        "stars": True,
+        "star_bleeds": True,
     }
     run_trivial_sim(
         sim_config=sim_config,
