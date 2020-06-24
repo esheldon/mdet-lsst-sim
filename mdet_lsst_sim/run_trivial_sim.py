@@ -164,6 +164,7 @@ def run_trivial_sim(
                 noise_factor=sim_config['noise_factor'],
                 cosmic_rays=sim_config['cosmic_rays'],
                 bad_columns=sim_config['bad_columns'],
+                star_bleeds=sim_config['star_bleeds'],
             )
 
             if show_sim:
