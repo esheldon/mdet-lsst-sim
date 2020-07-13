@@ -105,22 +105,31 @@ def jackknife(data):
     return m1, m1err, c1, c1err, c2, c2err
 
 
-def get_weights(data, ind):
-    # err_term = (2/data['wmom_s2n'][ind])
-    # return 1.0/(0.2**2 + err_term**2)
-    err_term = data['wmom_g_cov'][ind, 0, 0] + data['wmom_g_cov'][ind, 1, 1]
+def get_weights(data, ind, model):
+    g_cov = data['%s_g_cov' % model]
+    err_term = g_cov[ind, 0, 0] + g_cov[ind, 1, 1]
 
     return 1.0/(2*0.2**2 + err_term)
 
 
 def get_sums(args, data, stype):
+
+    if 'wmom_g' in data.dtype.names:
+        model = 'wmom'
+    else:
+        model = 'gauss'
+
+    s2n = data['%s_s2n' % model]
+    T_ratio = data['%s_T_ratio' % model]
+    g = data['%s_g' % model]
+
     logic = (
         (data['flags'] == 0) &
         (data['shear_type'] == stype) &
-        between(data['wmom_s2n'], args.s2n_min, args.s2n_max) &
-        (data['wmom_T_ratio'] > args.Tratio_min) &
-        between(data['wmom_g'][:, 0], -1, 1) &
-        between(data['wmom_g'][:, 1], -1, 1)
+        between(s2n, args.s2n_min, args.s2n_max) &
+        (T_ratio > args.Tratio_min) &
+        between(g[:, 0], -1, 1) &
+        between(g[:, 1], -1, 1)
     )
     if 'min_star_mag' in data.dtype.names:
         logic &= (data['min_star_mag'] > args.min_star_mag)
@@ -143,13 +152,13 @@ def get_sums(args, data, stype):
     if w.size > 0:
 
         if args.use_weights:
-            wts = get_weights(data, w)
-            g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
-            g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
+            wts = get_weights(data, w, model)
+            g_sum[0] = (wts * g[w, 0]).sum()
+            g_sum[1] = (wts * g[w, 1]).sum()
             wsum = wts.sum()
         else:
-            g_sum[0] = data['wmom_g'][w, 0].sum()
-            g_sum[1] = data['wmom_g'][w, 1].sum()
+            g_sum[0] = g[w, 0].sum()
+            g_sum[1] = g[w, 1].sum()
             wsum = w.size
 
     return g_sum, wsum
@@ -225,7 +234,7 @@ def read_one(inputs):
 def get_flist(args):
 
     with open(args.flist) as fobj:
-        flist = [l.strip() for l in fobj]
+        flist = [line.strip() for line in fobj]
 
     return flist
 

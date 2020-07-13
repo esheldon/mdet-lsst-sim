@@ -3,7 +3,7 @@ import copy
 import logging
 import numpy as np
 
-from descwl_shear_sims import Sim, TrivialSim
+from descwl_shear_sims.simple_sim import SimpleSim
 import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
@@ -21,6 +21,7 @@ def run(
     seed,
     ntrial,
     output,
+    shear=0.02,
     mdet_config=None,
     full_output=False,
     show=False,
@@ -39,6 +40,8 @@ def run(
     """
     sim_config: dict
         Dict with configuration for the simulation
+    mdet_config: dict
+        Dict with mdet configuration, default None
     seed: int
         Seed for a random number generator
     ntrial: int
@@ -46,9 +49,8 @@ def run(
     output: string
         Output file path.  If output is None, this is a dry
         run and no output is written.
-    mdet_config: dict
-        The mdet config, if not set it is generated internally.  All parts
-        of the config must be set, not including 'sx' and 'meds' entries.
+    shear: float
+        Magnitude of the shear.  Shears +/- shear will be applied
     full_output: bool
         If True, write full output rather than trimming.  Default False
     show: bool
@@ -81,11 +83,14 @@ def run(
         are interpolated.
     """
 
-    sim_config = copy.deepcopy(sim_config)
-    sim_type = sim_config.pop('sim_type', 'simple')
+    if sim_config is None:
+        sim_config = {}
+
+    sim_type = sim_config.pop('type', 'simple')
+    assert sim_type == 'simple'
 
     rng = np.random.RandomState(seed)
-    mdet_config = util.get_config(
+    mdet_config = util.get_mdet_config(
         config=mdet_config,
         nostack=nostack,
         use_sx=use_sx,
@@ -121,15 +126,11 @@ def run(
             trial_rng = np.random.RandomState(trial_seed)
 
             if shear_type == '1p':
-                sim_kw['g1'] = 0.02
+                sim_kw['g1'] = shear
             else:
-                sim_kw['g1'] = -0.02
+                sim_kw['g1'] = -shear
 
-            if sim_type == 'simple':
-                sim = Sim(rng=trial_rng, **sim_kw)
-            else:
-                sim = TrivialSim(rng=trial_rng, **sim_kw)
-                assert not nostack, 'need to adapt to no stack again'
+            sim = SimpleSim(rng=trial_rng, **sim_kw)
 
             data = sim.gen_sim()
 
@@ -137,8 +138,7 @@ def run(
                 vis.show_sim(data)
 
             if nostack:
-                if sim_type == 'simple':
-                    coadd_obs = MultiBandCoaddsSimple(data=data)
+                coadd_obs = MultiBandCoaddsSimple(data=data)
 
                 coadd_mbobs = util.make_mbobs(coadd_obs)
                 md = Metadetect(
@@ -206,7 +206,11 @@ def run(
             md.go()
             res = md.result
 
-            comb_data = util.make_comb_data(res, full_output=full_output)
+            comb_data = util.make_comb_data(
+                res,
+                mdet_config["model"],
+                full_output=full_output,
+            )
 
             if sim.object_data is not None:
                 truth_summary = util.make_truth_summary(sim.object_data)
@@ -215,15 +219,14 @@ def run(
                     truth_summary_list.append(truth_summary)
 
             if len(comb_data) > 0:
-                if sim_type != 'trivial':
-                    comb_data['star_density'] = sim.star_density
-                    if 'mask_frac' in coadd_obs.meta:
-                        comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
+                comb_data['star_density'] = sim.star_density
+                if 'mask_frac' in coadd_obs.meta:
+                    comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
 
-                    if sim.object_data is not None:
-                        comb_data['min_star_mag'] = (
-                            truth_summary['min_star_mag'][0]
-                        )
+                if sim.object_data is not None:
+                    comb_data['min_star_mag'] = (
+                        truth_summary['min_star_mag'][0]
+                    )
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)

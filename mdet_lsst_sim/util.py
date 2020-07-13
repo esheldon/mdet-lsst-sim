@@ -3,34 +3,39 @@ import numpy as np
 import esutil as eu
 import ngmix
 
-
 DEFAULT_MDET_CONFIG = {
-    'bmask_flags': 0,
-    'metacal': {
-        'use_noise_image': True,
-        'psf': 'fitgauss',
+    "model": "wmom",
+    "bmask_flags": 0,
+    "metacal": {
+        "use_noise_image": True,
+        "psf": "fitgauss",
     },
-    'psf': {
-        'model': 'gauss',
-        'lm_pars': {},
-        'ntry': 2,
+    "psf": {
+        "model": "gauss",
+        "lm_pars": {},
+        "ntry": 2,
     },
-    'weight': {
-        'fwhm': 1.2,
+    "weight": {
+        "fwhm": 1.2,
     },
-    'detect': {
-        'thresh': 10.0,
+    "detect": {
+        "thresh": 10.0,
     },
-    'meds': {},
+    "meds": {},
 }
 
 
-def get_config(config=None, nostack=False, use_sx=False):
+def get_mdet_config(config=None, nostack=False, use_sx=False):
     """
     metadetect configuration
     """
     if config is None:
-        config = deepcopy(DEFAULT_MDET_CONFIG)
+        config_in = {}
+    else:
+        config_in = deepcopy(config)
+
+    config = deepcopy(DEFAULT_MDET_CONFIG)
+    config.update(config_in)
 
     if nostack or use_sx:
         config['sx'] = {
@@ -49,7 +54,7 @@ def get_config(config=None, nostack=False, use_sx=False):
             'filter_type': 'conv',
 
             # 7x7 convolution mask of a gaussian PSF with FWHM = 3.0 pixels.
-            'filter_kernel':  [
+            'filter_kernel': [
                 [0.004963, 0.021388, 0.051328, 0.068707, 0.051328, 0.021388, 0.004963],  # noqa
                 [0.021388, 0.092163, 0.221178, 0.296069, 0.221178, 0.092163, 0.021388],  # noqa
                 [0.051328, 0.221178, 0.530797, 0.710525, 0.530797, 0.221178, 0.051328],  # noqa
@@ -90,16 +95,16 @@ def get_config(config=None, nostack=False, use_sx=False):
     return config
 
 
-def trim_output(data):
+def trim_output(data, model):
     cols2keep_orig = [
         'flags',
         'row',
         'col',
         'ormask',
-        'wmom_s2n',
-        'wmom_T_ratio',
-        'wmom_g',
-        'wmom_g_cov',
+        '%s_s2n' % model,
+        '%s_T_ratio' % model,
+        '%s_g' % model,
+        '%s_g_cov' % model,
     ]
 
     cols2keep = []
@@ -110,7 +115,7 @@ def trim_output(data):
     return eu.numpy_util.extract_fields(data, cols2keep)
 
 
-def make_comb_data(res, full_output=False):
+def make_comb_data(res, model, full_output=False):
     add_dt = [
         ('shear_type', 'S7'),
         ('star_density', 'f4'),
@@ -124,7 +129,7 @@ def make_comb_data(res, full_output=False):
         if data is not None:
 
             if not full_output:
-                data = trim_output(data)
+                data = trim_output(data, model)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             newdata['shear_type'] = stype
