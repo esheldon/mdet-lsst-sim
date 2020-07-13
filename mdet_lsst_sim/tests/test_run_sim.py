@@ -94,7 +94,6 @@ def test_run_artifacts(cosmic_rays, bad_columns):
         "layout": "grid",
         "coadd_dim": 101,
         "buff": 5,
-        "stars": True,
         "cosmic_rays": cosmic_rays,
         "bad_columns": bad_columns,
     }
