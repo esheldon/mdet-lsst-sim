@@ -4,7 +4,7 @@ import time
 import argparse
 import esutil as eu
 from mdet_lsst_sim.run import run
-from mdet_lsst_sim.run_trivial_sim import run_trivial_sim
+from mdet_lsst_sim.run_sim import run_sim
 
 
 def get_args():
@@ -66,8 +66,9 @@ def main():
     mdet_config = config.get('mdet', None)
 
     sim_type = sim_config.get("type", "simple")
-    if sim_type == 'trivial':
-        run_trivial_sim(
+
+    if sim_type == 'lsst':
+        run_sim(
             sim_config=sim_config,
             mdet_config=mdet_config,
             seed=args.seed,
@@ -84,7 +85,7 @@ def main():
             replace_bright=args.replace_bright,
             loglevel=args.loglevel,
         )
-    else:
+    elif sim_type == 'simple':
         assert args.nocancel is False, (
             "nocancel not yet supported for simple sim"
         )
@@ -109,6 +110,8 @@ def main():
             replace_bright=args.replace_bright,
             loglevel=args.loglevel,
         )
+    else:
+        raise ValueError("bad sim type: '%s'" % sim_type)
 
     tm_seconds = time.time()-tm0
     tm_minutes = tm_seconds/60.0

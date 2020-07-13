@@ -2,9 +2,9 @@ import sys
 import logging
 import numpy as np
 
-from descwl_shear_sims.trivial_sim import (
-    make_trivial_sim,
-    get_trivial_sim_config,
+from descwl_shear_sims.sim import (
+    make_sim,
+    get_sim_config,
     make_galaxy_catalog,
     make_psf,
     make_ps_psf,
@@ -19,7 +19,7 @@ import esutil as eu
 from . import util, vis
 
 
-def run_trivial_sim(
+def run_sim(
     *,
     sim_config,
     seed,
@@ -73,13 +73,13 @@ def run_trivial_sim(
 
     assert deblend is False
 
-    sim_type = sim_config.pop('type', 'trivial')
-    assert sim_type == 'trivial'
+    sim_type = sim_config.pop('type', 'lsst')
+    assert sim_type == 'lsst'
 
     rng = np.random.RandomState(seed)
 
     mdet_config = util.get_mdet_config(config=mdet_config)
-    sim_config = get_trivial_sim_config(config=sim_config)
+    sim_config = get_sim_config(config=sim_config)
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
@@ -148,7 +148,7 @@ def run_trivial_sim(
             else:
                 psf = make_psf(psf_type=sim_config["psf_type"])
 
-            sim_data = make_trivial_sim(
+            sim_data = make_sim(
                 rng=trial_rng,
                 galaxy_catalog=galaxy_catalog,
                 coadd_dim=sim_config['coadd_dim'],

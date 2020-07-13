@@ -3,7 +3,7 @@ import copy
 import logging
 import numpy as np
 
-from descwl_shear_sims import Sim
+from descwl_shear_sims.simple_sim import SimpleSim
 import descwl_coadd.vis
 from descwl_coadd.coadd import MultiBandCoadds
 from descwl_coadd.coadd_simple import MultiBandCoaddsSimple
@@ -130,7 +130,7 @@ def run(
             else:
                 sim_kw['g1'] = -shear
 
-            sim = Sim(rng=trial_rng, **sim_kw)
+            sim = SimpleSim(rng=trial_rng, **sim_kw)
 
             data = sim.gen_sim()
 

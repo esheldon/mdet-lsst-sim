@@ -1,14 +1,14 @@
 import os
 import pytest
-from ..run_trivial_sim import run_trivial_sim
+from ..run_sim import run_sim
 
 
-def test_run_trivial_smoke():
+def test_run_smoke():
     sim_config = {
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=3125,
         ntrial=1,
@@ -17,14 +17,14 @@ def test_run_trivial_smoke():
 
 
 @pytest.mark.parametrize("layout", ("grid", "random"))
-def test_run_trivial_layout(layout):
+def test_run_layout(layout):
 
     sim_config = {
         "layout": layout,
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=3125,
         ntrial=1,
@@ -33,14 +33,14 @@ def test_run_trivial_layout(layout):
 
 
 @pytest.mark.parametrize("shear", (0.01, 0.02))
-def test_run_trivial_shear(shear):
+def test_run_shear(shear):
 
     sim_config = {
         "layout": "random",
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         shear=shear,
         seed=3125,
@@ -50,14 +50,14 @@ def test_run_trivial_shear(shear):
 
 
 @pytest.mark.parametrize("nocancel", (False, True))
-def test_run_trivial_nocancel(nocancel):
+def test_run_nocancel(nocancel):
 
     sim_config = {
         "layout": "random",
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         nocancel=nocancel,
         seed=3125,
@@ -67,14 +67,14 @@ def test_run_trivial_nocancel(nocancel):
 
 
 @pytest.mark.parametrize("model", ["wmom", "gauss"])
-def test_run_trivial_model(model):
+def test_run_model(model):
 
     sim_config = {
         "layout": "random",
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         mdet_config={"model": model},
         seed=3125,
@@ -88,7 +88,7 @@ def test_run_trivial_model(model):
     [(True, False),
      (False, True)],
 )
-def test_run_trivial_artifacts(cosmic_rays, bad_columns, star_bleeds):
+def test_run_artifacts(cosmic_rays, bad_columns):
 
     sim_config = {
         "layout": "grid",
@@ -97,9 +97,8 @@ def test_run_trivial_artifacts(cosmic_rays, bad_columns, star_bleeds):
         "stars": True,
         "cosmic_rays": cosmic_rays,
         "bad_columns": bad_columns,
-        "star_bleeds": star_bleeds,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=3125,
         ntrial=1,
@@ -111,14 +110,14 @@ def test_run_trivial_artifacts(cosmic_rays, bad_columns, star_bleeds):
     "CATSIM_DIR" not in os.environ,
     reason="simulation input data is not present",
 )
-def test_run_trivial_gal_wldeblend():
+def test_run_gal_wldeblend():
 
     sim_config = {
         "gal_type": "wldeblend",
         "coadd_dim": 101,
         "buff": 5,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=3125,
         ntrial=1,
@@ -137,7 +136,7 @@ def test_run_trivial_gal_wldeblend():
      ("wldeblend", True),
      ("wldeblend", False)]
 )
-def test_run_trivial_stars(gal_type, stars):
+def test_run_stars(gal_type, stars):
 
     sim_config = {
         "gal_type": gal_type,
@@ -146,7 +145,7 @@ def test_run_trivial_stars(gal_type, stars):
         "buff": 5,
         "stars": stars,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=125,
         ntrial=1,
@@ -158,7 +157,7 @@ def test_run_trivial_stars(gal_type, stars):
     "CATSIM_DIR" not in os.environ,
     reason="simulation input data is not present",
 )
-def test_run_trivial_star_bleeds():
+def test_run_star_bleeds():
 
     sim_config = {
         "gal_type": "wldeblend",
@@ -168,7 +167,7 @@ def test_run_trivial_star_bleeds():
         "stars": True,
         "star_bleeds": True,
     }
-    run_trivial_sim(
+    run_sim(
         sim_config=sim_config,
         seed=125,
         ntrial=1,
