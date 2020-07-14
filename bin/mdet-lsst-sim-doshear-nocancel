@@ -125,25 +125,34 @@ def jackknife(data):
     return m1, m1err, c2, c2err
 
 
-def get_weights(data, ind):
-    # err_term = (2/data['wmom_s2n'][ind])
-    # return 1.0/(0.2**2 + err_term**2)
-    err_term = data['wmom_g_cov'][ind, 0, 0] + data['wmom_g_cov'][ind, 1, 1]
+def get_weights(data, ind, model):
+    g_cov = data['%s_g_cov' % model]
+    err_term = g_cov[ind, 0, 0] + g_cov[ind, 1, 1]
 
     return 1.0/(2*0.2**2 + err_term)
 
 
 def get_sums(args, data, stype):
+
+    if 'wmom_g' in data.dtype.names:
+        model = 'wmom'
+    else:
+        model = 'gauss'
+
+    s2n = data['%s_s2n' % model]
+    T_ratio = data['%s_T_ratio' % model]
+    g = data['%s_g' % model]
+
     logic = (
         (data['flags'] == 0) &
         (data['shear_type'] == stype) &
-        between(data['wmom_s2n'], args.s2n_min, args.s2n_max) &
-        (data['wmom_T_ratio'] > args.Tratio_min) &
+        between(s2n, args.s2n_min, args.s2n_max) &
+        (T_ratio > args.Tratio_min) &
         (data['star_density'] < args.max_star_density) &
         (data['min_star_mag'] > args.min_star_mag) &
         (data['mask_frac'] < args.max_mask_frac) &
-        between(data['wmom_g'][:, 0], -1, 1) &
-        between(data['wmom_g'][:, 1], -1, 1)
+        between(g[:, 0], -1, 1) &
+        between(g[:, 1], -1, 1)
     )
     if args.cut_bright:
         logic = logic & (
@@ -155,18 +164,18 @@ def get_sums(args, data, stype):
     gsq_sum = np.zeros(2)
 
     if args.use_weights:
-        wts = get_weights(data, w)
-        g_sum[0] = (wts*data['wmom_g'][w, 0]).sum()
-        g_sum[1] = (wts*data['wmom_g'][w, 1]).sum()
-        gsq_sum[0] = (wts*data['wmom_g'][w, 0]**2).sum()
-        gsq_sum[1] = (wts*data['wmom_g'][w, 1]**2).sum()
+        wts = get_weights(data, w, model)
+        g_sum[0] = (wts*g[w, 0]).sum()
+        g_sum[1] = (wts*g[w, 1]).sum()
+        gsq_sum[0] = (wts*g[w, 0]**2).sum()
+        gsq_sum[1] = (wts*g[w, 1]**2).sum()
         wsum = wts.sum()
         wsq_sum = (wts**2).sum()
     else:
-        g_sum[0] = data['wmom_g'][w, 0].sum()
-        g_sum[1] = data['wmom_g'][w, 1].sum()
-        gsq_sum[0] = (data['wmom_g'][w, 0]**2).sum()
-        gsq_sum[1] = (data['wmom_g'][w, 1]**2).sum()
+        g_sum[0] = g[w, 0].sum()
+        g_sum[1] = g[w, 1].sum()
+        gsq_sum[0] = (g[w, 0]**2).sum()
+        gsq_sum[1] = (g[w, 1]**2).sum()
         wsum = w.size
         wsq_sum = w.size
 
@@ -195,12 +204,13 @@ def read_one(inputs):
     try:
         with fitsio.FITS(fname) as fobj:
             data_1p = fobj['1p'].read()
-            data_1m = fobj['1m'].read()
+            # data_1m = fobj['1m'].read()
     except OSError as err:
         print(err)
         return None
 
-    if data_1p is None or data_1m is None:
+    # if data_1p is None or data_1m is None:
+    if data_1p is None:
         return None
 
     # from 1p ext
@@ -220,6 +230,7 @@ def read_one(inputs):
     d['wsum_1m'] = wsum_1m
 
     # from 1m ext
+    """
     tg_sum, tgsq_sum, wsum, wsq_sum = get_sums(args, data_1m, 'noshear')
 
     # we are not tryin to cancel
@@ -237,6 +248,7 @@ def read_one(inputs):
     d['wsq_ns_sum'] += wsq_sum
     d['wsum_1p'] += wsum_1p
     d['wsum_1m'] += wsum_1m
+    """
 
     return d
 
