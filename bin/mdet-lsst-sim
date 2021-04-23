@@ -51,6 +51,8 @@ def get_args():
                         help='show the sim image')
 
     parser.add_argument('--loglevel', default='info', help='logging level')
+
+    parser.add_argument('--use-dmsim', action='store_true')
     return parser.parse_args()
 
 
@@ -84,6 +86,7 @@ def main():
             interp_bright=args.interp_bright,
             replace_bright=args.replace_bright,
             loglevel=args.loglevel,
+            use_dmsim=args.use_dmsim,
         )
     elif sim_type == 'simple':
         assert args.nocancel is False, (
