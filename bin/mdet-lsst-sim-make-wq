@@ -9,10 +9,11 @@ template = r"""
 command: |
     export OMP_NUM_THREADS=1
     . ~/.bashrc
-    source activate mystack
+    source activate stack
 
     mdet-lsst-sim \
         --seed %(seed)d \
+        --use-dmsim \
         %(use_sx)s \
         %(deblend)s \
         %(interp_bright)s \
