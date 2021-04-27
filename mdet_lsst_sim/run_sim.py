@@ -197,7 +197,7 @@ def run_sim(
                     interp_bright=interp_bright,
                     data=sim_data['band_data'],
                     coadd_wcs=sim_data['coadd_wcs'],
-                    coadd_dims=sim_data['coadd_dims'],
+                    coadd_bbox=sim_data['coadd_bbox'],
                     psf_dims=sim_data['psf_dims'],
                     byband=False,
                     show=send_show,
