@@ -1,0 +1,149 @@
+#!/usr/bin/env python
+import os
+import numpy as np
+import argparse
+import shutil
+
+
+def get_script_file():
+    return 'run.sh'
+
+
+def copy_config_file(config_file):
+    print('copying', config_file)
+    shutil.copy(config_file, '.')
+
+
+def get_name_base(run, seed):
+    return '%s-%04d' % (run, seed)
+
+
+def get_lsf_script_file(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.lsf' % name
+
+
+LSF_TEMPLATE = r"""#!/bin/bash
+#BSUB -J "%(run)s[1-%(njobs)d]"
+#BSUB -n 1
+#BSUB -oo ./%(run)s.oe
+#BSUB -W %(walltime)s
+#BSUB -R "linux64 && rhel60 && scratch > 2"
+
+echo "working on host: $(hostname)"
+
+./run.sh %(run)s
+"""
+
+SCRIPT_TEMPLATE = r"""#!/bin/bash
+#!/bin/bash
+
+run=$1
+
+seed=$(randint)
+output="${run}-${seed}.fits"
+config=%(config)s
+
+export OMP_NUM_THREADS=1
+
+mdet-lsst-sim \
+    --seed ${seed} \
+    --config ${config} \
+    --ntrial %(ntrial)d \
+    %(use_sx)s \
+    %(deblend)s \
+    %(interp_bright)s \
+    --output ${output}
+"""
+# logfile="${run}-${seed}.log"
+# &> ${logfile}
+
+
+def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
+
+    script_file = get_script_file()
+    print('writing:', script_file)
+    with open(script_file, 'w') as fobj:
+        text = SCRIPT_TEMPLATE % {
+            'ntrial': ntrial,
+            'config': sim_config,
+            'use_sx': use_sx,
+            'deblend': deblend,
+            'interp_bright': interp_bright,
+        }
+        fobj.write(text)
+
+    os.system('chmod 755 %s' % script_file)
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--index', type=int, required=True, help='index for file name')
+    parser.add_argument('--njobs', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run for each job')
+    parser.add_argument('--config', required=True, help='simulation config')
+
+    parser.add_argument('--walltime', required=True,
+                        help=('walltime for each job, e.g. 4:00'))
+
+    parser.add_argument('--interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+
+    parser.add_argument('--use-sx', action='store_true',
+                        help=('use sx based metadetect'))
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    copy_config_file(args.config)
+    sim_config_base = os.path.basename(args.config)
+
+    if args.use_sx:
+        use_sx = '--use-sx'
+    else:
+        use_sx = ''
+
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
+    if args.interp_bright:
+        interp_bright = '--interp-bright'
+    else:
+        interp_bright = ''
+
+    lsf_file = get_lsf_script_file(args.run, args.index)
+
+    if os.path.exists(lsf_file):
+        raise RuntimeError('script already exists: %s' % lsf_file)
+
+    write_script(
+        ntrial=args.ntrial,
+        sim_config=sim_config_base,
+        use_sx=use_sx,
+        deblend=deblend,
+        interp_bright=interp_bright,
+    )
+
+    with open(lsf_file, 'w') as fobj:
+        job_text = LSF_TEMPLATE % {
+            'run': args.run,
+            'njobs': args.njobs,
+            'walltime': args.walltime,
+        }
+
+        fobj.write(job_text)
+
+    print(lsf_file)
+    print('wrote:', args.njobs)
+
+
+main()
