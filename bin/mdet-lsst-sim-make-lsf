@@ -88,7 +88,7 @@ def get_args():
     parser.add_argument('--walltime', required=True,
                         help=('walltime for each job, e.g. 4:00'))
 
-    parser.add_argument('--interp-bright', action='store_true',
+    parser.add_argument('--no-interp-bright', action='store_true',
                         help='interpolate regions marked bright')
 
     parser.add_argument('--use-sx', action='store_true',
@@ -115,10 +115,10 @@ def main():
     else:
         deblend = ''
 
-    if args.interp_bright:
-        interp_bright = '--interp-bright'
-    else:
+    if args.no_interp_bright:
         interp_bright = ''
+    else:
+        interp_bright = '--interp-bright'
 
     lsf_file = get_lsf_script_file(args.run, args.index)
 

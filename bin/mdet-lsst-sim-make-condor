@@ -108,7 +108,7 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
 
-    parser.add_argument('--interp-bright', action='store_true',
+    parser.add_argument('--no-interp-bright', action='store_true',
                         help='interpolate regions marked bright')
 
     parser.add_argument('--use-sx', action='store_true',
@@ -135,10 +135,10 @@ def main():
     else:
         deblend = ''
 
-    if args.interp_bright:
-        interp_bright = '--interp-bright'
-    else:
+    if args.no_interp_bright:
         interp_bright = ''
+    else:
+        interp_bright = '--interp-bright'
 
     rng = np.random.RandomState(args.seed)
 
