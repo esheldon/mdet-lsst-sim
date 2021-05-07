@@ -178,6 +178,8 @@ def run_sim(
                 rng=trial_rng,
                 remove_poisson=False,  # no object poisson noise in sims
             )
+            if coadd_obs is None:
+                continue
 
             if shear_type == '1p' and show:
                 coadd_obs.show()
