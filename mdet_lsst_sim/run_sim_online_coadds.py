@@ -3,7 +3,6 @@ import logging
 import numpy as np
 
 from descwl_shear_sims.sim import (
-    make_sim,
     make_dmsim,
     get_sim_config,
     make_galaxy_catalog,
@@ -12,7 +11,7 @@ from descwl_shear_sims.sim import (
     get_se_dim,
     StarCatalog,
 )
-from descwl_coadd.coadd import MultiBandCoadds, MultiBandCoaddsDM
+from descwl_coadd.online_coadds import make_online_coadd_obs
 from metadetect.lsst_metadetect import LSSTMetadetect
 import fitsio
 import esutil as eu
@@ -36,7 +35,6 @@ def run_sim(
     deblend=False,
     interp_bright=False,
     replace_bright=False,
-    use_dmsim=False,
     loglevel='info',
 ):
     """
@@ -135,11 +133,6 @@ def run_sim(
             trial_rng = np.random.RandomState(trial_seed)
 
             if shear_type == '1p':
-                send_show = show
-            else:
-                send_show = False
-
-            if shear_type == '1p':
                 g1 = shear
             else:
                 g1 = -shear
@@ -150,76 +143,46 @@ def run_sim(
             else:
                 psf = make_psf(psf_type=sim_config["psf_type"])
 
-            if use_dmsim:
-                sim_data = make_dmsim(
-                    rng=trial_rng,
-                    galaxy_catalog=galaxy_catalog,
-                    coadd_dim=sim_config['coadd_dim'],
-                    g1=g1,
-                    g2=0.0,
-                    psf=psf,
-                    star_catalog=star_catalog,
-                    psf_dim=sim_config['psf_dim'],
-                    dither=sim_config['dither'],
-                    rotate=sim_config['rotate'],
-                    bands=sim_config['bands'],
-                    epochs_per_band=sim_config['epochs_per_band'],
-                    noise_factor=sim_config['noise_factor'],
-                    cosmic_rays=sim_config['cosmic_rays'],
-                    bad_columns=sim_config['bad_columns'],
-                    star_bleeds=sim_config['star_bleeds'],
-                )
-            else:
-                sim_data = make_sim(
-                    rng=trial_rng,
-                    galaxy_catalog=galaxy_catalog,
-                    coadd_dim=sim_config['coadd_dim'],
-                    g1=g1,
-                    g2=0.0,
-                    psf=psf,
-                    star_catalog=star_catalog,
-                    psf_dim=sim_config['psf_dim'],
-                    dither=sim_config['dither'],
-                    rotate=sim_config['rotate'],
-                    bands=sim_config['bands'],
-                    epochs_per_band=sim_config['epochs_per_band'],
-                    noise_factor=sim_config['noise_factor'],
-                    cosmic_rays=sim_config['cosmic_rays'],
-                    bad_columns=sim_config['bad_columns'],
-                    star_bleeds=sim_config['star_bleeds'],
-                )
+            sim_data = make_dmsim(
+                rng=trial_rng,
+                galaxy_catalog=galaxy_catalog,
+                coadd_dim=sim_config['coadd_dim'],
+                g1=g1,
+                g2=0.0,
+                psf=psf,
+                star_catalog=star_catalog,
+                psf_dim=sim_config['psf_dim'],
+                dither=sim_config['dither'],
+                rotate=sim_config['rotate'],
+                bands=sim_config['bands'],
+                epochs_per_band=sim_config['epochs_per_band'],
+                noise_factor=sim_config['noise_factor'],
+                cosmic_rays=sim_config['cosmic_rays'],
+                bad_columns=sim_config['bad_columns'],
+                star_bleeds=sim_config['star_bleeds'],
+            )
 
             if show_sim:
                 vis.show_sim(sim_data['band_data'])
 
-            if use_dmsim:
-                mbc = MultiBandCoaddsDM(
-                    interp_bright=interp_bright,
-                    data=sim_data['band_data'],
-                    coadd_wcs=sim_data['coadd_wcs'],
-                    coadd_bbox=sim_data['coadd_bbox'],
-                    psf_dims=sim_data['psf_dims'],
-                    byband=False,
-                    show=send_show,
-                    loglevel=loglevel,
-                )
-            else:
-                mbc = MultiBandCoadds(
-                    rng=trial_rng,
-                    interp_bright=interp_bright,
-                    replace_bright=replace_bright,
-                    data=sim_data['band_data'],
-                    coadd_wcs=sim_data['coadd_wcs'],
-                    coadd_dims=sim_data['coadd_dims'],
-                    psf_dims=sim_data['psf_dims'],
-                    byband=False,
-                    show=send_show,
-                    loglevel=loglevel,
-                )
+            # we combine bands for now
+            exps = []
+            for band, bdata in sim_data['band_data'].items():
+                exps += [data['exp'] for data in bdata]
 
-            coadd_obs = mbc.coadds['all']
+            coadd_obs = make_online_coadd_obs(
+                exps=exps,
+                coadd_wcs=sim_data['coadd_wcs'],
+                coadd_bbox=sim_data['coadd_bbox'],
+                psf_dims=sim_data['psf_dims'],
+                rng=trial_rng,
+                remove_poisson=False,  # no object poisson noise in sims
+            )
             if coadd_obs is None:
                 continue
+
+            if shear_type == '1p' and show:
+                coadd_obs.show()
 
             logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
 

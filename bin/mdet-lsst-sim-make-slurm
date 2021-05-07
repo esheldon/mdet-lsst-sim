@@ -27,6 +27,7 @@ srun -n $SLURM_NTASKS --mpi=pmi2 \
     --mdet-config %(mdet_config)s \
     --njobs %(njobs)d \
     --ntrial %(ntrial)d \
+    --online-coadds \
     %(deblend)s \
     %(replace_bright)s \
     %(interp_bright)s \
@@ -72,7 +73,7 @@ def get_args():
 
     parser.add_argument('--replace-bright', action='store_true',
                         help='replace regions marked bright with noise')
-    parser.add_argument('--interp-bright', action='store_true',
+    parser.add_argument('--no-interp-bright', action='store_true',
                         help='interpolate regions marked bright')
     parser.add_argument('--deblend', action='store_true',
                         help=('use the lsst deblender'))
@@ -108,10 +109,10 @@ def main():
     else:
         replace_bright = ''
 
-    if args.interp_bright:
-        interp_bright = '--interp-bright'
-    else:
+    if args.no_interp_bright:
         interp_bright = ''
+    else:
+        interp_bright = '--interp-bright'
 
     with open(slurm_file, 'w') as fobj:
         text = SLURM_TEMPLATE % {

@@ -5,39 +5,6 @@ import argparse
 import shutil
 
 
-CONDOR_SUBMIT_HEAD = """
-Universe = vanilla
-
-Notification = Never
-
-# Run this exe with these args
-Executable = run.sh
-
-Image_Size =  1000000
-
-GetEnv = True
-
-kill_sig = SIGINT
-
-should_transfer_files = YES
-transfer_input_files = %(sim_config)s
-
-# so transfer when the job completes
-when_to_transfer_output = ON_EXIT
-
-environment = "OMP_NUM_THREADS=1"
-
-+Experiment = "astro"
-"""
-
-CONDOR_JOB_TEMPLATE = """
-+job_name = "%(job_name)s"
-transfer_output_files = %(output)s,%(logfile)s
-Arguments = %(seed)d %(output)s %(logfile)s
-Queue
-"""  # noqa
-
-
 def get_script_file():
     return 'run.sh'
 
@@ -48,39 +15,49 @@ def copy_config_file(config_file):
 
 
 def get_name_base(run, seed):
-    return '%s-%010d' % (run, seed)
+    return '%s-%04d' % (run, seed)
 
 
-def get_condor_script_file(run, seed):
+def get_lsf_script_file(run, seed):
     name = get_name_base(run, seed)
-    return '%s.condor' % name
+    return '%s.lsf' % name
 
 
-def get_output(run, seed):
-    name = get_name_base(run, seed)
-    return '%s.fits' % name
+LSF_TEMPLATE = r"""#!/bin/bash
+#BSUB -J "%(run)s[1-%(njobs)d]"
+#BSUB -n 1
+#BSUB -oo ./%(run)s.oe
+#BSUB -W %(walltime)s
+#BSUB -R "linux64 && rhel60 && scratch > 2"
 
+echo "working on host: $(hostname)"
 
-def get_logfile(run, seed):
-    name = get_name_base(run, seed)
-    return '%s.log' % name
+./run.sh %(run)s
+"""
 
+SCRIPT_TEMPLATE = r"""#!/bin/bash
+#!/bin/bash
 
-SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
-seed=$1
-output=$2
-logfile=$3
+run=$1
+
+seed=$(randint)
+output="${run}-${seed}.fits"
+config=%(config)s
+
+export OMP_NUM_THREADS=1
 
 mdet-lsst-sim \
     --seed ${seed} \
-    --config %(sim_config)s \
+    --config ${config} \
     --ntrial %(ntrial)d \
     --online-coadds \
     %(use_sx)s \
     %(deblend)s \
     %(interp_bright)s \
-    --output ${output} &> ${logfile}
+    --output ${output}
 """
+# logfile="${run}-${seed}.log"
+# &> ${logfile}
 
 
 def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
@@ -90,7 +67,7 @@ def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
     with open(script_file, 'w') as fobj:
         text = SCRIPT_TEMPLATE % {
             'ntrial': ntrial,
-            'sim_config': sim_config,
+            'config': sim_config,
             'use_sx': use_sx,
             'deblend': deblend,
             'interp_bright': interp_bright,
@@ -103,11 +80,14 @@ def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', required=True)
-    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+    parser.add_argument('--index', type=int, required=True, help='index for file name')
     parser.add_argument('--njobs', type=int, required=True)
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='simulation config')
+
+    parser.add_argument('--walltime', required=True,
+                        help=('walltime for each job, e.g. 4:00'))
 
     parser.add_argument('--no-interp-bright', action='store_true',
                         help='interpolate regions marked bright')
@@ -141,12 +121,10 @@ def main():
     else:
         interp_bright = '--interp-bright'
 
-    rng = np.random.RandomState(args.seed)
+    lsf_file = get_lsf_script_file(args.run, args.index)
 
-    condor_file = get_condor_script_file(args.run, args.seed)
-
-    if os.path.exists(condor_file):
-        raise RuntimeError('script already exists: %s' % condor_file)
+    if os.path.exists(lsf_file):
+        raise RuntimeError('script already exists: %s' % lsf_file)
 
     write_script(
         ntrial=args.ntrial,
@@ -156,28 +134,16 @@ def main():
         interp_bright=interp_bright,
     )
 
-    with open(condor_file, 'w') as fobj:
-        fobj.write(CONDOR_SUBMIT_HEAD % {
-            'sim_config': sim_config_base,
-        })
+    with open(lsf_file, 'w') as fobj:
+        job_text = LSF_TEMPLATE % {
+            'run': args.run,
+            'njobs': args.njobs,
+            'walltime': args.walltime,
+        }
 
-        for i in range(args.njobs):
+        fobj.write(job_text)
 
-            seed = rng.randint(0, 2**31)
-            output = get_output(args.run, seed)
-            logfile = get_logfile(args.run, seed)
-            job_name = '%s-%010d' % (args.run, seed)
-
-            job_text = CONDOR_JOB_TEMPLATE % {
-                'job_name': job_name,
-                'seed': seed,
-                'output': output,
-                'logfile': logfile,
-            }
-
-            fobj.write(job_text)
-
-    print(condor_file)
+    print(lsf_file)
     print('wrote:', args.njobs)
 
 
