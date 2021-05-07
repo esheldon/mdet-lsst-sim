@@ -7,13 +7,19 @@ import shutil
 
 template = r"""
 command: |
+
     export OMP_NUM_THREADS=1
+
     . ~/.bashrc
+
     source activate stack
+
+    # temporary until Eli's branch gets merged
+    setup -j -r ${HOME}/git/pipe_tasks
 
     mdet-lsst-sim \
         --seed %(seed)d \
-        --use-dmsim \
+        --online-coadds \
         %(use_sx)s \
         %(deblend)s \
         %(interp_bright)s \
