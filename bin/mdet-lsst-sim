@@ -3,9 +3,7 @@
 import time
 import argparse
 import esutil as eu
-from mdet_lsst_sim.run import run
 from mdet_lsst_sim.run_sim import run_sim
-from mdet_lsst_sim import run_sim_online_coadds
 
 
 def get_args():
@@ -52,9 +50,6 @@ def get_args():
                         help='show the sim image')
 
     parser.add_argument('--loglevel', default='info', help='logging level')
-
-    parser.add_argument('--use-dmsim', action='store_true')
-    parser.add_argument('--online-coadds', action='store_true')
     return parser.parse_args()
 
 
@@ -69,74 +64,23 @@ def main():
     sim_config = config.get('sim', {"type": "simple"})
     mdet_config = config.get('mdet', None)
 
-    sim_type = sim_config.get("type", "simple")
-
-    if sim_type == 'lsst':
-        if args.online_coadds:
-            run_sim_online_coadds.run_sim(
-                sim_config=sim_config,
-                mdet_config=mdet_config,
-                seed=args.seed,
-                ntrial=args.ntrial,
-                output=args.output,
-                shear=args.shear,
-                nocancel=args.nocancel,
-                full_output=args.full_output,
-                show=args.show,
-                show_sheared=args.show_sheared,
-                show_sim=args.show_sim,
-                deblend=args.deblend,
-                interp_bright=args.interp_bright,
-                replace_bright=args.replace_bright,
-                loglevel=args.loglevel,
-            )
-
-        else:
-            run_sim(
-                sim_config=sim_config,
-                mdet_config=mdet_config,
-                seed=args.seed,
-                ntrial=args.ntrial,
-                output=args.output,
-                shear=args.shear,
-                nocancel=args.nocancel,
-                full_output=args.full_output,
-                show=args.show,
-                show_sheared=args.show_sheared,
-                show_sim=args.show_sim,
-                deblend=args.deblend,
-                interp_bright=args.interp_bright,
-                replace_bright=args.replace_bright,
-                loglevel=args.loglevel,
-                use_dmsim=args.use_dmsim,
-            )
-    elif sim_type == 'simple':
-        assert args.nocancel is False, (
-            "nocancel not yet supported for simple sim"
-        )
-
-        run(
-            sim_config=sim_config,
-            mdet_config=mdet_config,
-            seed=args.seed,
-            ntrial=args.ntrial,
-            output=args.output,
-            shear=args.shear,
-            full_output=args.full_output,
-            show=args.show,
-            show_sheared=args.show_sheared,
-            show_masks=args.show_masks,
-            show_sim=args.show_sim,
-            trim_psf=args.trim_psf,
-            use_sx=args.use_sx,
-            deblend=args.deblend,
-            nostack=args.nostack,
-            interp_bright=args.interp_bright,
-            replace_bright=args.replace_bright,
-            loglevel=args.loglevel,
-        )
-    else:
-        raise ValueError("bad sim type: '%s'" % sim_type)
+    run_sim(
+        sim_config=sim_config,
+        mdet_config=mdet_config,
+        seed=args.seed,
+        ntrial=args.ntrial,
+        output=args.output,
+        shear=args.shear,
+        nocancel=args.nocancel,
+        full_output=args.full_output,
+        show=args.show,
+        show_sheared=args.show_sheared,
+        show_sim=args.show_sim,
+        deblend=args.deblend,
+        interp_bright=args.interp_bright,
+        replace_bright=args.replace_bright,
+        loglevel=args.loglevel,
+    )
 
     tm_seconds = time.time()-tm0
     tm_minutes = tm_seconds/60.0
