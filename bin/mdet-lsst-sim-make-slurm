@@ -27,7 +27,6 @@ srun -n $SLURM_NTASKS --mpi=pmi2 \
     --mdet-config %(mdet_config)s \
     --njobs %(njobs)d \
     --ntrial %(ntrial)d \
-    --online-coadds \
     %(deblend)s \
     %(replace_bright)s \
     %(interp_bright)s \
