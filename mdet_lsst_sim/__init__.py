@@ -1,5 +1,5 @@
 # flake8: noqa
-
-from . import util  # noqa
-from . import vis  # noqa
-from . import run  # noqa
+from .version import __version__
+from . import run_sim
+from . import util
+from . import vis

@@ -50,7 +50,6 @@ mdet-lsst-sim \
     --seed ${seed} \
     --config ${config} \
     --ntrial %(ntrial)d \
-    --online-coadds \
     %(use_sx)s \
     %(deblend)s \
     %(interp_bright)s \
