@@ -126,7 +126,6 @@ mdet-lsst-sim \
     --seed ${seed} \
     --config %(sim_config)s \
     --mdet-config %(mdet_config)s \
-    --online-coadds \
     --ntrial %(ntrial)d \
     %(use_sx)s \
     %(deblend)s \
