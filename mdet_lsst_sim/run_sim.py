@@ -32,8 +32,6 @@ def run_sim(
     show_sheared=False,
     show_sim=False,
     deblend=False,
-    interp_bright=False,
-    replace_bright=False,
     loglevel='info',
 ):
     """
@@ -62,10 +60,6 @@ def run_sim(
         If True, show the sims.  default False
     deblend: bool
         If True, run the lsst deblender, default False
-    interp_bright: bool
-        If True, interpolate regions marked BRIGHT, default False.
-    replace_bright: bool
-        If True, replace regions marked BRIGHT with noise, default False.
     loglevel: string
         Log level, default 'info'
     """
@@ -90,6 +84,9 @@ def run_sim(
         logger.info("setting wldeblend layout to None")
         sim_config["layout"] = None
         gal_config = None
+
+    if sim_config['stars']:
+        star_config = sim_config.get('star_config', {})
 
     logger.info(str(sim_config))
     logger.info(str(mdet_config))
@@ -119,7 +116,9 @@ def run_sim(
                 rng=rng,
                 coadd_dim=sim_config['coadd_dim'],
                 buff=sim_config['buff'],
+                density=star_config.get('density'),
             )
+            logger.info('star_density: %g' % star_catalog.density)
         else:
             star_catalog = None
 
@@ -199,18 +198,14 @@ def run_sim(
             res = md.result
 
             comb_data = util.make_comb_data(
-                res,
-                mdet_config["model"],
+                res=res,
+                model=mdet_config["model"],
+                star_catalog=star_catalog,
+                meta=coadd_obs.meta,
                 full_output=full_output,
             )
 
             if len(comb_data) > 0:
-                if sim_config['stars']:
-                    comb_data['star_density'] = star_catalog.density
-                    logger.info('star_density: %g' % star_catalog.density)
-
-                comb_data['mask_frac'] = coadd_obs.meta['mask_frac']
-
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:

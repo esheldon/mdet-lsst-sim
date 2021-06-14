@@ -19,23 +19,8 @@ def get_args():
     parser.add_argument('--nocancel', action='store_true',
                         help=("don't run two cancelling shears"))
 
-    parser.add_argument('--trim-psf', action='store_true',
-                        help=("trim the psf to avoid bad pixels in coadd psf "
-                              "rather than relying on zeroing"))
-
-    parser.add_argument('--use-sx', action='store_true',
-                        help=('use sx based metadetect'))
     parser.add_argument('--deblend', action='store_true',
                         help=('use the lsst deblender'))
-
-    parser.add_argument('--nostack', action='store_true',
-                        help=('just do weighted sum coadd and run '
-                              'metadetect'))
-
-    parser.add_argument('--replace-bright', action='store_true',
-                        help='replace regions marked bright with noise')
-    parser.add_argument('--interp-bright', action='store_true',
-                        help='interpolate regions marked bright')
 
     parser.add_argument('--full-output',
                         action='store_true',
@@ -77,8 +62,6 @@ def main():
         show_sheared=args.show_sheared,
         show_sim=args.show_sim,
         deblend=args.deblend,
-        interp_bright=args.interp_bright,
-        replace_bright=args.replace_bright,
         loglevel=args.loglevel,
     )
 

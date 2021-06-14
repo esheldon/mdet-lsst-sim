@@ -4,23 +4,27 @@ import argparse
 import fitsio
 import esutil as eu
 from esutil.numpy_util import between
-from descwl_shear_sims.lsst_bits import BRIGHT
 from mpi4py.futures import MPIPoolExecutor
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--flist', '-F', required=True)
-    parser.add_argument('--max-star-density', type=float, default=20)
-    parser.add_argument('--max-mask-frac', type=float, default=1.0)
-    parser.add_argument('--min-star-mag', type=float, default=-9999.0)
+
+    # with defaults
     parser.add_argument('--s2n-min', type=float, default=10)
     parser.add_argument('--s2n-max', type=float, default=1000)
     parser.add_argument('--Tratio-min', type=float, default=1.2)
-    parser.add_argument('--cut-bright', action='store_true',
-                        help='cut objects found in regions marked BRIGHT')
-    parser.add_argument('--use-weights', action='store_true')
 
+    # no defaults, defaults to None
+    parser.add_argument('--max-star-density', type=float)
+    parser.add_argument('--max-mfrac', type=float,
+                        help='cut on gauss ap masked frac for object')
+    parser.add_argument('--max-mask-frac', type=float,
+                        help='cut on overall mask fraction of image')
+
+    # bool options
+    parser.add_argument('--use-weights', action='store_true')
     parser.add_argument('--nojack', action='store_true',
                         help='do not jackknife')
 
@@ -148,16 +152,18 @@ def get_sums(args, data, stype):
         (data['shear_type'] == stype) &
         between(s2n, args.s2n_min, args.s2n_max) &
         (T_ratio > args.Tratio_min) &
-        (data['star_density'] < args.max_star_density) &
-        (data['min_star_mag'] > args.min_star_mag) &
-        (data['mask_frac'] < args.max_mask_frac) &
-        between(g[:, 0], -1, 1) &
-        between(g[:, 1], -1, 1)
+        between(g[:, 0], -1, 1) & between(g[:, 1], -1, 1)
     )
-    if args.cut_bright:
-        logic = logic & (
-            (data['ormask'] & BRIGHT == 0)
-        )
+
+    if args.max_mask_frac is not None:
+        logic &= (data['mask_frac'] < args.max_mask_frac)
+
+    if args.max_mfrac is not None:
+        logic &= (data['mfrac'] < args.max_mfrac)
+
+    if args.max_star_density is not None:
+        logic &= (data['true_star_density'] < args.max_star_density)
+
     w, = np.where(logic)
 
     g_sum = np.zeros(2)
@@ -256,7 +262,7 @@ def read_one(inputs):
 def get_flist(args):
 
     with open(args.flist) as fobj:
-        flist = [l.strip() for l in fobj]
+        flist = [line.strip() for line in fobj]
 
     return flist
 
