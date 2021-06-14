@@ -100,6 +100,7 @@ def trim_output(data, model):
         'flags',
         'row',
         'col',
+        'mfrac',
         'ormask',
         '%s_s2n' % model,
         '%s_T_ratio' % model,
@@ -115,11 +116,16 @@ def trim_output(data, model):
     return eu.numpy_util.extract_fields(data, cols2keep)
 
 
-def make_comb_data(res, model, full_output=False):
+def make_comb_data(
+    res,
+    model,
+    star_catalog,
+    meta,
+    full_output=False,
+):
     add_dt = [
         ('shear_type', 'S7'),
-        ('star_density', 'f4'),
-        ('min_star_mag', 'f4'),
+        ('true_star_density', 'f4'),
         ('mask_frac', 'f4'),
     ]
 
@@ -133,6 +139,11 @@ def make_comb_data(res, model, full_output=False):
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             newdata['shear_type'] = stype
+            add_truth_summary(
+                data=newdata,
+                star_catalog=star_catalog,
+                meta=meta,
+            )
             dlist.append(newdata)
 
     if len(dlist) > 0:
@@ -170,41 +181,15 @@ def make_truth_data_full(object_data):
     return data
 
 
-def make_truth_summary(object_data):
-    nobj = len(object_data)
+def add_truth_summary(data, star_catalog, meta):
+    """
+    get field stats and assign for each object
+    """
 
-    obj0 = object_data[0]
-    bands = list(obj0.keys())
+    if star_catalog is not None:
+        data['true_star_density'] = star_catalog.density
 
-    dt = [
-        ('nobj', 'i8'),
-        ('ngal', 'i8'),
-        ('nstar', 'i8'),
-        ('min_star_mag', 'f4'),
-    ]
-
-    data = np.zeros(1, dtype=dt)
-    data['nobj'] = nobj
-    data['nstar'] = 0
-    data['ngal'] = 0
-    data['min_star_mag'] = 9999.0
-
-    for i, obj_data in enumerate(object_data):
-
-        otype = obj_data[bands[0]]['type']
-
-        if otype == 'galaxy':
-            data['ngal'][0] += 1
-        else:
-            data['nstar'][0] += 1
-
-            # ordered dict
-            for iband, band in enumerate(obj_data):
-
-                if otype == 'star':
-                    mag = obj_data[band]['mag']
-                    if mag < data['min_star_mag'][0]:
-                        data['min_star_mag'][0] = mag
+    data['mask_frac'] = meta['mask_frac']
 
     return data
 
