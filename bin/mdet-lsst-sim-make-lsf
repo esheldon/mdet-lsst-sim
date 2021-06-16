@@ -36,7 +36,6 @@ echo "working on host: $(hostname)"
 """
 
 SCRIPT_TEMPLATE = r"""#!/bin/bash
-#!/bin/bash
 
 run=$1
 
