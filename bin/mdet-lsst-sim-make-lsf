@@ -52,14 +52,13 @@ mdet-lsst-sim \
     --ntrial %(ntrial)d \
     %(use_sx)s \
     %(deblend)s \
-    %(interp_bright)s \
     --output ${output}
 """
 # logfile="${run}-${seed}.log"
 # &> ${logfile}
 
 
-def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
+def write_script(*, ntrial, sim_config, use_sx, deblend):
 
     script_file = get_script_file()
     print('writing:', script_file)
@@ -69,7 +68,6 @@ def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
             'config': sim_config,
             'use_sx': use_sx,
             'deblend': deblend,
-            'interp_bright': interp_bright,
         }
         fobj.write(text)
 
@@ -87,9 +85,6 @@ def get_args():
 
     parser.add_argument('--walltime', required=True,
                         help=('walltime for each job, e.g. 4:00'))
-
-    parser.add_argument('--no-interp-bright', action='store_true',
-                        help='interpolate regions marked bright')
 
     parser.add_argument('--use-sx', action='store_true',
                         help=('use sx based metadetect'))
@@ -115,11 +110,6 @@ def main():
     else:
         deblend = ''
 
-    if args.no_interp_bright:
-        interp_bright = ''
-    else:
-        interp_bright = '--interp-bright'
-
     lsf_file = get_lsf_script_file(args.run, args.index)
 
     if os.path.exists(lsf_file):
@@ -130,7 +120,6 @@ def main():
         sim_config=sim_config_base,
         use_sx=use_sx,
         deblend=deblend,
-        interp_bright=interp_bright,
     )
 
     with open(lsf_file, 'w') as fobj:
