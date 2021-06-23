@@ -1,0 +1,159 @@
+#!/usr/bin/env python
+
+import numpy as np
+import os
+import argparse
+import hickory
+import fitsio
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('flist', nargs='+')
+    parser.add_argument('--pdf', required=True)
+    return parser.parse_args()
+
+
+def read_data(args):
+
+    data = {}
+    for f in args.flist:
+        bname = os.path.basename(f)
+        fs = bname.split('-')
+        if 'nocancel' in bname:
+            extra = 1
+        else:
+            extra = 0
+        # mc-run-lsst-drcbsBPW-nfac0.58-v4-s2n-18-1000-mask_frac-0.03-mfrac-0.06-Tratio-1.2-sdens-010.fits
+        mask_frac = float(fs[10+extra])
+        mfrac = float(fs[12+extra])
+        sdens = float(fs[16+extra].replace('.fits', ''))
+
+        key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
+
+        tdata = fitsio.read(f)[0]
+        m1err = tdata['m1err'] * 3
+        m1high = tdata['m1'] + m1err
+        m1low = tdata['m1'] - m1err
+        m1 = tdata['m1']
+
+        if key in data:
+            data[key]['sdens'].append(sdens)
+            data[key]['m1high'].append(m1high)
+            data[key]['m1low'].append(m1low)
+            data[key]['m1'].append(m1)
+            data[key]['m1err'].append(m1err)
+        else:
+            data[key] = {}
+            data[key]['sdens'] = [sdens]
+            data[key]['m1high'] = [m1high]
+            data[key]['m1low'] = [m1low]
+            data[key]['m1'] = [m1]
+            data[key]['m1err'] = [m1err]
+
+    fields = ['sdens', 'm1low', 'm1high', 'm1', 'm1err']
+    offeach = 0.0
+    for i, key in enumerate(data):
+        for field in fields:
+            data[key][field] = np.array(data[key][field])
+
+        s = data[key]['sdens'].argsort()
+        for field in fields:
+            data[key][field] = data[key][field][s]
+
+        data[key]['sdens'] += i * offeach
+
+    return data
+
+
+def do_error_plot(args, data):
+
+    alpha = 0.5
+    width = 8
+    height = width * hickory.GOLDEN_ARATIO
+    plt = hickory.Plot(
+        xlabel='maximum stellar density [per sq. arcmin]',
+        ylabel=r'$\sigma(\gamma) / \sigma_{min}(\gamma)$',
+        ylim=(0.95, 1.5),
+        figsize=(width, height),
+    )
+    plt.axhline(1, color='black')
+
+    errvals = []
+    for key in data:
+        mdata = data[key]
+        errvals += list(data[key]['m1err'])
+
+    minval = min(errvals)
+    for key in sorted(data):
+        mdata = data[key]
+        # label = r'mfrac $ < %.2f$' % mfrac
+        label = key
+
+        plt.plot(
+            mdata['sdens'],
+            mdata['m1err']/minval,
+            linestyle='cycle',
+            label=label,
+            alpha=alpha,
+        )
+
+    plt.legend()
+    fname = args.pdf.replace('.pdf', '-error.pdf')
+    print('writing:', fname)
+    plt.savefig(fname)
+
+
+def do_bias_plot(args, data):
+
+    alpha = 0.3
+    width = 8
+    height = width * hickory.GOLDEN_ARATIO
+    plt = hickory.Plot(
+        xlabel='maximum stellar density [per sq. arcmin]',
+        ylabel='m / 0.001',
+        ylim=(-6, 6),
+        figsize=(width, height),
+    )
+    for i, key in enumerate(sorted(data)):
+        mdata = data[key]
+        # label = r'mfrac $ < %.2f$' % mfrac
+        label = key
+
+        plt.plot(
+            mdata['sdens'],
+            mdata['m1'] / 0.001,
+            linestyle='cycle',
+            label=label,
+            # alpha=alpha,
+        )
+
+        plt.fill_between(
+            mdata['sdens'],
+            mdata['m1high'] / 0.001,
+            mdata['m1low'] / 0.001,
+            # label=label,
+            alpha=alpha,
+        )
+
+    plt.legend()
+
+    # zorder = 2
+    plt.axhline(0, color='black')  # , zorder=zorder)
+    plt.axhline(-1, color='black', linestyle='dashed')  # , zorder=zorder)
+    plt.axhline(1, color='black', linestyle='dashed')  # , zorder=zorder)
+    plt.ntext(0.1, 0.9, r'$3~\sigma$ range')
+
+    print('writing:', args.pdf)
+    plt.savefig(args.pdf)
+
+
+def main():
+    args = get_args()
+
+    data = read_data(args)
+    do_bias_plot(args, data)
+    do_error_plot(args, data)
+
+
+main()
