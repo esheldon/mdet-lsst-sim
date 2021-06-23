@@ -1,32 +1,60 @@
 #!/usr/bin/env python
+import os
+from glob import glob
+from pprint import pprint
+from functools import lru_cache
 import numpy as np
 import argparse
 import fitsio
 import esutil as eu
 from esutil.numpy_util import between
+import yaml
 from mpi4py.futures import MPIPoolExecutor
+import lsst.afw.image as afw_image
+
+NSIGMA = 3
+perc = '99.7%%'
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--flist', '-F', required=True)
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--config', required=True)
 
-    # with defaults
-    parser.add_argument('--s2n-min', type=float, default=10)
-    parser.add_argument('--s2n-max', type=float, default=1000)
-    parser.add_argument('--Tratio-min', type=float, default=1.2)
+    parser.add_argument('--nocancel', action='store_true')
 
-    # no defaults, defaults to None
-    parser.add_argument('--max-star-density', type=float)
-    parser.add_argument('--max-mfrac', type=float,
-                        help='cut on gauss ap masked frac for object')
-    parser.add_argument('--max-mask-frac', type=float,
-                        help='cut on overall mask fraction of image')
-
-    # bool options
-    parser.add_argument('--use-weights', action='store_true')
+    parser.add_argument('--chunksize', type=int, default=100)
 
     return parser.parse_args()
+
+
+@lru_cache
+def get_orflags():
+    exp = afw_image.ExposureF(width=100, height=100)
+
+    # added to the coadd mask plane; bright is last so we need to add the first
+    # three (which are added by DM)
+
+    exp.mask.addMaskPlane("REJECTED")
+    exp.mask.addMaskPlane("CLIPPED")
+    exp.mask.addMaskPlane("SENSOR_EDGE")
+    exp.mask.addMaskPlane("BRIGHT")
+    return exp.mask.getPlaneBitMask("BRIGHT")
+
+
+def get_flist(run):
+    pattern = f'runs/{run}/*/*.fits'
+    flist = glob(pattern)
+    nf = len(flist)
+    if nf == 0:
+        raise RuntimeError('no files found')
+    return flist
+
+
+def read_config(fname):
+    print('reading config:', fname)
+    with open(fname) as fobj:
+        return yaml.load(fobj, Loader=yaml.SafeLoader)
 
 
 def get_summed(data):
@@ -47,7 +75,7 @@ def sub1(data, subdata):
     return odata
 
 
-def get_m1_c1(data):
+def get_m1_c1(data, nocancel):
     g1_1p = data['g_ns_sum_1p'][0]/data['wsum_ns_1p']
     g1_1p_1p = data['g_1p_sum_1p'][0]/data['wsum_1p_1p']
     g1_1m_1p = data['g_1m_sum_1p'][0]/data['wsum_1m_1p']
@@ -64,9 +92,15 @@ def get_m1_c1(data):
 
     s1_1m = g1_1m/R11_1m
 
-    R11 = 0.5*(R11_1p + R11_1m)  # noqa
-    m1 = (s1_1p - s1_1m)/0.04 - 1
+    if nocancel:
+        R11 = R11_1p
+        m1 = s1_1p / 0.02 - 1
+    else:
+        R11 = 0.5*(R11_1p + R11_1m)  # noqa
+        m1 = (s1_1p - s1_1m)/0.04 - 1
+
     c1 = (g1_1p + g1_1m)/2/R11
+
     return m1, c1, R11
 
 
@@ -78,9 +112,23 @@ def get_c2(data):
     return c2
 
 
-def jackknife(data):
+def get_jackknife_struct():
+    dt = [
+        ('m1', 'f8'),
+        ('m1err', 'f8'),
+        ('c1', 'f8'),
+        ('c1err', 'f8'),
+        ('c2', 'f8'),
+        ('c2err', 'f8'),
+    ]
+    return np.zeros(1, dtype=dt)
+
+
+def jackknife(data, nocancel):
+    st = get_jackknife_struct()
+
     sdata = get_summed(data)
-    m1, c1, R11 = get_m1_c1(sdata)  # noqa
+    m1, c1, R11 = get_m1_c1(sdata, nocancel=nocancel)  # noqa
     c2 = get_c2(sdata)
     c2 /= R11
 
@@ -90,7 +138,7 @@ def jackknife(data):
 
     for i in range(m1vals.size):
         subdata = sub1(sdata, data[i])
-        tm1, tc1, tR11 = get_m1_c1(subdata)
+        tm1, tc1, tR11 = get_m1_c1(subdata, nocancel=nocancel)
         tc2 = get_c2(subdata)
         m1vals[i] = tm1
         c1vals[i] = tc1
@@ -108,7 +156,13 @@ def jackknife(data):
     c2cov = fac*((c2 - c2vals)**2).sum()
     c2err = np.sqrt(c2cov)
 
-    return m1, m1err, c1, c1err, c2, c2err
+    st['m1'] = m1
+    st['m1err'] = m1err
+    st['c1'] = c1
+    st['c1err'] = c1err
+    st['c2'] = c2
+    st['c2err'] = c2err
+    return st
 
 
 def get_weights(data, ind, model):
@@ -118,7 +172,17 @@ def get_weights(data, ind, model):
     return 1.0/(2*0.2**2 + err_term)
 
 
-def get_sums(args, data, stype):
+def get_sums(
+    stype,
+    s2n_min,
+    s2n_max,
+    Tratio_min,
+    max_mask_frac,
+    max_mfrac,
+    max_star_density,
+    use_weights,
+    data,
+):
 
     if 'wmom_g' in data.dtype.names:
         model = 'wmom'
@@ -131,20 +195,16 @@ def get_sums(args, data, stype):
 
     logic = (
         (data['flags'] == 0) &
+        (data['ormask'] & get_orflags() == 0) &
         (data['shear_type'] == stype) &
-        between(s2n, args.s2n_min, args.s2n_max) &
-        (T_ratio > args.Tratio_min) &
+        between(s2n, s2n_min, s2n_max) &
+        (T_ratio > Tratio_min) &
         between(g[:, 0], -1, 1) & between(g[:, 1], -1, 1)
     )
 
-    if args.max_mask_frac is not None:
-        logic &= (data['mask_frac'] < args.max_mask_frac)
-
-    if args.max_mfrac is not None:
-        logic &= (data['mfrac'] < args.max_mfrac)
-
-    if args.max_star_density is not None:
-        logic &= (data['true_star_density'] < args.max_star_density)
+    logic &= (data['mask_frac'] < max_mask_frac)
+    logic &= (data['mfrac'] < max_mfrac)
+    logic &= (data['true_star_density'] < max_star_density)
 
     w, = np.where(logic)
 
@@ -153,7 +213,7 @@ def get_sums(args, data, stype):
 
     if w.size > 0:
 
-        if args.use_weights:
+        if use_weights:
             wts = get_weights(data, w, model)
             g_sum[0] = (wts * g[w, 0]).sum()
             g_sum[1] = (wts * g[w, 1]).sum()
@@ -166,11 +226,46 @@ def get_sums(args, data, stype):
     return g_sum, wsum
 
 
-def read_one(inputs):
+def get_key(
+    s2n_min,
+    s2n_max,
+    Tratio_min,
+    max_mask_frac,
+    max_mfrac,
+    max_star_density,
+    use_weights,
+):
 
-    index, nf, fname, args = inputs
-    print('%d/%d %s' % (index+1, nf, fname))
+    klist = []
+    if use_weights:
+        klist += ['weighted']
 
+    klist += [
+        f's2n-{s2n_min}-{s2n_max}',
+        f'mask_frac-{max_mask_frac:.2f}',
+        f'mfrac-{max_mfrac:.2f}',
+        f'Tratio-{Tratio_min:.1f}',
+        f'sdens-{max_star_density:03d}',
+    ]
+    return '-'.join(klist)
+
+
+def get_fname(run, key, nocancel):
+    nlist = []
+
+    if nocancel:
+        nlist += ['nocancel']
+
+    nlist += [
+        'mc',
+        run,
+        key,
+    ]
+    fname = '-'.join(nlist) + '.fits'
+    return os.path.join('mc-results', fname)
+
+
+def get_struct():
     dt = [
         ('g_ns_sum_1p', ('f8', 2)),
         ('g_1p_sum_1p', ('f8', 2)),
@@ -189,7 +284,33 @@ def read_one(inputs):
         ('wsum_1m_1m', 'f8'),
     ]
 
-    d = np.zeros(1, dtype=dt)
+    return np.zeros(1, dtype=dt)
+
+
+def add_more_sums(sums, tsums):
+    for key in tsums:
+        if key not in sums:
+            sums[key] = tsums[key]
+        else:
+            for datakey in tsums[key].dtype.names:
+                sums[key][datakey] += tsums[key][datakey]
+
+
+def process_set(inputs):
+
+    config, flist = inputs
+
+    sums = {}
+    for i, fname in enumerate(flist):
+        tsums = process_one(config, fname)
+        add_more_sums(sums, tsums)
+
+    return sums
+
+
+def process_one(config, fname):
+
+    print(fname)
 
     try:
         with fitsio.FITS(fname) as fobj:
@@ -202,43 +323,56 @@ def read_one(inputs):
     if data_1p is None or data_1m is None:
         return None
 
-    # from 1p ext
-    tg_sum, wsum = get_sums(args, data_1p, 'noshear')
+    data_dict = {}
+    for s2n_min in config['s2n_min']:
+        for s2n_max in config['s2n_max']:
+            for Tratio_min in config['Tratio_min']:
+                for max_mask_frac in config['max_mask_frac']:
+                    for max_mfrac in config['max_mfrac']:
+                        for max_star_density in config['max_star_density']:
 
-    tg_sum_1p, wsum_1p = get_sums(args, data_1p, '1p')
-    tg_sum_1m, wsum_1m = get_sums(args, data_1p, '1m')
+                            d = get_struct()
+                            for stype in ['noshear', '1p', '1m']:
+                                for data, ext in [(data_1p, '1p'), (data_1m, '1m')]:  # noqa
+                                    g_sum, wsum = get_sums(
+                                        stype=stype,
+                                        s2n_min=s2n_min,
+                                        s2n_max=s2n_max,
+                                        Tratio_min=Tratio_min,
+                                        max_mask_frac=max_mask_frac,
+                                        max_mfrac=max_mfrac,
+                                        max_star_density=max_star_density,
+                                        use_weights=config['use_weights'],
+                                        data=data,
+                                    )
+                                    if stype == 'noshear':
+                                        sn = 'ns'
+                                    else:
+                                        sn = stype
 
-    d['g_ns_sum_1p'] = tg_sum
-    d['g_1p_sum_1p'] = tg_sum_1p
-    d['g_1m_sum_1p'] = tg_sum_1m
+                                    d[f'g_{sn}_sum_{ext}'] = g_sum
+                                    d[f'wsum_{sn}_{ext}'] = wsum
 
-    d['wsum_ns_1p'] = wsum
-    d['wsum_1p_1p'] = wsum_1p
-    d['wsum_1m_1p'] = wsum_1m
+                            key = get_key(
+                                s2n_min=s2n_min,
+                                s2n_max=s2n_max,
+                                Tratio_min=Tratio_min,
+                                max_mask_frac=max_mask_frac,
+                                max_mfrac=max_mfrac,
+                                max_star_density=max_star_density,
+                                use_weights=config['use_weights'],
+                            )
+                            data_dict[key] = d
 
-    # from 1m ext
-    tg_sum, wsum = get_sums(args, data_1m, 'noshear')
-
-    tg_sum_1p, wsum_1p = get_sums(args, data_1m, '1p')
-    tg_sum_1m, wsum_1m = get_sums(args, data_1m, '1m')
-
-    d['g_ns_sum_1m'] = tg_sum
-    d['g_1p_sum_1m'] = tg_sum_1p
-    d['g_1m_sum_1m'] = tg_sum_1m
-
-    d['wsum_ns_1m'] = wsum
-    d['wsum_1p_1m'] = wsum_1p
-    d['wsum_1m_1m'] = wsum_1m
-
-    return d
+    return data_dict
 
 
-def get_flist(args):
+def print_stats(st):
+    print('m1err: %g (%s)' % (st['m1err'][0]*NSIGMA, perc))
 
-    with open(args.flist) as fobj:
-        flist = [line.strip() for line in fobj]
-
-    return flist
+    print_range(st['m1'][0], st['m1err'][0], 'm1')
+    print_range(st['c1'][0], st['c1err'][0], 'c1')
+    print_range(st['c2'][0], st['c2err'][0], 'c2')
 
 
 def print_range(val, err, name):
@@ -246,41 +380,66 @@ def print_range(val, err, name):
     print the confidence range 99.7% confidence
     """
 
-    nsigma = 3
     tup = (
-        val - err*nsigma,
+        val - err*NSIGMA,
         name,
-        val + err*nsigma,
+        val + err*NSIGMA,
+        perc,
     )
 
-    print('%g < %s < %g (99.7%%)' % tup)
+    print('%g < %s < %g (%s)' % tup)
 
 
 def main():
 
     args = get_args()
-    flist = get_flist(args)
+    config = read_config(args.config)
+    flist = get_flist(args.run)
+    flist.sort()
+
+    print('run:', args.run)
+    print('chunksize:', args.chunksize)
+    pprint(config)
     print('processing:', len(flist))
 
+    chunksize = args.chunksize
     nf = len(flist)
-    inputs = [(i, nf, f, args) for i, f in enumerate(flist)]
+
+    inputs = [
+        (config, flist[start:start+chunksize])
+        for start in range(0, nf, chunksize)
+    ]
 
     with MPIPoolExecutor() as executor:
-        dlist = list(executor.map(read_one, inputs))
-
-    print('processed:', len(flist))
+        dlist = list(executor.map(process_set, inputs))
 
     dlist = [d for d in dlist if d is not None]
 
-    data = eu.numpy_util.combine_arrlist(dlist)
+    print('processed:', len(flist))
 
-    m1, m1err, c1, c1err, c2, c2err = jackknife(data)
+    data = {}
 
-    print('m1err: %g (99.7%%)' % (m1err*3,))
+    for data_dict in dlist:
+        for key in data_dict:
+            if key not in data:
+                data[key] = []
+            data[key].append(data_dict[key])
 
-    print_range(m1, m1err, 'm1')
-    print_range(c1, c1err, 'c1')
-    print_range(c2, c2err, 'c2')
+    for key in data:
+        print('jackknifing:', key)
+        key_data = eu.numpy_util.combine_arrlist(data[key])
+
+        st = jackknife(key_data, nocancel=args.nocancel)
+        print_stats(st)
+
+        fname = get_fname(
+            run=args.run,
+            key=key,
+            nocancel=args.nocancel,
+        )
+
+        print('writing:', fname)
+        fitsio.write(fname, st, clobber=True)
 
 
 if __name__ == '__main__':
