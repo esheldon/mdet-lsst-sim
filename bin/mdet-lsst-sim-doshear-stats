@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+import argparse
+import fitsio
+
+NSIGMA = 3
+perc = '99.7%%'
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('fname')
+    return parser.parse_args()
+
+
+def print_stats(st):
+    print('m1err: %g (%s)' % (st['m1err'][0]*NSIGMA, perc))
+
+    print_range(st['m1'][0], st['m1err'][0], 'm1')
+    print_range(st['c1'][0], st['c1err'][0], 'c1')
+    print_range(st['c2'][0], st['c2err'][0], 'c2')
+
+
+def print_range(val, err, name):
+    """
+    print the confidence range 99.7% confidence
+    """
+
+    tup = (
+        val - err*NSIGMA,
+        name,
+        val + err*NSIGMA,
+        perc,
+    )
+
+    print('%g < %s < %g (%s)' % tup)
+
+
+def main():
+
+    args = get_args()
+    print('reading:', args.fname)
+    data = fitsio.read(args.fname)
+
+    print_stats(data)
+
+
+if __name__ == '__main__':
+    main()

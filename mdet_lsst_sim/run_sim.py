@@ -66,17 +66,19 @@ def run_sim(
 
     assert deblend is False
 
+    logging.basicConfig(stream=sys.stdout)
+    logger = logging.getLogger('mdet_lsst_sim')
+    logger.setLevel(getattr(logging, loglevel.upper()))
+
     sim_type = sim_config.pop('type', 'lsst')
     assert sim_type == 'lsst'
+
+    logger.info(f"seed: {seed}")
 
     rng = np.random.RandomState(seed)
 
     mdet_config = util.get_mdet_config(config=mdet_config)
     sim_config = get_sim_config(config=sim_config)
-
-    logging.basicConfig(stream=sys.stdout)
-    logger = logging.getLogger('mdet_lsst_sim')
-    logger.setLevel(getattr(logging, loglevel.upper()))
 
     if sim_config['gal_type'] != 'wldeblend':
         gal_config = sim_config.get('gal_config', None)
