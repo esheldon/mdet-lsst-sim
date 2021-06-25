@@ -21,6 +21,7 @@ DEFAULT_MDET_CONFIG = {
     "detect": {
         "thresh": 10.0,
     },
+    "subtract_sky": False,
     "meds": {},
 }
 
