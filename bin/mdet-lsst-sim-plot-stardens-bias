@@ -25,9 +25,9 @@ def read_data(args):
         else:
             extra = 0
         # mc-run-lsst-drcbsBPW-nfac0.58-v4-s2n-18-1000-mask_frac-0.03-mfrac-0.06-Tratio-1.2-sdens-010.fits
-        mask_frac = float(fs[10+extra])
-        mfrac = float(fs[12+extra])
-        sdens = float(fs[16+extra].replace('.fits', ''))
+        mask_frac = float(fs[11+extra])
+        mfrac = float(fs[13+extra])
+        sdens = float(fs[17+extra].replace('.fits', ''))
 
         key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
 
