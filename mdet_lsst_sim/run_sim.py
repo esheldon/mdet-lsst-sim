@@ -176,8 +176,11 @@ def run_sim(
                 exps += band_exps
 
             if coadd_config['nowarp']:
+                if len(exps) > 1:
+                    raise ValueError('only one exp allowed for nowarp')
+
                 coadd_obs = make_coadd_obs_nowarp(
-                    exps=exps,
+                    exp=exps[0],
                     psf_dims=sim_data['psf_dims'],
                     rng=trial_rng,
                     remove_poisson=False,  # no object poisson noise in sims
