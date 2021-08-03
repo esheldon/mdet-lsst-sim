@@ -19,9 +19,6 @@ def get_args():
     parser.add_argument('--nocancel', action='store_true',
                         help=("don't run two cancelling shears"))
 
-    parser.add_argument('--deblend', action='store_true',
-                        help=('use the lsst deblender'))
-
     parser.add_argument('--full-output',
                         action='store_true',
                         help='write all output columns')
@@ -48,10 +45,12 @@ def main():
 
     sim_config = config.get('sim', {"type": "simple"})
     mdet_config = config.get('mdet', None)
+    coadd_config = config.get('coadd', None)
 
     run_sim(
         sim_config=sim_config,
         mdet_config=mdet_config,
+        coadd_config=coadd_config,
         seed=args.seed,
         ntrial=args.ntrial,
         output=args.output,
@@ -61,7 +60,6 @@ def main():
         show=args.show,
         show_sheared=args.show_sheared,
         show_sim=args.show_sim,
-        deblend=args.deblend,
         loglevel=args.loglevel,
     )
 
