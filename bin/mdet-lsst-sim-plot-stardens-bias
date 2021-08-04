@@ -112,7 +112,7 @@ def do_bias_plot(args, data):
     plt = hickory.Plot(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
-        ylim=(-2, 6),
+        ylim=(-5.0, 6.5),
         figsize=(width, height),
     )
     for i, key in enumerate(sorted(data)):
