@@ -43,7 +43,7 @@ def get_orflags():
 
 
 def get_flist(run):
-    pattern = f'runs/{run}/*/*.fits'
+    pattern = f'runs/{run}/*/*.[fits][fits.gz]*'
     flist = glob(pattern)
     nf = len(flist)
     if nf == 0:
