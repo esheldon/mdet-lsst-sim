@@ -43,7 +43,7 @@ def get_orflags():
 
 
 def get_flist(run):
-    pattern = f'runs/{run}/*/*.fits'
+    pattern = f'runs/{run}/*/*.[fits][fits.gz]*'
     flist = glob(pattern)
     nf = len(flist)
     if nf == 0:
@@ -303,7 +303,8 @@ def process_set(inputs):
     sums = {}
     for i, fname in enumerate(flist):
         tsums = process_one(config, fname)
-        add_more_sums(sums, tsums)
+        if tsums is not None:
+            add_more_sums(sums, tsums)
 
     return sums
 
