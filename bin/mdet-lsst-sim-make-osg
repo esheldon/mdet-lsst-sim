@@ -63,7 +63,7 @@ def get_condor_script_file(run, seed):
 
 def get_output(run, seed):
     name = get_name_base(run, seed)
-    return '%s.fits' % name
+    return '%s.fits.gz' % name
 
 
 def get_condor_output(run, seed):
