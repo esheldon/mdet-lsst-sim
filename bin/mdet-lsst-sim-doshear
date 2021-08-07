@@ -397,7 +397,7 @@ def print_range(val, err, name):
         perc,
     )
 
-    print('%g < %s < %g (%s)' % tup)
+    print('%g < %s < %g (%s%%)' % tup)
 
 
 def main():
