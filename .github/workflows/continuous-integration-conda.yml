@@ -39,6 +39,7 @@ jobs:
                   numpy \
                   galsim \
                   numba \
+                  "numba!=0.54.0" \
                   ngmix \
                   meds \
                   lsstdesc-weaklensingdeblending \
