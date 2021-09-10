@@ -2,7 +2,7 @@
 import os
 from glob import glob
 from pprint import pprint
-from functools import lru_cache
+# from functools import lru_cache
 import numpy as np
 import argparse
 import fitsio
@@ -13,7 +13,7 @@ from mpi4py.futures import MPIPoolExecutor
 import lsst.afw.image as afw_image
 
 NSIGMA = 3
-perc = '99.7%%'
+perc = '99.7'
 
 
 def get_args():
@@ -25,29 +25,39 @@ def get_args():
 
     parser.add_argument('--chunksize', type=int, default=100)
 
+    parser.add_argument('--limit', type=int)
+
+    parser.add_argument('--nowarp', action='store_true')
+
     return parser.parse_args()
 
 
-@lru_cache
-def get_orflags():
+# @lru_cache
+def get_orflags(nowarp):
     exp = afw_image.ExposureF(width=100, height=100)
 
     # added to the coadd mask plane; bright is last so we need to add the first
     # three (which are added by DM)
 
-    exp.mask.addMaskPlane("REJECTED")
-    exp.mask.addMaskPlane("CLIPPED")
-    exp.mask.addMaskPlane("SENSOR_EDGE")
+    if not nowarp:
+        exp.mask.addMaskPlane("REJECTED")
+        exp.mask.addMaskPlane("CLIPPED")
+        exp.mask.addMaskPlane("SENSOR_EDGE")
     exp.mask.addMaskPlane("BRIGHT")
     return exp.mask.getPlaneBitMask("BRIGHT")
 
 
-def get_flist(run):
-    pattern = f'runs/{run}/*/*.fits'
+def get_flist(run, limit=None):
+    pattern = f'runs/{run}/*/*.[fits][fits.gz]*'
     flist = glob(pattern)
+
     nf = len(flist)
     if nf == 0:
         raise RuntimeError('no files found')
+
+    if limit is not None:
+        flist = flist[:limit]
+
     return flist
 
 
@@ -129,6 +139,8 @@ def jackknife(data, nocancel):
 
     sdata = get_summed(data)
     m1, c1, R11 = get_m1_c1(sdata, nocancel=nocancel)  # noqa
+    print('R11:', R11)
+
     c2 = get_c2(sdata)
     c2 /= R11
 
@@ -182,6 +194,7 @@ def get_sums(
     max_star_density,
     use_weights,
     data,
+    orflags,
 ):
 
     if 'wmom_g' in data.dtype.names:
@@ -195,7 +208,8 @@ def get_sums(
 
     logic = (
         (data['flags'] == 0) &
-        (data['ormask'] & get_orflags() == 0) &
+        # (data['ormask'] & get_orflags() == 0) &
+        (data['ormask'] & orflags == 0) &
         (data['shear_type'] == stype) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
@@ -303,7 +317,8 @@ def process_set(inputs):
     sums = {}
     for i, fname in enumerate(flist):
         tsums = process_one(config, fname)
-        add_more_sums(sums, tsums)
+        if tsums is not None:
+            add_more_sums(sums, tsums)
 
     return sums
 
@@ -344,6 +359,7 @@ def process_one(config, fname):
                                         max_star_density=max_star_density,
                                         use_weights=config['use_weights'],
                                         data=data,
+                                        orflags=config['orflags'],
                                     )
                                     if stype == 'noshear':
                                         sn = 'ns'
@@ -368,7 +384,7 @@ def process_one(config, fname):
 
 
 def print_stats(st):
-    print('m1err: %g (%s)' % (st['m1err'][0]*NSIGMA, perc))
+    print('m1err: %g (%s%%)' % (st['m1err'][0]*NSIGMA, perc))
 
     print_range(st['m1'][0], st['m1err'][0], 'm1')
     print_range(st['c1'][0], st['c1err'][0], 'c1')
@@ -387,14 +403,16 @@ def print_range(val, err, name):
         perc,
     )
 
-    print('%g < %s < %g (%s)' % tup)
+    print('%g < %s < %g (%s%%)' % tup)
 
 
 def main():
 
     args = get_args()
     config = read_config(args.config)
-    flist = get_flist(args.run)
+    config['orflags'] = get_orflags(args.nowarp)
+
+    flist = get_flist(args.run, limit=args.limit)
     flist.sort()
 
     print('run:', args.run)

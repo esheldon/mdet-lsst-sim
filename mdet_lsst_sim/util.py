@@ -21,9 +21,28 @@ DEFAULT_MDET_CONFIG = {
     "detect": {
         "thresh": 10.0,
     },
+    "deblend": False,
     "subtract_sky": False,
     "meds": {},
 }
+
+DEFAULT_COADD_CONFIG = {
+    'nowarp': False,
+}
+
+
+def get_coadd_config(config=None):
+    """
+    metadetect configuration
+    """
+    if config is None:
+        config_in = {}
+    else:
+        config_in = deepcopy(config)
+
+    config = deepcopy(DEFAULT_COADD_CONFIG)
+    config.update(config_in)
+    return config
 
 
 def get_mdet_config(config=None, nostack=False, use_sx=False):

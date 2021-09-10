@@ -34,7 +34,7 @@ def get_script_file(run, num):
 
 
 def get_output(run, num):
-    return '%s-%010d.fits' % (run, num)
+    return '%s-%010d.fits.gz' % (run, num)
 
 
 def copy_config_file(config_file):

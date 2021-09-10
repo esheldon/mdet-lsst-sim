@@ -10,7 +10,7 @@ from descwl_shear_sims.sim import (
 from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
 from descwl_shear_sims.stars import StarCatalog
-from descwl_coadd.coadd import make_coadd_obs
+from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
 from metadetect.lsst_metadetect import LSSTMetadetect
 import fitsio
 import esutil as eu
@@ -27,18 +27,16 @@ def run_sim(
     shear=0.02,
     nocancel=False,
     mdet_config=None,
+    coadd_config=None,
     full_output=False,
     show=False,
     show_sheared=False,
     show_sim=False,
-    deblend=False,
     loglevel='info',
 ):
     """
     sim_config: dict
         Dict with sim configuration.
-    mdet_config: dict
-        Dict with mdet configuration.
     seed: int
         Seed for a random number generator
     ntrial: int
@@ -48,6 +46,10 @@ def run_sim(
         run and no output is written.
     shear: float
         Magnitude of the shear.  Shears +/- shear will be applied
+    mdet_config: dict
+        Dict with mdet configuration.
+    coadd_config: dict
+        Dict with coadd configuration.
     nocancel: bool
         If True, don't run -shear
     full_output: bool
@@ -58,13 +60,9 @@ def run_sim(
         If True, show the sheared images, default False
     show_sim: bool
         If True, show the sims.  default False
-    deblend: bool
-        If True, run the lsst deblender, default False
     loglevel: string
         Log level, default 'info'
     """
-
-    assert deblend is False
 
     logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
@@ -78,7 +76,14 @@ def run_sim(
     rng = np.random.RandomState(seed)
 
     mdet_config = util.get_mdet_config(config=mdet_config)
+    assert mdet_config['deblend'] is False, 'no deblend currently'
+
+    coadd_config = util.get_coadd_config(config=coadd_config)
+
     sim_config = get_sim_config(config=sim_config)
+
+    if sim_config['se_dim'] is None:
+        sim_config['se_dim'] = get_se_dim(coadd_dim=sim_config['coadd_dim'])
 
     if sim_config['gal_type'] != 'wldeblend':
         gal_config = sim_config.get('gal_config', None)
@@ -138,8 +143,7 @@ def run_sim(
                 g1 = -shear
 
             if sim_config['psf_type'] == 'ps':
-                se_dim = get_se_dim(coadd_dim=sim_config['coadd_dim'])
-                psf = make_ps_psf(rng=trial_rng, dim=se_dim)
+                psf = make_ps_psf(rng=trial_rng, dim=sim_config['se_dim'])
             else:
                 psf = make_fixed_psf(psf_type=sim_config["psf_type"])
 
@@ -147,6 +151,7 @@ def run_sim(
                 rng=trial_rng,
                 galaxy_catalog=galaxy_catalog,
                 coadd_dim=sim_config['coadd_dim'],
+                se_dim=sim_config['se_dim'],
                 g1=g1,
                 g2=0.0,
                 psf=psf,
@@ -170,16 +175,31 @@ def run_sim(
             for band, band_exps in sim_data['band_data'].items():
                 exps += band_exps
 
-            coadd_obs = make_coadd_obs(
-                exps=exps,
-                coadd_wcs=sim_data['coadd_wcs'],
-                coadd_bbox=sim_data['coadd_bbox'],
-                psf_dims=sim_data['psf_dims'],
-                rng=trial_rng,
-                remove_poisson=False,  # no object poisson noise in sims
-            )
-            if coadd_obs is None:
-                continue
+            if coadd_config['nowarp']:
+                if len(exps) > 1:
+                    raise ValueError('only one exp allowed for nowarp')
+
+                coadd_obs = make_coadd_obs_nowarp(
+                    exp=exps[0],
+                    psf_dims=sim_data['psf_dims'],
+                    rng=trial_rng,
+                    remove_poisson=False,  # no object poisson noise in sims
+                )
+                if coadd_obs is None:
+                    continue
+
+            else:
+
+                coadd_obs = make_coadd_obs(
+                    exps=exps,
+                    coadd_wcs=sim_data['coadd_wcs'],
+                    coadd_bbox=sim_data['coadd_bbox'],
+                    psf_dims=sim_data['psf_dims'],
+                    rng=trial_rng,
+                    remove_poisson=False,  # no object poisson noise in sims
+                )
+                if coadd_obs is None:
+                    continue
 
             if shear_type == '1p' and show:
                 coadd_obs.show()

@@ -40,7 +40,7 @@ SCRIPT_TEMPLATE = r"""#!/bin/bash
 run=$1
 
 seed=$(randint)
-output="${run}-${seed}.fits"
+output="${run}-${seed}.fits.gz"
 config=%(config)s
 
 export OMP_NUM_THREADS=1

@@ -31,50 +31,28 @@ jobs:
                 conda config --set always_yes yes
                 conda install -q mamba
 
-                mamba install -q stackvana=0
+                # mamba install -q stackvana=0
+                mamba install stackvana=0.2021.32
                 
                 mamba install -q \
                   flake8 \
                   pytest \
                   numpy \
-                  galsim \
-                  numba \
+                  "galsim>=2.3" \
+                  "numba!=0.54.0" \
                   ngmix \
                   meds \
                   lsstdesc-weaklensingdeblending \
                   fitsio
 
-                # remove this when ngmix 2.0 comes out
-                conda uninstall ngmix --force
-                pip install --no-deps git+https://github.com/esheldon/ngmix.git
-
                 pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
                 pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
                 pip install --no-deps git+https://github.com/esheldon/metadetect.git
 
-                git clone --branch u/erykoff/onlinecoadd https://github.com/lsst/pipe_tasks.git /tmp/pipe_tasks
-
-          - name: run scons on pipe_tasks
-            shell: bash -l {0}
-            run: |
-                env
-                
-                setup -j -r /tmp/pipe_tasks
-
-                pushd /tmp/pipe_tasks
-                # this might partly fail but that's ok
-                scons || echo "ok scons fails"
-                popd
-
-                pip install --no-deps -e .
-
           - name: Lint with flake8
             shell: bash -l {0}
-            run: |
-                flake8
+            run: flake8
 
           - name: Run pytest
             shell: bash -l {0}
-            run: |
-                setup -j -r /tmp/pipe_tasks
-                pytest -vv
+            run: pytest -vv
