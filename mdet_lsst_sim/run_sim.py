@@ -165,6 +165,7 @@ def run_sim(
                 cosmic_rays=sim_config['cosmic_rays'],
                 bad_columns=sim_config['bad_columns'],
                 star_bleeds=sim_config['star_bleeds'],
+                sky_n_sigma=sim_config['sky_n_sigma'],
             )
 
             if show_sim:
