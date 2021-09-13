@@ -11,7 +11,7 @@ from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
 from descwl_shear_sims.stars import StarCatalog
 from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
-from metadetect.lsst_metadetect import LSSTMetadetect
+from metadetect.lsst_metadetect import run_metadetect
 import fitsio
 import esutil as eu
 
@@ -68,15 +68,11 @@ def run_sim(
     logger = logging.getLogger('mdet_lsst_sim')
     logger.setLevel(getattr(logging, loglevel.upper()))
 
-    sim_type = sim_config.pop('type', 'lsst')
-    assert sim_type == 'lsst'
-
     logger.info(f"seed: {seed}")
 
     rng = np.random.RandomState(seed)
 
     mdet_config = util.get_mdet_config(config=mdet_config)
-    assert mdet_config['deblend'] is False, 'no deblend currently'
 
     coadd_config = util.get_coadd_config(config=coadd_config)
 
@@ -209,20 +205,17 @@ def run_sim(
 
             coadd_mbobs = util.make_mbobs(coadd_obs)
 
-            md = LSSTMetadetect(
-                mdet_config,
-                coadd_mbobs,
-                trial_rng,
+            res = run_metadetect(
+                config=mdet_config,
+                mbobs=coadd_mbobs,
+                rng=trial_rng,
                 show=show_sheared,
                 loglevel=loglevel,
             )
 
-            md.go()
-            res = md.result
-
             comb_data = util.make_comb_data(
                 res=res,
-                model=mdet_config["model"],
+                meas_type=mdet_config['meas_type'],
                 star_catalog=star_catalog,
                 meta=coadd_obs.meta,
                 full_output=full_output,
