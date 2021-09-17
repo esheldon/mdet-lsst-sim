@@ -112,6 +112,7 @@ def run_sim(
             coadd_dim=sim_config['coadd_dim'],
             buff=sim_config['buff'],
             layout=sim_config['layout'],
+            sep=sim_config['sep'],  # for layout='pair'
             gal_config=gal_config,
         )
         if sim_config['stars']:
