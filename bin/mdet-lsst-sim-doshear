@@ -122,8 +122,15 @@ def get_c2(data):
     return c2
 
 
-def get_jackknife_struct():
+def get_jackknife_struct(data):
     dt = [
+        ('s2n_min', 'f8'),
+        ('s2n_max', 'f8'),
+        ('max_mask_frac', 'f8'),
+        ('max_mfrac', 'f8'),
+        ('Tratio_min', 'f8'),
+        ('max_star_density', 'f8'),
+
         ('m1', 'f8'),
         ('m1err', 'f8'),
         ('c1', 'f8'),
@@ -131,11 +138,18 @@ def get_jackknife_struct():
         ('c2', 'f8'),
         ('c2err', 'f8'),
     ]
-    return np.zeros(1, dtype=dt)
+    jdata = np.zeros(1, dtype=dt)
+    jdata['s2n_min'][0] = data['s2n_min'][0]
+    jdata['s2n_max'][0] = data['s2n_max'][0]
+    jdata['max_mask_frac'][0] = data['max_mask_frac'][0]
+    jdata['max_mfrac'][0] = data['max_mfrac'][0]
+    jdata['Tratio_min'][0] = data['Tratio_min'][0]
+    jdata['max_star_density'][0] = data['max_star_density'][0]
+    return jdata
 
 
 def jackknife(data, nocancel):
-    st = get_jackknife_struct()
+    st = get_jackknife_struct(data)
 
     sdata = get_summed(data)
     m1, c1, R11 = get_m1_c1(sdata, nocancel=nocancel)  # noqa
@@ -279,8 +293,22 @@ def get_fname(run, key, nocancel):
     return os.path.join('mc-results', fname)
 
 
-def get_struct():
+def get_struct(
+    s2n_min,
+    s2n_max,
+    max_mask_frac,
+    max_mfrac,
+    Tratio_min,
+    max_star_density,
+):
     dt = [
+        ('s2n_min', 'f8'),
+        ('s2n_max', 'f8'),
+        ('max_mask_frac', 'f8'),
+        ('max_mfrac', 'f8'),
+        ('Tratio_min', 'f8'),
+        ('max_star_density', 'f8'),
+
         ('g_ns_sum_1p', ('f8', 2)),
         ('g_1p_sum_1p', ('f8', 2)),
         ('g_1m_sum_1p', ('f8', 2)),
@@ -298,7 +326,14 @@ def get_struct():
         ('wsum_1m_1m', 'f8'),
     ]
 
-    return np.zeros(1, dtype=dt)
+    data = np.zeros(1, dtype=dt)
+    data['s2n_min'] = s2n_min
+    data['s2n_max'] = s2n_max
+    data['max_mask_frac'] = max_mask_frac
+    data['max_mfrac'] = max_mfrac
+    data['Tratio_min'] = Tratio_min
+    data['max_star_density'] = max_star_density
+    return data
 
 
 def add_more_sums(sums, tsums):
@@ -307,7 +342,10 @@ def add_more_sums(sums, tsums):
             sums[key] = tsums[key]
         else:
             for datakey in tsums[key].dtype.names:
-                sums[key][datakey] += tsums[key][datakey]
+                if 'sum' in datakey:
+                    # only need to add the sum columns, others indicate the
+                    # cut which is constant
+                    sums[key][datakey] += tsums[key][datakey]
 
 
 def process_set(inputs):
@@ -346,7 +384,14 @@ def process_one(config, fname):
                     for max_mfrac in config['max_mfrac']:
                         for max_star_density in config['max_star_density']:
 
-                            d = get_struct()
+                            d = get_struct(
+                                s2n_min=s2n_min,
+                                s2n_max=s2n_max,
+                                max_mask_frac=max_mask_frac,
+                                max_mfrac=max_mfrac,
+                                Tratio_min=Tratio_min,
+                                max_star_density=max_star_density,
+                            )
                             for stype in ['noshear', '1p', '1m']:
                                 for data, ext in [(data_1p, '1p'), (data_1m, '1m')]:  # noqa
                                     g_sum, wsum = get_sums(

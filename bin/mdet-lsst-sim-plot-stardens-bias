@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import numpy as np
-import os
 import argparse
 import hickory
 import fitsio
@@ -18,20 +17,14 @@ def read_data(args):
 
     data = {}
     for f in args.flist:
-        bname = os.path.basename(f)
-        fs = bname.split('-')
-        if 'nocancel' in bname:
-            extra = 1
-        else:
-            extra = 0
-        # mc-run-lsst-drcbsBPW-nfac0.58-v4-s2n-18-1000-mask_frac-0.03-mfrac-0.06-Tratio-1.2-sdens-010.fits
-        mask_frac = float(fs[11+extra])
-        mfrac = float(fs[13+extra])
-        sdens = float(fs[17+extra].replace('.fits', ''))
+        tdata = fitsio.read(f)[0]
+
+        mask_frac = tdata['max_mask_frac']
+        mfrac = tdata['max_mfrac']
+        sdens = tdata['max_star_density']
 
         key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
 
-        tdata = fitsio.read(f)[0]
         m1err = tdata['m1err'] * 3
         m1high = tdata['m1'] + m1err
         m1low = tdata['m1'] - m1err
