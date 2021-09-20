@@ -75,6 +75,10 @@ def run_sim(
     mdet_config = util.get_mdet_config(config=mdet_config)
 
     coadd_config = util.get_coadd_config(config=coadd_config)
+    assert not coadd_config['remove_poisson'], (
+        'Do not set remove_poisson=True in the coadd config; '
+        'there is no poisson noise in the sim'
+    )
 
     sim_config = get_sim_config(config=sim_config)
 
@@ -181,7 +185,7 @@ def run_sim(
                     exp=exps[0],
                     psf_dims=sim_data['psf_dims'],
                     rng=trial_rng,
-                    remove_poisson=False,  # no object poisson noise in sims
+                    remove_poisson=coadd_config['remove_poisson'],
                 )
                 if coadd_obs is None:
                     continue
@@ -194,7 +198,7 @@ def run_sim(
                     coadd_bbox=sim_data['coadd_bbox'],
                     psf_dims=sim_data['psf_dims'],
                     rng=trial_rng,
-                    remove_poisson=False,  # no object poisson noise in sims
+                    remove_poisson=coadd_config['remove_poisson'],
                 )
                 if coadd_obs is None:
                     continue
