@@ -4,7 +4,7 @@ import esutil as eu
 import ngmix
 import metadetect
 
-DEFAULT_COADD_CONFIG = {'nowarp': False}
+DEFAULT_COADD_CONFIG = {'nowarp': False, 'remove_poisson': False}
 
 
 def get_coadd_config(config=None):
