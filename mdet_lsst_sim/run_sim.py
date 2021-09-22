@@ -12,6 +12,7 @@ from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
 from descwl_shear_sims.stars import StarCatalog
 from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
 from metadetect.lsst_metadetect import run_metadetect
+from metadetect.metadetect import do_metadetect as run_metadetect_sx
 import fitsio
 import esutil as eu
 
@@ -72,7 +73,7 @@ def run_sim(
 
     rng = np.random.RandomState(seed)
 
-    mdet_config = util.get_mdet_config(config=mdet_config)
+    mdet_config, use_sx = util.get_mdet_config(config=mdet_config)
 
     coadd_config = util.get_coadd_config(config=coadd_config)
     assert not coadd_config['remove_poisson'], (
@@ -210,13 +211,20 @@ def run_sim(
 
             coadd_mbobs = util.make_mbobs(coadd_obs)
 
-            res = run_metadetect(
-                config=mdet_config,
-                mbobs=coadd_mbobs,
-                rng=trial_rng,
-                show=show_sheared,
-                loglevel=loglevel,
-            )
+            if use_sx:
+                res = run_metadetect_sx(
+                    config=mdet_config,
+                    mbobs=coadd_mbobs,
+                    rng=trial_rng,
+                )
+            else:
+                res = run_metadetect(
+                    config=mdet_config,
+                    mbobs=coadd_mbobs,
+                    rng=trial_rng,
+                    show=show_sheared,
+                    loglevel=loglevel,
+                )
 
             comb_data = util.make_comb_data(
                 res=res,
