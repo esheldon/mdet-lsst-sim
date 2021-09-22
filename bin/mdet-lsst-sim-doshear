@@ -213,6 +213,8 @@ def get_sums(
 
     if 'wmom_g' in data.dtype.names:
         model = 'wmom'
+    elif 'ksigma_g' in data.dtype.names:
+        model = 'ksigma'
     else:
         model = 'gauss'
 
