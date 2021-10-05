@@ -105,6 +105,9 @@ def get_mdet_config(config=None, sx=False):
 
 
 def trim_output(data, meas_type):
+    if meas_type == 'admom':
+        meas_type = 'am'
+
     cols2keep_orig = [
         'flags',
         'row',
