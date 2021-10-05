@@ -1,7 +1,7 @@
-import sys
 import logging
 import numpy as np
 
+import ngmix
 from descwl_shear_sims.sim import (
     make_sim,
     get_sim_config,
@@ -168,43 +168,47 @@ def run_sim(
             if show_sim:
                 vis.show_sim(sim_data['band_data'])
 
-            # we combine bands for now
-            exps = []
+            coadd_mbobs = ngmix.MultiBandObsList()
+
             for band, band_exps in sim_data['band_data'].items():
-                exps += band_exps
+                obslist = ngmix.ObsList()
 
-            if coadd_config['nowarp']:
-                if len(exps) > 1:
-                    raise ValueError('only one exp allowed for nowarp')
+                if coadd_config['nowarp']:
+                    if len(band_exps) > 1:
+                        raise ValueError('only one exp allowed for nowarp')
 
-                coadd_obs = make_coadd_obs_nowarp(
-                    exp=exps[0],
-                    psf_dims=sim_data['psf_dims'],
-                    rng=trial_rng,
-                    remove_poisson=coadd_config['remove_poisson'],
-                )
+                    coadd_obs = make_coadd_obs_nowarp(
+                        exp=band_exps[0],
+                        psf_dims=sim_data['psf_dims'],
+                        rng=trial_rng,
+                        remove_poisson=coadd_config['remove_poisson'],
+                    )
+
+                else:
+
+                    coadd_obs = make_coadd_obs(
+                        exps=band_exps,
+                        coadd_wcs=sim_data['coadd_wcs'],
+                        coadd_bbox=sim_data['coadd_bbox'],
+                        psf_dims=sim_data['psf_dims'],
+                        rng=trial_rng,
+                        remove_poisson=coadd_config['remove_poisson'],
+                    )
+
                 if coadd_obs is None:
-                    continue
+                    break
 
-            else:
+                coadd_obs.meta['band'] = band
+                obslist.append(coadd_obs)
+                coadd_mbobs.append(obslist)
 
-                coadd_obs = make_coadd_obs(
-                    exps=exps,
-                    coadd_wcs=sim_data['coadd_wcs'],
-                    coadd_bbox=sim_data['coadd_bbox'],
-                    psf_dims=sim_data['psf_dims'],
-                    rng=trial_rng,
-                    remove_poisson=coadd_config['remove_poisson'],
-                )
-                if coadd_obs is None:
-                    continue
+            if coadd_obs is None:
+                continue
 
             if shear_type == '1p' and show:
                 coadd_obs.show()
 
             logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
-
-            coadd_mbobs = util.make_mbobs(coadd_obs)
 
             if use_sx:
                 res = run_metadetect_sx(
