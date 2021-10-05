@@ -33,7 +33,6 @@ def run_sim(
     show=False,
     show_sheared=False,
     show_sim=False,
-    loglevel='info',
 ):
     """
     seed: int
@@ -61,13 +60,9 @@ def run_sim(
         If True, show the sheared images, default False
     show_sim: bool, optional
         If True, show the sims.  default False
-    loglevel: string, optional
-        Log level, default 'info'
     """
 
-    logging.basicConfig(stream=sys.stdout)
     logger = logging.getLogger('mdet_lsst_sim')
-    logger.setLevel(getattr(logging, loglevel.upper()))
 
     logger.info(f"seed: {seed}")
 
@@ -223,7 +218,6 @@ def run_sim(
                     mbobs=coadd_mbobs,
                     rng=trial_rng,
                     show=show_sheared,
-                    loglevel=loglevel,
                 )
 
             comb_data = util.make_comb_data(
