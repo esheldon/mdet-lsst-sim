@@ -58,7 +58,7 @@ DEFAULT_MDET_CONFIG_WITH_SX = {
 
     # needed for PSF symmetrization
     "psf": {
-        "model": "admom",
+        "model": "am",
         "ntry": 2,
     },
 
