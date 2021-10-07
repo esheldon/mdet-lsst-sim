@@ -14,9 +14,6 @@ command: |
 
     source activate stack
 
-    # temporary until Eli's branch gets merged
-    setup -j -r ${HOME}/git/pipe_tasks
-
     mdet-lsst-sim \
         --seed %(seed)d \
         %(use_sx)s \
