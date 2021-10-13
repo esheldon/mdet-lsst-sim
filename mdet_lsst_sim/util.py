@@ -141,6 +141,9 @@ def make_comb_data(
         ('mask_frac', 'f4'),
     ]
 
+    if not hasattr(res, 'keys'):
+        res = {'noshear': res}
+
     dlist = []
     for stype in res.keys():
         data = res[stype]

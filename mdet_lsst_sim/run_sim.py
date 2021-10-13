@@ -1,3 +1,4 @@
+import time
 import logging
 import numpy as np
 
@@ -61,6 +62,11 @@ def run_sim(
     show_sim: bool, optional
         If True, show the sims.  default False
     """
+
+    tm0 = time.time()
+    tmsim = 0.0
+    tmcoadd = 0.0
+    tmmeas = 0.0
 
     logger = logging.getLogger('mdet_lsst_sim')
 
@@ -144,6 +150,7 @@ def run_sim(
             else:
                 psf = make_fixed_psf(psf_type=sim_config["psf_type"])
 
+            tmsim0 = time.time()
             sim_data = make_sim(
                 rng=trial_rng,
                 galaxy_catalog=galaxy_catalog,
@@ -164,12 +171,14 @@ def run_sim(
                 star_bleeds=sim_config['star_bleeds'],
                 sky_n_sigma=sim_config['sky_n_sigma'],
             )
+            tmsim += time.time() - tmsim0
 
             if show_sim:
                 vis.show_sim(sim_data['band_data'])
 
             coadd_mbobs = ngmix.MultiBandObsList()
 
+            tmcoadd0 = time.time()
             for band, band_exps in sim_data['band_data'].items():
                 obslist = ngmix.ObsList()
 
@@ -202,6 +211,8 @@ def run_sim(
                 obslist.append(coadd_obs)
                 coadd_mbobs.append(obslist)
 
+            tmcoadd += time.time() - tmcoadd0
+
             if coadd_obs is None:
                 continue
 
@@ -209,6 +220,8 @@ def run_sim(
                 coadd_obs.show()
 
             logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
+
+            tmmeas0 = time.time()
 
             if use_sx:
                 res = run_metadetect_sx(
@@ -223,6 +236,10 @@ def run_sim(
                     rng=trial_rng,
                     show=show_sheared,
                 )
+            tmmeas += time.time() - tmmeas0
+
+            if res is None:
+                continue
 
             comb_data = util.make_comb_data(
                 res=res,
@@ -237,6 +254,15 @@ def run_sim(
                     dlist_p.append(comb_data)
                 else:
                     dlist_m.append(comb_data)
+
+    tm_seconds = time.time()-tm0
+    tm_minutes = tm_seconds/60.0
+    tm_per_trial = tm_seconds/ntrial
+    print('time: %g minutes' % tm_minutes)
+    print('time sim: %g minutes' % (tmsim / 60))
+    print('time coadd: %g minutes' % (tmcoadd / 60))
+    print('time meas: %g minutes' % (tmmeas / 60))
+    print('time per trial: %g seconds' % tm_per_trial)
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     if not nocancel:
