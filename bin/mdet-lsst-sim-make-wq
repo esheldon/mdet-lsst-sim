@@ -17,6 +17,7 @@ command: |
 
     %(command)s \
         --seed %(seed)d \
+        %(full_output)s \
         --config %(sim_config)s \
         --ntrial %(ntrial)d \
         --output %(output)s
@@ -53,6 +54,10 @@ def main():
     args = get_args()
 
     command = util.get_command_from_config_file(args.config)
+    if 'phot' in command:
+        full_output = '--full-output'
+    else:
+        full_output = ''
 
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
@@ -72,6 +77,7 @@ def main():
 
         text = template % {
             'command': command,
+            'full_output': full_output,
             'job_name': job_name,
             'seed': seed,
             'sim_config': sim_config_base,
