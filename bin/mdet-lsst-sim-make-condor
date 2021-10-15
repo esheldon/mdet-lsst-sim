@@ -3,6 +3,7 @@ import os
 import numpy as np
 import argparse
 import shutil
+from mdet_lsst_sim import util
 
 
 CONDOR_SUBMIT_HEAD = """
@@ -71,28 +72,23 @@ seed=$1
 output=$2
 logfile=$3
 
-mdet-lsst-sim \
+%(command)s \
     --seed ${seed} \
     --config %(sim_config)s \
     --ntrial %(ntrial)d \
-    %(use_sx)s \
-    %(deblend)s \
-    %(interp_bright)s \
     --output ${output} &> ${logfile}
 """
 
 
-def write_script(*, ntrial, sim_config, use_sx, deblend, interp_bright):
+def write_script(*, ntrial, sim_config, command):
 
     script_file = get_script_file()
     print('writing:', script_file)
     with open(script_file, 'w') as fobj:
         text = SCRIPT_TEMPLATE % {
+            'command': command,
             'ntrial': ntrial,
             'sim_config': sim_config,
-            'use_sx': use_sx,
-            'deblend': deblend,
-            'interp_bright': interp_bright,
         }
         fobj.write(text)
 
@@ -106,15 +102,7 @@ def get_args():
     parser.add_argument('--njobs', type=int, required=True)
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
-    parser.add_argument('--config', required=True, help='simulation config')
-
-    parser.add_argument('--no-interp-bright', action='store_true',
-                        help='interpolate regions marked bright')
-
-    parser.add_argument('--use-sx', action='store_true',
-                        help=('use sx based metadetect'))
-    parser.add_argument('--deblend', action='store_true',
-                        help=('use the lsst deblender'))
+    parser.add_argument('--config', required=True, help='config file')
 
     return parser.parse_args()
 
@@ -122,23 +110,10 @@ def get_args():
 def main():
     args = get_args()
 
+    command = util.get_command_from_config_file(args.config)
+
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
-
-    if args.use_sx:
-        use_sx = '--use-sx'
-    else:
-        use_sx = ''
-
-    if args.deblend:
-        deblend = '--deblend'
-    else:
-        deblend = ''
-
-    if args.no_interp_bright:
-        interp_bright = ''
-    else:
-        interp_bright = '--interp-bright'
 
     rng = np.random.RandomState(args.seed)
 
@@ -150,9 +125,7 @@ def main():
     write_script(
         ntrial=args.ntrial,
         sim_config=sim_config_base,
-        use_sx=use_sx,
-        deblend=deblend,
-        interp_bright=interp_bright,
+        command=command,
     )
 
     with open(condor_file, 'w') as fobj:

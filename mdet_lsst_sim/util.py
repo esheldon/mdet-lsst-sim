@@ -215,3 +215,16 @@ def make_mbobs(obs):
     obslist.append(obs)
     mbobs.append(obslist)
     return mbobs
+
+
+def get_command_from_config_file(config_file):
+    import yaml
+    with open(config_file) as fobj:
+        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+
+    if config.get('do_photometry', False):
+        command = 'mdet-lsst-sim-phot'
+    else:
+        command = 'mdet-lsst-sim'
+
+    return command
