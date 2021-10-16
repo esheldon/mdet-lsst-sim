@@ -93,6 +93,10 @@ def main():
     args = get_args()
 
     command = util.get_command_from_config_file(args.config)
+    if 'phot' in command:
+        full_output = '--full-output'
+    else:
+        full_output = ''
 
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
