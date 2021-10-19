@@ -14,7 +14,7 @@ Notification = Never
 # Run this exe with these args
 Executable = run.sh
 
-Image_Size =  1000000
+Image_Size =  2500000
 
 GetEnv = True
 
@@ -68,6 +68,10 @@ def get_logfile(run, seed):
 
 
 SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
+
+set -e
+export OMP_NUM_THREADS=1
+
 seed=$1
 output=$2
 logfile=$3
