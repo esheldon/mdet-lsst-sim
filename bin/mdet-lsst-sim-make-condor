@@ -13,7 +13,8 @@ Notification = Never
 # Run this exe with these args
 Executable = run.sh
 
-Image_Size =  2500000
+# Image_Size =  2500000
+request_memory = 3.5G
 
 GetEnv = True
 
