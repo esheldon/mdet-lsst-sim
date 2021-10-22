@@ -14,7 +14,7 @@ Notification = Never
 Executable = run.sh
 
 # Image_Size =  2500000
-request_memory = 3.5G
+request_memory = %(mem)s
 
 GetEnv = True
 
@@ -110,6 +110,8 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='config file')
 
+    parser.add_argument('--mem', default='2G', help='expected mem usage')
+
     return parser.parse_args()
 
 
@@ -155,6 +157,7 @@ def main():
     with open(condor_file, 'w') as fobj:
         fobj.write(CONDOR_SUBMIT_HEAD % {
             'sim_config': sim_config_base,
+            'mem': args.mem,
         })
 
         for i in range(args.njobs):
