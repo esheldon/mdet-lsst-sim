@@ -12,7 +12,7 @@ from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
 from descwl_shear_sims.stars import StarCatalog
 from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
-from metadetect.lsst_photometry import run_photometry
+from metadetect.lsst.photometry import run_photometry
 import fitsio
 import esutil as eu
 

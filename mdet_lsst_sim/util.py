@@ -2,7 +2,6 @@ from copy import deepcopy
 import numpy as np
 import esutil as eu
 import ngmix
-import metadetect
 
 DEFAULT_COADD_CONFIG = {'nowarp': False, 'remove_poisson': False}
 
@@ -87,6 +86,7 @@ def get_mdet_config(config=None, sx=False):
     """
     metadetect configuration
     """
+    from metadetect.lsst.metadetect import get_config
     if config is None:
         config_in = {}
     else:
@@ -99,7 +99,7 @@ def get_mdet_config(config=None, sx=False):
         config_out.update(config_in)
         config_out['meas_type'] = config_out['model']
     else:
-        config_out = metadetect.lsst_metadetect.get_config(config_in)
+        config_out = get_config(config_in)
 
     return config_out, use_sx
 

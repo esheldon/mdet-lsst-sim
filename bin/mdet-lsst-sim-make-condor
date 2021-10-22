@@ -3,7 +3,6 @@ import os
 import numpy as np
 import argparse
 import shutil
-from mdet_lsst_sim import util
 
 
 CONDOR_SUBMIT_HEAD = """
@@ -14,7 +13,8 @@ Notification = Never
 # Run this exe with these args
 Executable = run.sh
 
-Image_Size =  1000000
+# Image_Size =  2500000
+request_memory = %(mem)s
 
 GetEnv = True
 
@@ -68,6 +68,10 @@ def get_logfile(run, seed):
 
 
 SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
+
+set -e
+export OMP_NUM_THREADS=1
+
 seed=$1
 output=$2
 logfile=$3
@@ -106,13 +110,28 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='config file')
 
+    parser.add_argument('--mem', default='2G', help='expected mem usage')
+
     return parser.parse_args()
+
+
+def get_command_from_config_file(config_file):
+    import yaml
+    with open(config_file) as fobj:
+        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+
+    if config.get('do_photometry', False):
+        command = 'mdet-lsst-sim-phot'
+    else:
+        command = 'mdet-lsst-sim'
+
+    return command
 
 
 def main():
     args = get_args()
 
-    command = util.get_command_from_config_file(args.config)
+    command = get_command_from_config_file(args.config)
     if 'phot' in command:
         full_output = '--full-output'
     else:
@@ -138,6 +157,7 @@ def main():
     with open(condor_file, 'w') as fobj:
         fobj.write(CONDOR_SUBMIT_HEAD % {
             'sim_config': sim_config_base,
+            'mem': args.mem,
         })
 
         for i in range(args.njobs):
