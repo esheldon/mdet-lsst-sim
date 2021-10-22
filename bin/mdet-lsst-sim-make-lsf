@@ -64,6 +64,7 @@ def write_script(*, ntrial, sim_config, command, full_output):
         text = SCRIPT_TEMPLATE % {
             'ntrial': ntrial,
             'config': sim_config,
+            'command': command,
             'full_output': full_output,
         }
         fobj.write(text)
