@@ -159,7 +159,7 @@ def run_sim_phot(
                 if len(band_exps) > 1:
                     raise ValueError('only one exp allowed for nowarp')
 
-                coadd_obs = make_coadd_obs_nowarp(
+                coadd_obs, exp_info = make_coadd_obs_nowarp(
                     exp=band_exps[0],
                     psf_dims=sim_data['psf_dims'],
                     rng=rng,
@@ -168,7 +168,7 @@ def run_sim_phot(
 
             else:
 
-                coadd_obs = make_coadd_obs(
+                coadd_obs, exp_info = make_coadd_obs(
                     exps=band_exps,
                     coadd_wcs=sim_data['coadd_wcs'],
                     coadd_bbox=sim_data['coadd_bbox'],
