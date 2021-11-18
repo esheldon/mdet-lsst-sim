@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import os
-import numpy as np
 import argparse
 import shutil
 
@@ -45,19 +44,18 @@ config=%(config)s
 
 export OMP_NUM_THREADS=1
 
-mdet-lsst-sim \
+%(command)s \
+    %(full_output)s \
     --seed ${seed} \
     --config ${config} \
     --ntrial %(ntrial)d \
-    %(use_sx)s \
-    %(deblend)s \
     --output ${output}
 """
 # logfile="${run}-${seed}.log"
 # &> ${logfile}
 
 
-def write_script(*, ntrial, sim_config, use_sx, deblend):
+def write_script(*, ntrial, sim_config, command, full_output):
 
     script_file = get_script_file()
     print('writing:', script_file)
@@ -65,8 +63,8 @@ def write_script(*, ntrial, sim_config, use_sx, deblend):
         text = SCRIPT_TEMPLATE % {
             'ntrial': ntrial,
             'config': sim_config,
-            'use_sx': use_sx,
-            'deblend': deblend,
+            'command': command,
+            'full_output': full_output,
         }
         fobj.write(text)
 
@@ -76,38 +74,45 @@ def write_script(*, ntrial, sim_config, use_sx, deblend):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', required=True)
-    parser.add_argument('--index', type=int, required=True, help='index for file name')
+    parser.add_argument('--index', type=int, required=True,
+                        help='index for file name')
     parser.add_argument('--njobs', type=int, required=True)
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
-    parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--config', required=True, help='config file')
 
     parser.add_argument('--walltime', required=True,
                         help=('walltime for each job, e.g. 4:00'))
 
-    parser.add_argument('--use-sx', action='store_true',
-                        help=('use sx based metadetect'))
-    parser.add_argument('--deblend', action='store_true',
-                        help=('use the lsst deblender'))
+    parser.add_argument('--phot', action='store_true')
 
     return parser.parse_args()
+
+
+def get_command_from_config_file(config_file):
+    import yaml
+    with open(config_file) as fobj:
+        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+
+    if config.get('do_photometry', False):
+        command = 'mdet-lsst-sim-phot'
+    else:
+        command = 'mdet-lsst-sim'
+
+    return command
 
 
 def main():
     args = get_args()
 
+    command = get_command_from_config_file(args.config)
+    if 'phot' in command:
+        full_output = '--full-output'
+    else:
+        full_output = ''
+
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
-
-    if args.use_sx:
-        use_sx = '--use-sx'
-    else:
-        use_sx = ''
-
-    if args.deblend:
-        deblend = '--deblend'
-    else:
-        deblend = ''
 
     lsf_file = get_lsf_script_file(args.run, args.index)
 
@@ -117,8 +122,8 @@ def main():
     write_script(
         ntrial=args.ntrial,
         sim_config=sim_config_base,
-        use_sx=use_sx,
-        deblend=deblend,
+        command=command,
+        full_output=full_output,
     )
 
     with open(lsf_file, 'w') as fobj:

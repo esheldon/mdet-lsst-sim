@@ -1,7 +1,8 @@
-import sys
+import time
 import logging
 import numpy as np
 
+import ngmix
 from descwl_shear_sims.sim import (
     make_sim,
     get_sim_config,
@@ -9,9 +10,9 @@ from descwl_shear_sims.sim import (
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
-from descwl_shear_sims.stars import StarCatalog
+from descwl_shear_sims.stars import make_star_catalog
 from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
-from metadetect.lsst_metadetect import run_metadetect
+from metadetect.lsst.metadetect import run_metadetect
 from metadetect.metadetect import do_metadetect as run_metadetect_sx
 import fitsio
 import esutil as eu
@@ -33,7 +34,6 @@ def run_sim(
     show=False,
     show_sheared=False,
     show_sim=False,
-    loglevel='info',
 ):
     """
     seed: int
@@ -61,13 +61,14 @@ def run_sim(
         If True, show the sheared images, default False
     show_sim: bool, optional
         If True, show the sims.  default False
-    loglevel: string, optional
-        Log level, default 'info'
     """
 
-    logging.basicConfig(stream=sys.stdout)
+    tm0 = time.time()
+    tmsim = 0.0
+    tmcoadd = 0.0
+    tmmeas = 0.0
+
     logger = logging.getLogger('mdet_lsst_sim')
-    logger.setLevel(getattr(logging, loglevel.upper()))
 
     logger.info(f"seed: {seed}")
 
@@ -93,8 +94,7 @@ def run_sim(
         sim_config["layout"] = None
         gal_config = None
 
-    if sim_config['stars']:
-        star_config = sim_config.get('star_config', {})
+    star_config = sim_config.get('star_config', None)
 
     logger.info(str(sim_config))
     logger.info(str(mdet_config))
@@ -121,11 +121,11 @@ def run_sim(
             gal_config=gal_config,
         )
         if sim_config['stars']:
-            star_catalog = StarCatalog(
+            star_catalog = make_star_catalog(
                 rng=rng,
                 coadd_dim=sim_config['coadd_dim'],
                 buff=sim_config['buff'],
-                density=star_config.get('density'),
+                star_config=star_config,
             )
             logger.info('star_density: %g' % star_catalog.density)
         else:
@@ -149,6 +149,7 @@ def run_sim(
             else:
                 psf = make_fixed_psf(psf_type=sim_config["psf_type"])
 
+            tmsim0 = time.time()
             sim_data = make_sim(
                 rng=trial_rng,
                 galaxy_catalog=galaxy_catalog,
@@ -169,47 +170,57 @@ def run_sim(
                 star_bleeds=sim_config['star_bleeds'],
                 sky_n_sigma=sim_config['sky_n_sigma'],
             )
+            tmsim += time.time() - tmsim0
 
             if show_sim:
                 vis.show_sim(sim_data['band_data'])
 
-            # we combine bands for now
-            exps = []
+            coadd_mbobs = ngmix.MultiBandObsList()
+
+            tmcoadd0 = time.time()
             for band, band_exps in sim_data['band_data'].items():
-                exps += band_exps
+                obslist = ngmix.ObsList()
 
-            if coadd_config['nowarp']:
-                if len(exps) > 1:
-                    raise ValueError('only one exp allowed for nowarp')
+                if coadd_config['nowarp']:
+                    if len(band_exps) > 1:
+                        raise ValueError('only one exp allowed for nowarp')
 
-                coadd_obs = make_coadd_obs_nowarp(
-                    exp=exps[0],
-                    psf_dims=sim_data['psf_dims'],
-                    rng=trial_rng,
-                    remove_poisson=coadd_config['remove_poisson'],
-                )
+                    coadd_obs, exp_info = make_coadd_obs_nowarp(
+                        exp=band_exps[0],
+                        psf_dims=sim_data['psf_dims'],
+                        rng=trial_rng,
+                        remove_poisson=coadd_config['remove_poisson'],
+                    )
+
+                else:
+
+                    coadd_obs, exp_info = make_coadd_obs(
+                        exps=band_exps,
+                        coadd_wcs=sim_data['coadd_wcs'],
+                        coadd_bbox=sim_data['coadd_bbox'],
+                        psf_dims=sim_data['psf_dims'],
+                        rng=trial_rng,
+                        remove_poisson=coadd_config['remove_poisson'],
+                    )
+
                 if coadd_obs is None:
-                    continue
+                    break
 
-            else:
+                coadd_obs.meta['band'] = band
+                obslist.append(coadd_obs)
+                coadd_mbobs.append(obslist)
 
-                coadd_obs = make_coadd_obs(
-                    exps=exps,
-                    coadd_wcs=sim_data['coadd_wcs'],
-                    coadd_bbox=sim_data['coadd_bbox'],
-                    psf_dims=sim_data['psf_dims'],
-                    rng=trial_rng,
-                    remove_poisson=coadd_config['remove_poisson'],
-                )
-                if coadd_obs is None:
-                    continue
+            tmcoadd += time.time() - tmcoadd0
+
+            if coadd_obs is None:
+                continue
 
             if shear_type == '1p' and show:
                 coadd_obs.show()
 
             logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
 
-            coadd_mbobs = util.make_mbobs(coadd_obs)
+            tmmeas0 = time.time()
 
             if use_sx:
                 res = run_metadetect_sx(
@@ -223,8 +234,11 @@ def run_sim(
                     mbobs=coadd_mbobs,
                     rng=trial_rng,
                     show=show_sheared,
-                    loglevel=loglevel,
                 )
+            tmmeas += time.time() - tmmeas0
+
+            if res is None:
+                continue
 
             comb_data = util.make_comb_data(
                 res=res,
@@ -239,6 +253,15 @@ def run_sim(
                     dlist_p.append(comb_data)
                 else:
                     dlist_m.append(comb_data)
+
+    tm_seconds = time.time()-tm0
+    tm_minutes = tm_seconds/60.0
+    tm_per_trial = tm_seconds/ntrial
+    print('time: %g minutes' % tm_minutes)
+    print('time sim: %g minutes' % (tmsim / 60))
+    print('time coadd: %g minutes' % (tmcoadd / 60))
+    print('time meas: %g minutes' % (tmmeas / 60))
+    print('time per trial: %g seconds' % tm_per_trial)
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     if not nocancel:

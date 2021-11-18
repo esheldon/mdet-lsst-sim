@@ -14,13 +14,9 @@ command: |
 
     source activate stack
 
-    # temporary until Eli's branch gets merged
-    setup -j -r ${HOME}/git/pipe_tasks
-
-    mdet-lsst-sim \
+    %(command)s \
         --seed %(seed)d \
-        %(use_sx)s \
-        %(deblend)s \
+        %(full_output)s \
         --config %(sim_config)s \
         --ntrial %(ntrial)d \
         --output %(output)s
@@ -49,33 +45,36 @@ def get_args():
     parser.add_argument('--njobs', type=int, required=True)
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
-    parser.add_argument('--config', required=True, help='simulation config')
-
-    parser.add_argument('--use-sx', action='store_true',
-                        help=('use sx based metadetect'))
-    parser.add_argument('--deblend', action='store_true',
-                        help=('use the lsst deblender'))
-
+    parser.add_argument('--config', required=True, help='config file')
     return parser.parse_args()
+
+
+def get_command_from_config_file(config_file):
+    import yaml
+    with open(config_file) as fobj:
+        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+
+    if config.get('do_photometry', False):
+        command = 'mdet-lsst-sim-phot'
+    else:
+        command = 'mdet-lsst-sim'
+
+    return command
 
 
 def main():
     args = get_args()
 
+    command = get_command_from_config_file(args.config)
+    if 'phot' in command:
+        full_output = '--full-output'
+    else:
+        full_output = ''
+
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
 
     rng = np.random.RandomState(args.seed)
-
-    if args.use_sx:
-        use_sx = '--use-sx'
-    else:
-        use_sx = ''
-
-    if args.deblend:
-        deblend = '--deblend'
-    else:
-        deblend = ''
 
     for i in range(args.njobs):
 
@@ -89,10 +88,10 @@ def main():
         job_name = '%s-%06d' % (args.run, seed)
 
         text = template % {
+            'command': command,
+            'full_output': full_output,
             'job_name': job_name,
             'seed': seed,
-            'use_sx': use_sx,
-            'deblend': deblend,
             'sim_config': sim_config_base,
             'ntrial': args.ntrial,
             'output': output,

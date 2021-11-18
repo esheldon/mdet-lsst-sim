@@ -20,8 +20,6 @@ setup(
     version=__version__,
     packages=find_packages(),
     scripts=scripts,
-    # install_requires=['numpy', 'galsim'],
-    # include_package_data=True,
     author='Erin Sheldon',
     author_email='erin.sheldon@gmail.com',
     url='https://github.com/esheldon/mdet-lsst-sim',
