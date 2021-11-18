@@ -1,3 +1,12 @@
+"""
+TODO
+
+  - adapt to exposure based metadetect
+  - use new bright info to mask before sending data to metadetect
+  - make sure overall mask frac gets passed on; this should combine
+    bands; maybe do in metadetect.
+"""
+
 import time
 import logging
 import numpy as np
