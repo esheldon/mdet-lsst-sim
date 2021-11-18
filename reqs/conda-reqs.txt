@@ -1,4 +1,4 @@
-stackvana=0.2021.32
+stackvana=0.2021.43
 galsim>=2.3
 numba!=0.54.0
 ngmix
