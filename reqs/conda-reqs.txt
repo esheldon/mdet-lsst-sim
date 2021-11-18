@@ -1,0 +1,7 @@
+stackvana=0.2021.32
+"galsim>=2.3"
+"numba!=0.54.0"
+ngmix
+meds
+lsstdesc-weaklensingdeblending
+fitsio
