@@ -231,7 +231,7 @@ def get_sums(
     logic = (
         (data['flags'] == 0) &
         # (data['ormask'] & get_orflags() == 0) &
-        (data['ormask'] & orflags == 0) &
+        # (data['ormask'] & orflags == 0) &
         (data['shear_type'] == stype) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
