@@ -5,13 +5,14 @@ TODO
   - use new bright info to mask before sending data to metadetect
   - make sure overall mask frac gets passed on; this should combine
     bands; maybe do in metadetect.
+  - masking is different; make sure doshear is not bothering with mask/ormask
+    just with mask_frac and mfrac
 """
 
 import time
 import logging
 import numpy as np
 
-import ngmix
 from descwl_shear_sims.sim import (
     make_sim,
     get_sim_config,
@@ -20,9 +21,13 @@ from descwl_shear_sims.sim import (
 from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
 from descwl_shear_sims.stars import make_star_catalog
-from descwl_coadd import make_coadd_obs, make_coadd_obs_nowarp
+import metadetect.lsst.vis as lsst_vis
 from metadetect.lsst.metadetect import run_metadetect
-from metadetect.metadetect import do_metadetect as run_metadetect_sx
+from metadetect.lsst.masking import (
+    apply_apodized_edge_masks_mbexp,
+    apply_apodized_bright_masks_mbexp,
+)
+# from metadetect.metadetect import do_metadetect as run_metadetect_sx
 import fitsio
 import esutil as eu
 
@@ -83,7 +88,7 @@ def run_sim(
 
     rng = np.random.RandomState(seed)
 
-    mdet_config, use_sx = util.get_mdet_config(config=mdet_config)
+    mdet_config, use_sx, trim_pixels = util.get_mdet_config(config=mdet_config)
 
     coadd_config = util.get_coadd_config(config=coadd_config)
     assert not coadd_config['remove_poisson'], (
@@ -94,7 +99,11 @@ def run_sim(
     sim_config = get_sim_config(config=sim_config)
 
     if sim_config['se_dim'] is None:
-        sim_config['se_dim'] = get_se_dim(coadd_dim=sim_config['coadd_dim'])
+        sim_config['se_dim'] = get_se_dim(
+            coadd_dim=sim_config['coadd_dim'],
+            dither=sim_config['dither'],
+            rotate=sim_config['rotate'],
+        )
 
     if sim_config['gal_type'] != 'wldeblend':
         gal_config = sim_config.get('gal_config', None)
@@ -184,65 +193,44 @@ def run_sim(
             if show_sim:
                 vis.show_sim(sim_data['band_data'])
 
-            coadd_mbobs = ngmix.MultiBandObsList()
-
             tmcoadd0 = time.time()
-            for band, band_exps in sim_data['band_data'].items():
-                obslist = ngmix.ObsList()
+            coadd_data = util.coadd_sim_data(
+                rng=trial_rng, sim_data=sim_data,
+                **coadd_config
+            )
+            apply_apodized_edge_masks_mbexp(**coadd_data)
+            if len(sim_data['bright_info']) > 0:
+                apply_apodized_bright_masks_mbexp(
+                    bright_info=sim_data['bright_info'],
+                    **coadd_data
+                )
 
-                if coadd_config['nowarp']:
-                    if len(band_exps) > 1:
-                        raise ValueError('only one exp allowed for nowarp')
-
-                    coadd_obs, exp_info = make_coadd_obs_nowarp(
-                        exp=band_exps[0],
-                        psf_dims=sim_data['psf_dims'],
-                        rng=trial_rng,
-                        remove_poisson=coadd_config['remove_poisson'],
-                    )
-
-                else:
-
-                    coadd_obs, exp_info = make_coadd_obs(
-                        exps=band_exps,
-                        coadd_wcs=sim_data['coadd_wcs'],
-                        coadd_bbox=sim_data['coadd_bbox'],
-                        psf_dims=sim_data['psf_dims'],
-                        rng=trial_rng,
-                        remove_poisson=coadd_config['remove_poisson'],
-                    )
-
-                if coadd_obs is None:
-                    break
-
-                coadd_obs.meta['band'] = band
-                obslist.append(coadd_obs)
-                coadd_mbobs.append(obslist)
+            mask_frac = util.get_mask_frac(
+                coadd_data['mfrac_mbexp'],
+                trim_pixels=trim_pixels,
+                stamp_size=mdet_config['stamp_size'],
+            )
 
             tmcoadd += time.time() - tmcoadd0
 
-            if coadd_obs is None:
-                continue
+            logger.info('mask_frac: %g' % mask_frac)
 
-            if shear_type == '1p' and show:
-                coadd_obs.show()
-
-            logger.info('mask_frac: %g' % coadd_obs.meta['mask_frac'])
+            if show:
+                lsst_vis.show_mbexp(coadd_data['mbexp'])
 
             tmmeas0 = time.time()
 
             if use_sx:
-                res = run_metadetect_sx(
-                    config=mdet_config,
-                    mbobs=coadd_mbobs,
-                    rng=trial_rng,
-                )
+                raise RuntimeError("adapt sx run to exposures")
+                # res = run_metadetect_sx(
+                #     config=mdet_config,
+                #     mbobs=coadd_mbobs,
+                #     rng=trial_rng,
+                # )
             else:
                 res = run_metadetect(
-                    config=mdet_config,
-                    mbobs=coadd_mbobs,
-                    rng=trial_rng,
-                    show=show_sheared,
+                    rng=trial_rng, config=mdet_config, show=show_sheared,
+                    **coadd_data,
                 )
             tmmeas += time.time() - tmmeas0
 
@@ -253,9 +241,17 @@ def run_sim(
                 res=res,
                 meas_type=mdet_config['meas_type'],
                 star_catalog=star_catalog,
-                meta=coadd_obs.meta,
+                mask_frac=mask_frac,
                 full_output=full_output,
             )
+
+            if trim_pixels > 0:
+                comb_data = util.trim_catalog_boundary(
+                    data=comb_data,
+                    dim=sim_config['coadd_dim'],
+                    trim_pixels=trim_pixels,
+                    show=show,
+                )
 
             if len(comb_data) > 0:
                 if shear_type == '1p':

@@ -1,7 +1,10 @@
+import logging
 from copy import deepcopy
 import numpy as np
 import esutil as eu
 import ngmix
+
+logger = logging.getLogger('mdet_lsst.util')
 
 DEFAULT_COADD_CONFIG = {'nowarp': False, 'remove_poisson': False}
 
@@ -93,6 +96,7 @@ def get_mdet_config(config=None, sx=False):
         config_in = deepcopy(config)
 
     use_sx = config_in.pop('use_sx', False)
+    trim_pixels = config_in.pop('trim_pixels', 0)
 
     if use_sx:
         config_out = deepcopy(DEFAULT_MDET_CONFIG_WITH_SX)
@@ -101,7 +105,7 @@ def get_mdet_config(config=None, sx=False):
     else:
         config_out = get_config(config_in)
 
-    return config_out, use_sx
+    return config_out, use_sx, trim_pixels
 
 
 def trim_output(data, meas_type):
@@ -110,10 +114,9 @@ def trim_output(data, meas_type):
 
     cols2keep_orig = [
         'flags',
-        'row',
-        'col',
+        'row_noshear',
+        'col_noshear',
         'mfrac',
-        'ormask',
         '%s_s2n' % meas_type,
         '%s_T_ratio' % meas_type,
         '%s_g' % meas_type,
@@ -132,7 +135,7 @@ def make_comb_data(
     res,
     meas_type,
     star_catalog,
-    meta,
+    mask_frac,
     full_output=False,
 ):
     add_dt = [
@@ -157,7 +160,7 @@ def make_comb_data(
             add_truth_summary(
                 data=newdata,
                 star_catalog=star_catalog,
-                meta=meta,
+                mask_frac=mask_frac,
             )
             dlist.append(newdata)
 
@@ -196,7 +199,7 @@ def make_truth_data_full(object_data):
     return data
 
 
-def add_truth_summary(data, star_catalog, meta):
+def add_truth_summary(data, star_catalog, mask_frac):
     """
     get field stats and assign for each object
     """
@@ -204,7 +207,7 @@ def add_truth_summary(data, star_catalog, meta):
     if star_catalog is not None:
         data['true_star_density'] = star_catalog.density
 
-    data['mask_frac'] = meta['mask_frac']
+    data['mask_frac'] = mask_frac
 
     return data
 
@@ -228,3 +231,94 @@ def get_command_from_config_file(config_file):
         command = 'mdet-lsst-sim'
 
     return command
+
+
+def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
+    from descwl_coadd.coadd import make_coadd
+    from descwl_coadd.coadd_nowarp import make_coadd_nowarp
+    from metadetect.lsst.util import extract_multiband_coadd_data
+
+    bands = list(sim_data['band_data'].keys())
+
+    if nowarp:
+        exps = sim_data['band_data'][bands[0]]
+
+        if len(exps) > 1:
+            raise ValueError('only one epoch for nowarp')
+
+        coadd_data_list = [
+            make_coadd_nowarp(
+                exp=exps[0],
+                psf_dims=sim_data['psf_dims'],
+                rng=rng,
+                remove_poisson=remove_poisson,
+            )
+            for band in bands
+        ]
+    else:
+        coadd_data_list = [
+            make_coadd(
+                exps=sim_data['band_data'][band],
+                psf_dims=sim_data['psf_dims'],
+                rng=rng,
+                coadd_wcs=sim_data['coadd_wcs'],
+                coadd_bbox=sim_data['coadd_bbox'],
+                remove_poisson=remove_poisson,
+            )
+            for band in bands
+        ]
+    return extract_multiband_coadd_data(coadd_data_list)
+
+
+def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
+    """
+    get the average mask frac for each band and then return the max of those
+    """
+
+    trim = trim_pixels + stamp_size // 2
+
+    mask_fracs = []
+    for mfrac_exp in mfrac_mbexp:
+        mfrac = mfrac_exp.image.array
+        dim = mfrac.shape[0]
+        mfrac = mfrac[
+            trim:dim - trim - 1,
+            trim:dim - trim - 1,
+        ]
+        mask_fracs.append(mfrac.mean())
+
+    return max(mask_fracs)
+
+
+def trim_catalog_boundary(data, dim, trim_pixels, show=False):
+
+    row = data['row_noshear']
+    col = data['col_noshear']
+
+    w, = np.where(
+        (row > trim_pixels) &
+        (col > trim_pixels) &
+        (row < (dim - trim_pixels - 1)) &
+        (col < (dim - trim_pixels - 1))
+    )
+
+    if show:
+        import matplotlib.pyplot as mplt
+        from matplotlib.patches import Rectangle
+
+        fig, ax = mplt.subplots()
+        logger.info('kept: %d/%d', w.size, data.size)
+        alpha = 0.1
+        ax.add_patch(
+            Rectangle(
+                [trim_pixels]*2,
+                dim-2*trim_pixels,
+                dim-2*trim_pixels,
+                fill=False,
+            ),
+        )
+        ax.scatter(col, row, color='red', alpha=alpha)
+        ax.scatter(col[w], row[w], color='blue', alpha=alpha)
+        mplt.show()
+
+    return data[w]
