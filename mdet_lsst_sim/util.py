@@ -139,7 +139,7 @@ def make_comb_data(
     full_output=False,
 ):
     add_dt = [
-        ('shear_type', 'S7'),
+        ('shear_type', 'U7'),
         ('true_star_density', 'f4'),
         ('mask_frac', 'f4'),
     ]
@@ -180,7 +180,7 @@ def make_truth_data_full(object_data):
     nband = len(bands)
 
     dt = [
-        ('type', 'S6'),
+        ('type', 'U6'),
         ('mag', 'f4', nband),
     ]
     data = np.zeros(nobj, dtype=dt)
@@ -354,5 +354,6 @@ def unrotate_noshear_shear(data, meas_type, theta):
             g2=g2,
             theta=-theta,
         )
+
         data[gname][w, 0] = g1
         data[gname][w, 1] = g2
