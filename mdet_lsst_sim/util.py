@@ -322,3 +322,33 @@ def trim_catalog_boundary(data, dim, trim_pixels, show=False):
         mplt.show()
 
     return data[w]
+
+
+def get_sim_shear(rng, shear, randomize_shear):
+    if randomize_shear:
+        theta = rng.uniform(low=0, high=np.pi)
+
+        g1, g2 = ngmix.shape.rotate_shape(g1=shear, g2=0, theta=theta)
+    else:
+        g1 = shear
+        g2 = 0.0
+        theta = None
+
+    return g1, g2, theta
+
+
+def unrotate_shear(data, meas_type, theta):
+    w, = np.where(data['flags'] == 0)
+    if w.size > 0:
+
+        gname = f'{meas_type}_g'
+        g1 = data[gname][w, 0]
+        g2 = data[gname][w, 1]
+
+        g1, g2 = ngmix.shape.rotate_shape(
+            g1=g1,
+            g2=g2,
+            theta=-theta,
+        )
+        data[gname][w, 0] = g1
+        data[gname][w, 1] = g2

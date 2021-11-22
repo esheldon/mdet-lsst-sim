@@ -47,7 +47,14 @@ def load_configs(args):
     sim_config = config.get('sim', None)
     mdet_config = config.get('mdet', None)
     coadd_config = config.get('coadd', None)
-    return sim_config, mdet_config, coadd_config
+
+    mls_config = config.get('mls', {})
+    if 'shear' not in mls_config:
+        mls_config['shear'] = 0.02
+    if 'randomize_shear' not in mls_config:
+        mls_config['randomize_shear'] = True
+
+    return sim_config, mdet_config, coadd_config, mls_config
 
 
 def main():
@@ -59,7 +66,7 @@ def main():
         level=getattr(logging, args.loglevel.upper()),
     )
 
-    sim_config, mdet_config, coadd_config = load_configs(args)
+    sim_config, mdet_config, coadd_config, mls_config = load_configs(args)
 
     run_sim(
         seed=args.seed,
@@ -68,12 +75,12 @@ def main():
         sim_config=sim_config,
         ntrial=args.ntrial,
         output=args.output,
-        shear=args.shear,
         nocancel=args.nocancel,
         full_output=args.full_output,
         show=args.show,
         show_sheared=args.show_sheared,
         show_sim=args.show_sim,
+        **mls_config
     )
 
 

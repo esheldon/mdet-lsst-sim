@@ -43,6 +43,7 @@ def run_sim(
     mdet_config=None,
     coadd_config=None,
     shear=0.02,
+    randomize_shear=True,
     nocancel=False,
     full_output=False,
     show=False,
@@ -158,9 +159,14 @@ def run_sim(
             trial_rng = np.random.RandomState(trial_seed)
 
             if shear_type == '1p':
-                g1 = shear
+                this_shear = shear
             else:
-                g1 = -shear
+                this_shear = -shear
+
+            g1, g2, theta = util.get_sim_shear(
+                rng=trial_rng, shear=this_shear,
+                randomize_shear=randomize_shear,
+            )
 
             if sim_config['psf_type'] == 'ps':
                 psf = make_ps_psf(rng=trial_rng, dim=sim_config['se_dim'])
@@ -174,7 +180,7 @@ def run_sim(
                 coadd_dim=sim_config['coadd_dim'],
                 se_dim=sim_config['se_dim'],
                 g1=g1,
-                g2=0.0,
+                g2=g2,
                 psf=psf,
                 star_catalog=star_catalog,
                 psf_dim=sim_config['psf_dim'],
@@ -244,6 +250,11 @@ def run_sim(
                 mask_frac=mask_frac,
                 full_output=full_output,
             )
+
+            if theta is not None:
+                util.unrotate_shear(
+                    comb_data, meas_type=mdet_config['meas_type'], theta=theta,
+                )
 
             if trim_pixels > 0:
                 comb_data = util.trim_catalog_boundary(
