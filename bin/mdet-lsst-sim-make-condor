@@ -75,7 +75,7 @@ output=$2
     %(full_output)s \
     --config %(sim_config)s \
     --ntrial %(ntrial)d \
-    --output ${output} > /dev/null
+    --output ${output} &> /dev/null
 """
 
 
