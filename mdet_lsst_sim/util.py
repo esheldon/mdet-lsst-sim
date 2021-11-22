@@ -346,12 +346,10 @@ def unrotate_noshear_shear(data, meas_type, theta):
     if w.size > 0:
 
         gname = f'{meas_type}_g'
-        g1 = data[gname][w, 0]
-        g2 = data[gname][w, 1]
 
         g1, g2 = ngmix.shape.rotate_shape(
-            g1=g1,
-            g2=g2,
+            g1=data[gname][w, 0],
+            g2=data[gname][w, 1],
             theta=-theta,
         )
 
