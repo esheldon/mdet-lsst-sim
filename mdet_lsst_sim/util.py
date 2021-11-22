@@ -337,8 +337,12 @@ def get_sim_shear(rng, shear, randomize_shear):
     return g1, g2, theta
 
 
-def unrotate_shear(data, meas_type, theta):
-    w, = np.where(data['flags'] == 0)
+def unrotate_noshear_shear(data, meas_type, theta):
+    """
+    only unrotate the noshear version
+    """
+    w, = np.where((data['flags'] == 0) & (data['shear_type'] == 'noshear'))
+
     if w.size > 0:
 
         gname = f'{meas_type}_g'

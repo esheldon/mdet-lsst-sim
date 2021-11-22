@@ -253,7 +253,7 @@ def run_sim(
             )
 
             if theta is not None:
-                util.unrotate_shear(
+                util.unrotate_noshear_shear(
                     comb_data, meas_type=mdet_config['meas_type'], theta=theta,
                 )
 
