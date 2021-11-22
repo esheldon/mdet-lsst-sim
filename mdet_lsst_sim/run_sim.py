@@ -167,6 +167,7 @@ def run_sim(
                 rng=trial_rng, shear=this_shear,
                 randomize_shear=randomize_shear,
             )
+            logger.info('shear: %.3f, %.3f', g1, g2)
 
             if sim_config['psf_type'] == 'ps':
                 psf = make_ps_psf(rng=trial_rng, dim=sim_config['se_dim'])
