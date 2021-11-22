@@ -49,7 +49,7 @@ export OMP_NUM_THREADS=1
     --seed ${seed} \
     --config ${config} \
     --ntrial %(ntrial)d \
-    --output ${output}
+    --output ${output} > /dev/null
 """
 # logfile="${run}-${seed}.log"
 # &> ${logfile}
