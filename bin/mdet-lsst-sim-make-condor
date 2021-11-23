@@ -33,8 +33,8 @@ environment = "OMP_NUM_THREADS=1"
 
 CONDOR_JOB_TEMPLATE = """
 +job_name = "%(job_name)s"
-transfer_output_files = %(output)s,%(logfile)s
-Arguments = %(seed)d %(output)s %(logfile)s
+transfer_output_files = %(output)s
+Arguments = %(seed)d %(output)s
 Queue
 """  # noqa
 
@@ -62,11 +62,6 @@ def get_output(run, seed):
     return '%s.fits.gz' % name
 
 
-def get_logfile(run, seed):
-    name = get_name_base(run, seed)
-    return '%s.log' % name
-
-
 SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
 
 set -e
@@ -74,14 +69,13 @@ export OMP_NUM_THREADS=1
 
 seed=$1
 output=$2
-logfile=$3
 
 %(command)s \
     --seed ${seed} \
     %(full_output)s \
     --config %(sim_config)s \
     --ntrial %(ntrial)d \
-    --output ${output} &> ${logfile}
+    --output ${output} &> /dev/null
 """
 
 
@@ -164,14 +158,12 @@ def main():
 
             seed = rng.randint(0, 2**31)
             output = get_output(args.run, seed)
-            logfile = get_logfile(args.run, seed)
             job_name = '%s-%010d' % (args.run, seed)
 
             job_text = CONDOR_JOB_TEMPLATE % {
                 'job_name': job_name,
                 'seed': seed,
                 'output': output,
-                'logfile': logfile,
             }
 
             fobj.write(job_text)
