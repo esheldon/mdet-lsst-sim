@@ -355,3 +355,117 @@ def unrotate_noshear_shear(data, meas_type, theta):
 
         data[gname][w, 0] = g1
         data[gname][w, 1] = g2
+
+
+def extract_cell_coadd_data(
+    coadd_data, cell_size, cell_buff, cell_ix, cell_iy,
+):
+    """
+    Parameters
+    ----------
+    coadd_data: dict
+        outpout of metadetect.lsst.util.extract_multiband_coadd_data
+    cell_size: int
+        Size of the cell in pixels
+    cell_buff: int
+        Overlap buffer for cells
+    cell_ix: int
+        The index of the cell for x
+    cell_iy: int
+        The index of the cell for y
+
+    Returns
+    --------
+    dict
+    """
+
+    output = {}
+
+    start_x, start_y = get_cell_start(
+        cell_size=cell_size, cell_buff=cell_buff,
+        cell_ix=cell_ix, cell_iy=cell_iy,
+    )
+
+    for key, item in coadd_data.items():
+        if key == 'ormasks':
+            new_item = [
+                ormask[
+                    start_y:start_y+cell_size,
+                    start_x:start_x+cell_size
+                ]
+                for ormask in item
+            ]
+        else:
+            new_item = extract_cell_mbexp(
+                mbexp=item, cell_size=cell_size, cell_buff=cell_buff,
+                cell_ix=cell_ix,
+                cell_iy=cell_iy,
+            )
+        output[key] = new_item
+
+    return output
+
+
+def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
+    """
+    extract a sub mbexp for the specified cell
+
+    Parameters
+    ----------
+    mbexp: lsst.afw.image.MultibandExposure
+        The image data
+    cell_size: int
+        Size of the cell in pixels
+    cell_buff: int
+        Overlap buffer for cells
+    cell_ix: int
+        The index of the cell for x
+    cell_iy: int
+        The index of the cell for y
+
+    Returns
+    --------
+    mbexp: lsst.afw.image.MultibandExposure
+        The sub-mbexp for the cell
+    """
+    import lsst.geom as geom
+    from metadetect.lsst.util import get_mbexp
+
+    start_x, start_y = get_cell_start(
+        cell_size=cell_size, cell_buff=cell_buff,
+        cell_ix=cell_ix, cell_iy=cell_iy,
+    )
+
+    bbox_begin = mbexp.getBBox().getBegin()
+
+    new_begin = geom.Point2I(
+        x=bbox_begin.getX() + start_x,
+        y=bbox_begin.getY() + start_y,
+    )
+    extent = geom.Extent2I(cell_size)
+    new_bbox = geom.Box2I(
+        new_begin,
+        extent,
+    )
+
+    subexps = []
+    for band in mbexp.filters:
+        exp = mbexp[band]
+        subexp = exp[new_bbox]
+        assert np.all(
+            exp.image.array[
+                start_y:start_y+cell_size,
+                start_x:start_x+cell_size
+            ] == subexp.image.array[:, :]
+        )
+
+        subexps.append(subexp)
+
+    # subexps = [mbexp[band][new_bbox] for band in mbexp.filters]
+    return get_mbexp(subexps)
+
+
+def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
+    start_x = cell_ix*(cell_size - 2*cell_buff)
+    start_y = cell_iy*(cell_size - 2*cell_buff)
+    return start_x, start_y

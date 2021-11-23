@@ -5,6 +5,7 @@ import argparse
 import logging
 import esutil as eu
 from mdet_lsst_sim.run_sim import run_sim
+from mdet_lsst_sim.run_cells import run_cells
 
 
 def get_args():
@@ -68,20 +69,37 @@ def main():
 
     sim_config, mdet_config, coadd_config, mls_config = load_configs(args)
 
-    run_sim(
-        seed=args.seed,
-        mdet_config=mdet_config,
-        coadd_config=coadd_config,
-        sim_config=sim_config,
-        ntrial=args.ntrial,
-        output=args.output,
-        nocancel=args.nocancel,
-        full_output=args.full_output,
-        show=args.show,
-        show_sheared=args.show_sheared,
-        show_sim=args.show_sim,
-        **mls_config
-    )
+    if 'cell_size' in mls_config:
+        run_cells(
+            seed=args.seed,
+            mdet_config=mdet_config,
+            coadd_config=coadd_config,
+            sim_config=sim_config,
+            ntrial=args.ntrial,
+            output=args.output,
+            nocancel=args.nocancel,
+            full_output=args.full_output,
+            show=args.show,
+            show_sheared=args.show_sheared,
+            show_sim=args.show_sim,
+            **mls_config
+        )
+    else:
+
+        run_sim(
+            seed=args.seed,
+            mdet_config=mdet_config,
+            coadd_config=coadd_config,
+            sim_config=sim_config,
+            ntrial=args.ntrial,
+            output=args.output,
+            nocancel=args.nocancel,
+            full_output=args.full_output,
+            show=args.show,
+            show_sheared=args.show_sheared,
+            show_sim=args.show_sim,
+            **mls_config
+        )
 
 
 if __name__ == '__main__':

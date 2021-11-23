@@ -205,6 +205,7 @@ def run_sim(
                 rng=trial_rng, sim_data=sim_data,
                 **coadd_config
             )
+
             apply_apodized_edge_masks_mbexp(**coadd_data)
             if len(sim_data['bright_info']) > 0:
                 apply_apodized_bright_masks_mbexp(
