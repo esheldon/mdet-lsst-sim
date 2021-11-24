@@ -74,7 +74,7 @@ def get_config_rand():
 
 def test_cells_rand():
     config = get_config_rand()
-    seed = 101
+    seed = 1010
     ntrial = 1
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -108,17 +108,8 @@ def test_cells_rand():
         print('ncells:', cells_output.size)
         print('nnocells:', output.size)
 
-        # Can't put this lower than 10%. I've seen it vary from 2.5% to 8%. The
-        # sign is that the cells tends to have fewer detections.
-        #
-        # I find this surprising.
-        #
-        # Could this be related to our issue with DM detection code, which
-        # re-determins the sky noise, works poorly for crowded images?
-        # also the detection can't detect near an edge, but I thought the 50
-        # pixel boundary would be good enough, so I doubt that is it
-
-        assert abs(cells_output.size / output.size - 1) < 0.10
+        # they are less discrepant for this setup than wldeblend
+        assert abs(cells_output.size / output.size - 1) < 0.05
 
 
 @pytest.mark.skipif(
