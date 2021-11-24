@@ -392,7 +392,7 @@ def extract_cell_coadd_data(
                 ormask[
                     start_y:start_y+cell_size,
                     start_x:start_x+cell_size
-                ]
+                ].copy()
                 for ormask in item
             ]
         else:
@@ -429,7 +429,7 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
         The sub-mbexp for the cell
     """
     import lsst.geom as geom
-    from metadetect.lsst.util import get_mbexp
+    from metadetect.lsst.util import get_mbexp, copy_mbexp
 
     start_x, start_y = get_cell_start(
         cell_size=cell_size, cell_buff=cell_buff,
@@ -451,6 +451,7 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
     subexps = []
     for band in mbexp.filters:
         exp = mbexp[band]
+        # we need to make a copy of it
         subexp = exp[new_bbox]
         assert np.all(
             exp.image.array[
@@ -462,7 +463,7 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
         subexps.append(subexp)
 
     # subexps = [mbexp[band][new_bbox] for band in mbexp.filters]
-    return get_mbexp(subexps)
+    return copy_mbexp(get_mbexp(subexps))
 
 
 def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
