@@ -8,6 +8,10 @@ def get_script_file():
     return 'run.sh'
 
 
+def get_test_script_file():
+    return 'test.sh'
+
+
 def copy_config_file(config_file):
     print('copying', config_file)
     shutil.copy(config_file, '.')
@@ -51,24 +55,43 @@ export OMP_NUM_THREADS=1
     --ntrial %(ntrial)d \
     --output ${output} > /dev/null
 """
-# logfile="${run}-${seed}.log"
-# &> ${logfile}
+
+TEST_SCRIPT_TEMPLATE = r"""#!/bin/bash
+
+seed=$(randint)
+output="/tmp/test-${seed}.fits.gz"
+config=%(config)s
+
+export OMP_NUM_THREADS=1
+
+%(command)s \
+    %(full_output)s \
+    --seed ${seed} \
+    --config ${config} \
+    --ntrial 3 \
+    --output ${output}
+"""
 
 
 def write_script(*, ntrial, sim_config, command, full_output):
 
-    script_file = get_script_file()
-    print('writing:', script_file)
-    with open(script_file, 'w') as fobj:
-        text = SCRIPT_TEMPLATE % {
-            'ntrial': ntrial,
-            'config': sim_config,
-            'command': command,
-            'full_output': full_output,
-        }
-        fobj.write(text)
+    data = [
+        (get_script_file(), SCRIPT_TEMPLATE),
+        (get_test_script_file(), TEST_SCRIPT_TEMPLATE),
+    ]
 
-    os.system('chmod 755 %s' % script_file)
+    for script_file, script_template in data:
+        print('writing:', script_file)
+        with open(script_file, 'w') as fobj:
+            text = script_template % {
+                'ntrial': ntrial,
+                'config': sim_config,
+                'command': command,
+                'full_output': full_output,
+            }
+            fobj.write(text)
+
+        os.system('chmod 755 %s' % script_file)
 
 
 def get_args():
