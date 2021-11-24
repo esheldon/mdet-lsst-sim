@@ -279,7 +279,7 @@ def run_cells(
                     if trim_pixels > 0:
                         comb_data = util.trim_catalog_boundary(
                             data=comb_data,
-                            dim=sim_config['coadd_dim'],
+                            dim=cell_size,
                             trim_pixels=trim_pixels,
                             show=show,
                         )
