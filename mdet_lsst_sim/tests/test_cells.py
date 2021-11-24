@@ -1,3 +1,4 @@
+import pytest
 import os
 import tempfile
 import yaml
@@ -39,6 +40,10 @@ def get_config():
     return yaml.safe_load(config_string)
 
 
+@pytest.mark.skipif(
+    'CATSIM_DIR' not in os.environ,
+    reason='simulation input data is not present',
+)
 def test_cells():
     config = get_config()
     seed = 101
