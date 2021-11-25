@@ -114,8 +114,10 @@ def trim_output(data, meas_type):
 
     cols2keep_orig = [
         'flags',
-        'row_noshear',
-        'col_noshear',
+        # 'row_noshear',
+        # 'col_noshear',
+        'row', 'row0',
+        'col', 'col0',
         'mfrac',
         '%s_s2n' % meas_type,
         '%s_T_ratio' % meas_type,
@@ -292,8 +294,10 @@ def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
 
 def trim_catalog_boundary(data, dim, trim_pixels, show=False):
 
-    row = data['row_noshear']
-    col = data['col_noshear']
+    # row = data['row_noshear']
+    # col = data['col_noshear']
+    row = data['row'] - data['row0']
+    col = data['col'] - data['col0']
 
     w, = np.where(
         (row > trim_pixels) &
