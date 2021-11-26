@@ -259,7 +259,7 @@ def run_sim(
                 )
 
             if trim_pixels > 0:
-                comb_data = util.trim_catalog_boundary(
+                comb_data = util.trim_catalog_boundary_match_noshear(
                     data=comb_data,
                     dim=sim_config['coadd_dim'],
                     trim_pixels=trim_pixels,

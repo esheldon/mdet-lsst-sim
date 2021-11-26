@@ -292,7 +292,83 @@ def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
     return max(mask_fracs)
 
 
-def trim_catalog_boundary(data, dim, trim_pixels, show=False):
+def trim_catalog_boundary_match_noshear(data, dim, trim_pixels, show=False):
+    from scipy.spatial import KDTree
+
+    row = data['row_noshear']
+    col = data['col_noshear']
+
+    rowcol = np.zeros((row.size, 2))
+    rowcol[:, 0] = row
+    rowcol[:, 1] = col
+
+    wnoshear, = np.where(data['shear_type'] == 'noshear')
+    wother, = np.where(data['shear_type'] != 'noshear')
+
+    # get nearest noshear neighbors
+    tree_noshear = KDTree(rowcol[wnoshear])
+    dist, matches = tree_noshear.query(rowcol[wother])
+
+    # trim noshear to region
+    wnoshear_keep, = np.where(
+        (row[wnoshear] > trim_pixels) &
+        (col[wnoshear] > trim_pixels) &
+        (row[wnoshear] < (dim - trim_pixels - 1)) &
+        (col[wnoshear] < (dim - trim_pixels - 1))
+    )
+    # trim others based on whether the noshear match is in the region
+    wother_keep, = np.where(
+        (row[matches] > trim_pixels) &
+        (col[matches] > trim_pixels) &
+        (row[matches] < (dim - trim_pixels - 1)) &
+        (col[matches] < (dim - trim_pixels - 1))
+    )
+
+    wnoshear_keep = wnoshear[wnoshear_keep]
+    wother_keep = wother[wother_keep]
+
+    allind = np.hstack((wnoshear_keep, wother_keep))
+
+    if show:
+        import matplotlib.pyplot as mplt
+        from matplotlib.patches import Rectangle
+
+        fig, ax = mplt.subplots()
+        logger.info('kept: %d/%d', allind.size, data.size)
+        alpha = 0.1
+        ax.add_patch(
+            Rectangle(
+                [trim_pixels]*2,
+                dim-2*trim_pixels,
+                dim-2*trim_pixels,
+                fill=False,
+            ),
+        )
+        ax.scatter(
+            col, row, color='black',
+            marker='^',
+            alpha=alpha,
+        )
+        ax.scatter(
+            col[wnoshear_keep], row[wnoshear_keep],
+            marker='o',
+            s=200,
+            color='blue',
+            alpha=alpha,
+        )
+        ax.scatter(
+            col[wother_keep], row[wother_keep],
+            marker='s',
+            s=50,
+            color='red',
+            alpha=alpha,
+        )
+        mplt.show()
+
+    return data[allind]
+
+
+def trim_catalog_boundary_strict(data, dim, trim_pixels, show=False):
 
     row = data['row_noshear']
     col = data['col_noshear']

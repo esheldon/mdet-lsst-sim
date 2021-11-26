@@ -277,7 +277,7 @@ def run_cells(
                         )
 
                     if trim_pixels > 0:
-                        comb_data = util.trim_catalog_boundary(
+                        comb_data = util.trim_catalog_boundary_match_noshear(
                             data=comb_data,
                             dim=cell_size,
                             trim_pixels=trim_pixels,
