@@ -368,19 +368,42 @@ def trim_catalog_boundary_match_noshear(data, dim, trim_pixels, show=False):
     return data[allind]
 
 
-def trim_catalog_boundary_strict(data, dim, trim_pixels, show=False):
+def trim_catalog_boundary_strict(
+    data,
+    dim,
+    trim_pixels,
+    checks,
+    show=False,
+):
+    """
+    checks should be a list with one of l, r, t, b
+    """
 
     row = data['row_noshear']
     col = data['col_noshear']
     # row = data['row'] - data['row0']
     # col = data['col'] - data['col0']
 
-    w, = np.where(
-        (row > trim_pixels) &
-        (col > trim_pixels) &
-        (row < (dim - trim_pixels - 1)) &
-        (col < (dim - trim_pixels - 1))
-    )
+    logic = np.ones(data.size, dtype=bool)
+    for check in checks:
+        if check == 'l':
+            logic &= (col > trim_pixels)
+        elif check == 'r':
+            logic &= (col < (dim - trim_pixels - 1))
+        elif check == 'd':
+            logic &= (row > trim_pixels)
+        elif check == 'u':
+            logic &= (row < (dim - trim_pixels - 1))
+        else:
+            raise ValueError(f"bad check '{check}'")
+
+    w, = np.where(logic)
+    # w, = np.where(
+    #     (row > trim_pixels) &
+    #     (col > trim_pixels) &
+    #     (row < (dim - trim_pixels - 1)) &
+    #     (col < (dim - trim_pixels - 1))
+    # )
 
     if show:
         import matplotlib.pyplot as mplt

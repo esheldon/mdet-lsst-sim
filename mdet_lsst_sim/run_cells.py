@@ -277,10 +277,24 @@ def run_cells(
                         )
 
                     if trim_pixels > 0:
-                        comb_data = util.trim_catalog_boundary_match_noshear(
+                        checks = ['l', 'r', 'u', 'd']
+                        if cell_ix == 0:
+                            checks.remove('l')
+
+                        if cell_ix == (ncells-1):
+                            checks.remove('r')
+
+                        if cell_iy == 0:
+                            checks.remove('d')
+
+                        if cell_iy == (ncells-1):
+                            checks.remove('u')
+
+                        comb_data = util.trim_catalog_boundary_strict(
                             data=comb_data,
                             dim=cell_size,
                             trim_pixels=trim_pixels,
+                            checks=checks,
                             show=show,
                         )
 
