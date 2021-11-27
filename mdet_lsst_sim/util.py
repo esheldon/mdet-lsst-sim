@@ -292,7 +292,12 @@ def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
     return max(mask_fracs)
 
 
-def trim_catalog_boundary_match_noshear(data, dim, trim_pixels, show=False):
+def trim_catalog_boundary_match_noshear(
+    data, dim, trim_pixels, checks, show=False,
+):
+    """
+    checks should be a list with one of l, r, t, b
+    """
     from scipy.spatial import KDTree
 
     row = data['row_noshear']
@@ -305,24 +310,38 @@ def trim_catalog_boundary_match_noshear(data, dim, trim_pixels, show=False):
     wnoshear, = np.where(data['shear_type'] == 'noshear')
     wother, = np.where(data['shear_type'] != 'noshear')
 
+    row_noshear = row[wnoshear]
+    col_noshear = col[wnoshear]
+
     # get nearest noshear neighbors
     tree_noshear = KDTree(rowcol[wnoshear])
     dist, matches = tree_noshear.query(rowcol[wother])
+    matches = wnoshear[matches]
 
-    # trim noshear to region
-    wnoshear_keep, = np.where(
-        (row[wnoshear] > trim_pixels) &
-        (col[wnoshear] > trim_pixels) &
-        (row[wnoshear] < (dim - trim_pixels - 1)) &
-        (col[wnoshear] < (dim - trim_pixels - 1))
-    )
-    # trim others based on whether the noshear match is in the region
-    wother_keep, = np.where(
-        (row[matches] > trim_pixels) &
-        (col[matches] > trim_pixels) &
-        (row[matches] < (dim - trim_pixels - 1)) &
-        (col[matches] < (dim - trim_pixels - 1))
-    )
+    row_matches = row[matches]
+    col_matches = col[matches]
+
+    logic_noshear = np.ones(wnoshear.size, dtype=bool)
+    logic_other = np.ones(wother.size, dtype=bool)
+
+    for check in checks:
+        if check == 'l':
+            logic_noshear &= (col_noshear > trim_pixels)
+            logic_other &= (col_matches > trim_pixels)
+        elif check == 'r':
+            logic_noshear &= (col_noshear < (dim - trim_pixels - 1))
+            logic_other &= (col_matches < (dim - trim_pixels - 1))
+        elif check == 'd':
+            logic_noshear &= (row_noshear > trim_pixels)
+            logic_other &= (row_matches > trim_pixels)
+        elif check == 'u':
+            logic_noshear &= (row_noshear < (dim - trim_pixels - 1))
+            logic_other &= (row_matches < (dim - trim_pixels - 1))
+        else:
+            raise ValueError(f"bad check '{check}'")
+
+    wnoshear_keep, = np.where(logic_noshear)
+    wother_keep, = np.where(logic_other)
 
     wnoshear_keep = wnoshear[wnoshear_keep]
     wother_keep = wother[wother_keep]
