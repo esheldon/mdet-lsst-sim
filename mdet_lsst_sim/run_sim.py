@@ -263,6 +263,7 @@ def run_sim(
                     data=comb_data,
                     dim=sim_config['coadd_dim'],
                     trim_pixels=trim_pixels,
+                    checks=['l', 'r', 'u', 'd'],
                     show=show,
                 )
 
