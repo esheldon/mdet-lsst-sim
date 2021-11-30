@@ -290,8 +290,7 @@ def run_cells(
                         if cell_iy == (ncells-1):
                             checks.remove('u')
 
-                        # comb_data = util.trim_catalog_boundary_strict(
-                        comb_data = util.trim_catalog_boundary_match_noshear(
+                        comb_data = util.trim_catalog_boundary_strict(
                             data=comb_data,
                             dim=cell_size,
                             trim_pixels=trim_pixels,

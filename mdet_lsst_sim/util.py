@@ -114,10 +114,10 @@ def trim_output(data, meas_type):
 
     cols2keep_orig = [
         'flags',
-        'row_noshear',
-        'col_noshear',
-        # 'row', 'row0',
-        # 'col', 'col0',
+        # 'row_noshear',
+        # 'col_noshear',
+        'row', 'row0',
+        'col', 'col0',
         'mfrac',
         '%s_s2n' % meas_type,
         '%s_T_ratio' % meas_type,
@@ -398,10 +398,8 @@ def trim_catalog_boundary_strict(
     checks should be a list with one of l, r, t, b
     """
 
-    row = data['row_noshear']
-    col = data['col_noshear']
-    # row = data['row'] - data['row0']
-    # col = data['col'] - data['col0']
+    row = data['row'] - data['row0']
+    col = data['col'] - data['col0']
 
     logic = np.ones(data.size, dtype=bool)
     for check in checks:
@@ -417,12 +415,6 @@ def trim_catalog_boundary_strict(
             raise ValueError(f"bad check '{check}'")
 
     w, = np.where(logic)
-    # w, = np.where(
-    #     (row > trim_pixels) &
-    #     (col > trim_pixels) &
-    #     (row < (dim - trim_pixels - 1)) &
-    #     (col < (dim - trim_pixels - 1))
-    # )
 
     if show:
         import matplotlib.pyplot as mplt
