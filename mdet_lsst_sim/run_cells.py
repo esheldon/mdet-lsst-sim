@@ -277,19 +277,9 @@ def run_cells(
                         )
 
                     if trim_pixels > 0:
-                        checks = ['l', 'r', 'u', 'd']
-                        if cell_ix == 0:
-                            checks.remove('l')
-
-                        if cell_ix == (ncells-1):
-                            checks.remove('r')
-
-                        if cell_iy == 0:
-                            checks.remove('d')
-
-                        if cell_iy == (ncells-1):
-                            checks.remove('u')
-
+                        checks = get_cell_checks(
+                            ncells=ncells, cell_ix=cell_ix, cell_iy=cell_iy,
+                        )
                         comb_data = util.trim_catalog_boundary_strict(
                             data=comb_data,
                             dim=cell_size,
@@ -326,3 +316,20 @@ def run_cells(
 
             if not nocancel:
                 fits.write(data_1m, extname='1m')
+
+
+def get_cell_checks(ncells, cell_ix, cell_iy):
+    checks = ['l', 'r', 'u', 'd']
+    if cell_ix == 0:
+        checks.remove('l')
+
+    if cell_ix == (ncells-1):
+        checks.remove('r')
+
+    if cell_iy == 0:
+        checks.remove('d')
+
+    if cell_iy == (ncells-1):
+        checks.remove('u')
+
+    return checks
