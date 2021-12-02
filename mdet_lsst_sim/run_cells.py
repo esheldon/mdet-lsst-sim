@@ -210,6 +210,7 @@ def run_cells(
                 rng=trial_rng, sim_data=sim_data,
                 **coadd_config
             )
+            tmcoadd += time.time() - tmcoadd0
 
             for cell_ix in range(ncells):
                 for cell_iy in range(ncells):
@@ -235,8 +236,6 @@ def run_cells(
                         trim_pixels=trim_pixels,
                         stamp_size=mdet_config['stamp_size'],
                     )
-
-                    tmcoadd += time.time() - tmcoadd0
 
                     logger.info('mask_frac: %g' % mask_frac)
 
