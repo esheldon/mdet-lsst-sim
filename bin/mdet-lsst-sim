@@ -3,7 +3,6 @@
 import sys
 import argparse
 import logging
-import esutil as eu
 from mdet_lsst_sim.run_sim import run_sim
 from mdet_lsst_sim.run_cells import run_cells
 
@@ -15,8 +14,6 @@ def get_args():
     parser.add_argument('--output', required=True, help='output file path')
     parser.add_argument('--config', help='optional simulation config')
     parser.add_argument('--seed', type=int, required=True, help='seed for rng')
-
-    parser.add_argument('--shear', type=float, default=0.02)
 
     parser.add_argument('--nocancel', action='store_true',
                         help=("don't run two cancelling shears"))
@@ -37,28 +34,8 @@ def get_args():
     return parser.parse_args()
 
 
-def load_configs(args):
-    if args.config is None:
-        config = {}
-    else:
-        config = eu.io.read(args.config)
-        if config is None:
-            config = {}
-
-    sim_config = config.get('sim', None)
-    mdet_config = config.get('mdet', None)
-    coadd_config = config.get('coadd', None)
-
-    mls_config = config.get('mls', {})
-    if 'shear' not in mls_config:
-        mls_config['shear'] = 0.02
-    if 'randomize_shear' not in mls_config:
-        mls_config['randomize_shear'] = True
-
-    return sim_config, mdet_config, coadd_config, mls_config
-
-
 def main():
+    from mdet_lsst_sim import util
 
     args = get_args()
 
@@ -67,14 +44,14 @@ def main():
         level=getattr(logging, args.loglevel.upper()),
     )
 
-    sim_config, mdet_config, coadd_config, mls_config = load_configs(args)
+    configs = util.load_configs_from_args(args)
 
-    if 'cell_size' in mls_config:
+    if 'cell_size' in configs['mls_config']:
         run_cells(
             seed=args.seed,
-            mdet_config=mdet_config,
-            coadd_config=coadd_config,
-            sim_config=sim_config,
+            mdet_config=configs['mdet_config'],
+            coadd_config=configs['coadd_config'],
+            sim_config=configs['sim_config'],
             ntrial=args.ntrial,
             output=args.output,
             nocancel=args.nocancel,
@@ -82,15 +59,17 @@ def main():
             show=args.show,
             show_sheared=args.show_sheared,
             show_sim=args.show_sim,
-            **mls_config
+            **configs['mls_config']
         )
     else:
 
         run_sim(
             seed=args.seed,
-            mdet_config=mdet_config,
-            coadd_config=coadd_config,
-            sim_config=sim_config,
+
+            mdet_config=configs['mdet_config'],
+            coadd_config=configs['coadd_config'],
+            sim_config=configs['sim_config'],
+
             ntrial=args.ntrial,
             output=args.output,
             nocancel=args.nocancel,
@@ -98,7 +77,7 @@ def main():
             show=args.show,
             show_sheared=args.show_sheared,
             show_sim=args.show_sim,
-            **mls_config
+            **configs['mls_config']
         )
 
 
