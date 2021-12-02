@@ -71,6 +71,32 @@ DEFAULT_MDET_CONFIG_WITH_SX = {
 }
 
 
+def load_configs_from_args(args):
+    if args.config is None:
+        config = {}
+    else:
+        config = eu.io.read(args.config)
+        if config is None:
+            config = {}
+
+    sim_config = config.get('sim', None)
+    mdet_config = config.get('mdet', None)
+    coadd_config = config.get('coadd', None)
+
+    mls_config = config.get('mls', {})
+    if 'shear' not in mls_config:
+        mls_config['shear'] = 0.02
+    if 'randomize_shear' not in mls_config:
+        mls_config['randomize_shear'] = True
+
+    return dict(
+        sim_config=sim_config,
+        mdet_config=mdet_config,
+        coadd_config=coadd_config,
+        mls_config=mls_config,
+    )
+
+
 def get_coadd_config(config=None):
     """
     metadetect configuration

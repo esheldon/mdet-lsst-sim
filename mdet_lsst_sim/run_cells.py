@@ -297,11 +297,11 @@ def run_cells(
     tm_seconds = time.time()-tm0
     tm_minutes = tm_seconds/60.0
     tm_per_trial = tm_seconds/ntrial
-    print('time: %g minutes' % tm_minutes)
-    print('time sim: %g minutes' % (tmsim / 60))
-    print('time coadd: %g minutes' % (tmcoadd / 60))
-    print('time meas: %g minutes' % (tmmeas / 60))
-    print('time per trial: %g seconds' % tm_per_trial)
+    logger.info('time: %g minutes' % tm_minutes)
+    logger.info('time sim: %g minutes' % (tmsim / 60))
+    logger.info('time coadd: %g minutes' % (tmcoadd / 60))
+    logger.info('time meas: %g minutes' % (tmmeas / 60))
+    logger.info('time per trial: %g seconds' % tm_per_trial)
 
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     if not nocancel:
