@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-import logging
 from mdet_lsst_sim.run_sim import run_sim
 from mdet_lsst_sim.run_cells import run_cells
 
@@ -39,11 +38,6 @@ def main():
 
     args = get_args()
 
-    logging.basicConfig(
-        stream=sys.stdout,
-        level=getattr(logging, args.loglevel.upper()),
-    )
-
     configs = util.load_configs_from_args(args)
 
     if 'cell_size' in configs['mls_config']:
@@ -59,6 +53,7 @@ def main():
             show=args.show,
             show_sheared=args.show_sheared,
             show_sim=args.show_sim,
+            loglevel=args.loglevel,
             **configs['mls_config']
         )
     else:

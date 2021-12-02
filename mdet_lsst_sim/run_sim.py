@@ -9,6 +9,7 @@ TODO
     just with mask_frac and mfrac
 """
 
+import sys
 import time
 import logging
 import numpy as np
@@ -49,6 +50,7 @@ def run_sim(
     show=False,
     show_sheared=False,
     show_sim=False,
+    loglevel='info',
 ):
     """
     seed: int
@@ -76,15 +78,20 @@ def run_sim(
         If True, show the sheared images, default False
     show_sim: bool, optional
         If True, show the sims.  default False
+    loglevel: str
+        e.g. 'info'
     """
-
     tm0 = time.time()
     tmsim = 0.0
     tmcoadd = 0.0
     tmmeas = 0.0
 
-    logger = logging.getLogger('mdet_lsst_sim')
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=getattr(logging, loglevel.upper()),
+    )
 
+    logger = logging.getLogger('mdet_lsst_sim')
     logger.info(f"seed: {seed}")
 
     rng = np.random.RandomState(seed)
