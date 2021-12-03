@@ -220,8 +220,8 @@ def run_sim(
 
             apply_apodized_edge_masks_mbexp(**coadd_data)
             if len(sim_data['bright_info']) > 0:
-                # Note padding due to apodization, otherwise we get donuts
-                # the radii coming out of the sim code are not super conservative,
+                # Note padding due to apodization, otherwise we get donuts the
+                # radii coming out of the sim code are not super conservative,
                 # just going to the noise level
                 sim_data['bright_info']['radius_pixels'] += ap_padding
                 apply_apodized_bright_masks_mbexp(
