@@ -134,12 +134,15 @@ def get_mdet_config(config=None, sx=False):
     return config_out, use_sx, trim_pixels
 
 
-def trim_output(data, meas_type):
+def trim_output_columns(data, meas_type):
     if meas_type == 'admom':
         meas_type = 'am'
 
+    # note the bmask/ormask compress to nothing
     cols2keep_orig = [
         'flags',
+        'bmask',
+        'ormask',
         # 'row_noshear',
         # 'col_noshear',
         'row', 'row0',
@@ -181,7 +184,7 @@ def make_comb_data(
         if data is not None:
 
             if not full_output:
-                data = trim_output(data, meas_type)
+                data = trim_output_columns(data, meas_type)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             newdata['shear_type'] = stype
