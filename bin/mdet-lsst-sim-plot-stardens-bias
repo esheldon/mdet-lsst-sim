@@ -118,16 +118,18 @@ def do_bias_plot(args, data):
             mdata['m1'] / 0.001,
             linestyle='cycle',
             label=label,
+            markeredgecolor='black',
             # alpha=alpha,
         )
 
-        plt.fill_between(
-            mdata['sdens'],
-            mdata['m1high'] / 0.001,
-            mdata['m1low'] / 0.001,
-            # label=label,
-            alpha=alpha,
-        )
+        if i == 0:
+            plt.fill_between(
+                mdata['sdens'],
+                mdata['m1high'] / 0.001,
+                mdata['m1low'] / 0.001,
+                # label=label,
+                alpha=alpha,
+            )
 
     plt.legend()
 
