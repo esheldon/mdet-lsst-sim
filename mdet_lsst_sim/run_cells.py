@@ -242,7 +242,6 @@ def run_cells(
                     mask_frac = util.get_mask_frac(
                         cell_coadd_data['mfrac_mbexp'],
                         trim_pixels=trim_pixels,
-                        stamp_size=mdet_config['stamp_size'],
                     )
 
                     logger.info('mask_frac: %g' % mask_frac)

@@ -143,8 +143,6 @@ def trim_output_columns(data, meas_type):
         'flags',
         'bmask',
         'ormask',
-        # 'row_noshear',
-        # 'col_noshear',
         'row', 'row0',
         'col', 'col0',
         'mfrac',
@@ -301,119 +299,22 @@ def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
     return extract_multiband_coadd_data(coadd_data_list)
 
 
-def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
+def get_mask_frac(mfrac_mbexp, trim_pixels=0):
     """
     get the average mask frac for each band and then return the max of those
     """
-
-    trim = trim_pixels + stamp_size // 2
 
     mask_fracs = []
     for mfrac_exp in mfrac_mbexp:
         mfrac = mfrac_exp.image.array
         dim = mfrac.shape[0]
         mfrac = mfrac[
-            trim:dim - trim - 1,
-            trim:dim - trim - 1,
+            trim_pixels:dim - trim_pixels - 1,
+            trim_pixels:dim - trim_pixels - 1,
         ]
         mask_fracs.append(mfrac.mean())
 
     return max(mask_fracs)
-
-
-def trim_catalog_boundary_match_noshear(
-    data, dim, trim_pixels, checks, show=False,
-):
-    """
-    checks should be a list with one of l, r, t, b
-    """
-    from scipy.spatial import KDTree
-
-    row = data['row_noshear']
-    col = data['col_noshear']
-
-    rowcol = np.zeros((row.size, 2))
-    rowcol[:, 0] = row
-    rowcol[:, 1] = col
-
-    wnoshear, = np.where(data['shear_type'] == 'noshear')
-    wother, = np.where(data['shear_type'] != 'noshear')
-
-    row_noshear = row[wnoshear]
-    col_noshear = col[wnoshear]
-
-    # get nearest noshear neighbors
-    tree_noshear = KDTree(rowcol[wnoshear])
-    dist, matches = tree_noshear.query(rowcol[wother])
-    matches = wnoshear[matches]
-
-    row_matches = row[matches]
-    col_matches = col[matches]
-
-    logic_noshear = np.ones(wnoshear.size, dtype=bool)
-    logic_other = np.ones(wother.size, dtype=bool)
-
-    for check in checks:
-        if check == 'l':
-            logic_noshear &= (col_noshear > trim_pixels)
-            logic_other &= (col_matches > trim_pixels)
-        elif check == 'r':
-            logic_noshear &= (col_noshear < (dim - trim_pixels - 1))
-            logic_other &= (col_matches < (dim - trim_pixels - 1))
-        elif check == 'd':
-            logic_noshear &= (row_noshear > trim_pixels)
-            logic_other &= (row_matches > trim_pixels)
-        elif check == 'u':
-            logic_noshear &= (row_noshear < (dim - trim_pixels - 1))
-            logic_other &= (row_matches < (dim - trim_pixels - 1))
-        else:
-            raise ValueError(f"bad check '{check}'")
-
-    wnoshear_keep, = np.where(logic_noshear)
-    wother_keep, = np.where(logic_other)
-
-    wnoshear_keep = wnoshear[wnoshear_keep]
-    wother_keep = wother[wother_keep]
-
-    allind = np.hstack((wnoshear_keep, wother_keep))
-
-    if show:
-        import matplotlib.pyplot as mplt
-        from matplotlib.patches import Rectangle
-
-        fig, ax = mplt.subplots()
-        logger.info('kept: %d/%d', allind.size, data.size)
-        alpha = 0.1
-        ax.add_patch(
-            Rectangle(
-                [trim_pixels]*2,
-                dim-2*trim_pixels,
-                dim-2*trim_pixels,
-                fill=False,
-            ),
-        )
-        ax.scatter(
-            col, row, color='black',
-            marker='^',
-            alpha=alpha,
-        )
-        ax.scatter(
-            col[wnoshear_keep], row[wnoshear_keep],
-            marker='o',
-            s=200,
-            color='blue',
-            alpha=alpha,
-        )
-        ax.scatter(
-            col[wother_keep], row[wother_keep],
-            marker='s',
-            s=50,
-            color='red',
-            alpha=alpha,
-        )
-        mplt.show()
-
-    return data[allind]
 
 
 def trim_catalog_boundary_strict(
