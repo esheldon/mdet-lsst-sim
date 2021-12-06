@@ -234,7 +234,6 @@ def run_sim(
             mask_frac = util.get_mask_frac(
                 coadd_data['mfrac_mbexp'],
                 trim_pixels=trim_pixels,
-                stamp_size=mdet_config['stamp_size'],
             )
 
             tmcoadd += time.time() - tmcoadd0
