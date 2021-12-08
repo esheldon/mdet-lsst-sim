@@ -121,8 +121,8 @@ def main(
     flist.sort()
 
     print('run:', run)
-    print('chunksize:', chunksize)
     pprint(cut_config)
+    print('chunksize:', chunksize)
     print('processing:', len(flist), 'files')
 
     nf = len(flist)
@@ -165,11 +165,8 @@ def main(
 
                 break
 
-    ntot = len(results)
-    results = [r for r in results if r is not None]
-    print(f'kept {len(results)}/{ntot} results')
-
     sys.stderr.write('\n')
+
     print('processed:', len(flist), 'files')
 
     data = {}
@@ -194,6 +191,7 @@ def main(
         )
 
         print('writing:', fname)
+        eu.ostools.makedirs_fromfile(fname)
         fitsio.write(fname, st, clobber=True)
 
 

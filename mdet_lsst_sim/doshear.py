@@ -6,6 +6,8 @@ import fitsio
 from esutil.numpy_util import between
 import yaml
 
+OUTDIR = 'mc-results'
+
 NSIGMA = 3
 perc = '99.7'
 
@@ -13,6 +15,8 @@ perc = '99.7'
 def get_flist(run, limit=None):
     pattern = f'runs/{run}/*/*.[fits][fits.gz]*'
     flist = glob(pattern)
+
+    flist = [os.path.abspath(f) for f in flist]
 
     nf = len(flist)
     if nf == 0:
@@ -259,7 +263,7 @@ def get_fname(run, key, nocancel):
         key,
     ]
     fname = '-'.join(nlist) + '.fits'
-    return os.path.join('mc-results', fname)
+    return os.path.join(OUTDIR, fname)
 
 
 def get_struct(
