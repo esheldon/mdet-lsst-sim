@@ -1,16 +1,10 @@
 #!/usr/bin/env python
 import os
 from glob import glob
-from pprint import pprint
-# from functools import lru_cache
 import numpy as np
-import argparse
 import fitsio
-import esutil as eu
 from esutil.numpy_util import between
 import yaml
-from mpi4py.futures import MPIPoolExecutor
-import lsst.afw.image as afw_image
 
 NSIGMA = 3
 perc = '99.7'
