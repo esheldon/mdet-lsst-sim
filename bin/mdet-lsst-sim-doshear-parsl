@@ -165,7 +165,9 @@ def main(
 
                 break
 
+    ntot = len(results)
     results = [r for r in results if r is not None]
+    print(f'kept {len(results)}/{ntot} results')
 
     sys.stderr.write('\n')
     print('processed:', len(flist), 'files')
