@@ -19,6 +19,7 @@ def get_flist(run, limit=None):
         for basename in files:
             if '.fits' in basename:
                 fname = os.path.join(root, basename)
+                fname = os.path.abspath(fname)
                 flist.append(fname)
 
     nf = len(flist)
