@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import os
-from glob import glob
 import numpy as np
 import fitsio
 from esutil.numpy_util import between
@@ -13,10 +12,14 @@ perc = '99.7'
 
 
 def get_flist(run, limit=None):
-    pattern = f'runs/{run}/*/*.[fits][fits.gz]*'
-    flist = glob(pattern)
+    directory = f'runs/{run}'
 
-    flist = [os.path.abspath(f) for f in flist]
+    flist = []
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for basename in files:
+            if '.fits' in basename:
+                fname = os.path.join(root, basename)
+                flist.append(fname)
 
     nf = len(flist)
     if nf == 0:
