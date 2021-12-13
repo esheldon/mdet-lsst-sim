@@ -197,6 +197,7 @@ def run_cells(
                 g2=g2,
                 psf=psf,
                 star_catalog=star_catalog,
+                draw_stars=sim_config['draw_stars'],
                 psf_dim=sim_config['psf_dim'],
                 dither=sim_config['dither'],
                 rotate=sim_config['rotate'],
