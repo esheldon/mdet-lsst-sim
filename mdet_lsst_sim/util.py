@@ -171,6 +171,7 @@ def make_comb_data(
         ('shear_type', 'U7'),
         ('true_star_density', 'f4'),
         ('mask_frac', 'f4'),
+        ('primary', bool),
     ]
 
     if not hasattr(res, 'keys'):
@@ -365,7 +366,7 @@ def trim_catalog_boundary_strict(
         ax.scatter(col[w], row[w], color='blue', alpha=alpha)
         mplt.show()
 
-    return data[w]
+    return w
 
 
 def get_sim_shear(rng, shear, randomize_shear):

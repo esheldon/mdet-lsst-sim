@@ -177,6 +177,7 @@ def get_sums(
     max_mask_frac,
     max_mfrac,
     max_star_density,
+    require_primary,
     use_weights,
     data,
 ):
@@ -205,8 +206,12 @@ def get_sums(
         (T_ratio > Tratio_min) &
         between(g[:, 0], -1, 1) & between(g[:, 1], -1, 1)
     )
+
     if 'bmask' in data.dtype.names:
         logic &= (data['bmask'] == 0)
+
+    if 'primary' in data.dtype.names and require_primary:
+        logic &= data['primary']
 
     logic &= (data['mask_frac'] < max_mask_frac)
     logic &= (data['mfrac'] < max_mfrac)
@@ -381,6 +386,7 @@ def process_one(config, fname):
                                         max_mfrac=max_mfrac,
                                         max_star_density=max_star_density,
                                         use_weights=config['use_weights'],
+                                        require_primary=config['require_primary'],  # noqa
                                         data=data,
                                     )
                                     if stype == 'noshear':

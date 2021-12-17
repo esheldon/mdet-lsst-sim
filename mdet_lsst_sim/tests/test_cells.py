@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 import os
 import tempfile
@@ -102,14 +103,18 @@ def test_cells_rand():
         )
 
         output = fitsio.read(fname)
+        wp, = np.where(output['primary'])
+
         cells_output = fitsio.read(cells_fname)
+        wpc, = np.where(cells_output['primary'])
+        assert wp.size < output.size
 
         # make sure the number of detections is close
-        print('ncells:', cells_output.size)
-        print('nnocells:', output.size)
+        print('ncells:', wp.size)
+        print('nnocells:', wpc.size)
 
         # they are less discrepant for this setup than wldeblend
-        assert abs(cells_output.size / output.size - 1) < 0.05
+        assert abs(wpc.size / wp.size - 1) < 0.05
 
 
 @pytest.mark.skipif(
@@ -146,11 +151,15 @@ def test_cells_wldeblend():
         )
 
         output = fitsio.read(fname)
+        wp, = np.where(output['primary'])
+
         cells_output = fitsio.read(cells_fname)
+        wpc, = np.where(cells_output['primary'])
+        assert wpc.size < cells_output.size
 
         # make sure the number of detections is close
-        print('ncells:', cells_output.size)
-        print('nnocells:', output.size)
+        print('ncells:', wp.size)
+        print('nnocells:', wpc.size)
 
         # Can't put this lower than 10%. I've seen it vary from 2.5% to 8%. The
         # sign is that the cells tends to have fewer detections.
@@ -162,4 +171,4 @@ def test_cells_wldeblend():
         # also the detection can't detect near an edge, but I thought the 50
         # pixel boundary would be good enough, so I doubt that is it
 
-        assert abs(cells_output.size / output.size - 1) < 0.10
+        assert abs(wpc.size / wp.size - 1) < 0.10

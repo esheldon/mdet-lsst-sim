@@ -287,13 +287,16 @@ def run_cells(
                         checks = get_cell_checks(
                             ncells=ncells, cell_ix=cell_ix, cell_iy=cell_iy,
                         )
-                        comb_data = util.trim_catalog_boundary_strict(
+                        good = util.trim_catalog_boundary_strict(
                             data=comb_data,
                             dim=cell_size,
                             trim_pixels=trim_pixels,
                             checks=checks,
                             show=show,
                         )
+                        comb_data['primary'][good] = True
+                    else:
+                        comb_data['primary'] = True
 
                     if len(comb_data) > 0:
                         if shear_type == '1p':

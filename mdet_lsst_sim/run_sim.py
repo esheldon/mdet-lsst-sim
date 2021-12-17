@@ -274,13 +274,16 @@ def run_sim(
                 )
 
             if trim_pixels > 0:
-                comb_data = util.trim_catalog_boundary_strict(
+                good = util.trim_catalog_boundary_strict(
                     data=comb_data,
                     dim=sim_config['coadd_dim'],
                     trim_pixels=trim_pixels,
                     checks=['l', 'r', 'u', 'd'],
                     show=show,
                 )
+                comb_data['primary'][good] = True
+            else:
+                comb_data['primary'] = True
 
             if len(comb_data) > 0:
                 if shear_type == '1p':
