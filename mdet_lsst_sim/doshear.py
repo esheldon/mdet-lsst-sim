@@ -201,11 +201,12 @@ def get_sums(
     logic = (
         (data['shear_type'] == stype) &
         (data['flags'] == 0) &
-        (data['bmask'] == 0) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
         between(g[:, 0], -1, 1) & between(g[:, 1], -1, 1)
     )
+    if 'bmask' in data.dtype.names:
+        logic &= (data['bmask'] == 0)
 
     logic &= (data['mask_frac'] < max_mask_frac)
     logic &= (data['mfrac'] < max_mfrac)
