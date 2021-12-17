@@ -498,6 +498,7 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
         exp = mbexp[band]
         # we need to make a copy of it
         subexp = exp[new_bbox]
+
         assert np.all(
             exp.image.array[
                 start_y:start_y+cell_size,

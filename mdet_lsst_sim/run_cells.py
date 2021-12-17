@@ -27,8 +27,10 @@ from metadetect.lsst.metadetect import run_metadetect
 from metadetect.lsst.masking import (
     apply_apodized_edge_masks_mbexp,
     apply_apodized_bright_masks_mbexp,
+    AP_RAD,
 )
-# from metadetect.metadetect import do_metadetect as run_metadetect_sx
+from metadetect.masking import get_ap_range
+
 import fitsio
 import esutil as eu
 
@@ -93,6 +95,8 @@ def run_cells(
         stream=sys.stdout,
         level=getattr(logging, loglevel.upper()),
     )
+
+    ap_padding = get_ap_range(AP_RAD)
 
     logger = logging.getLogger('mdet_lsst_sim')
     logger.info(f"seed: {seed}")
@@ -221,6 +225,12 @@ def run_cells(
             )
             tmcoadd += time.time() - tmcoadd0
 
+            if len(sim_data['bright_info']) > 0:
+                # Note padding due to apodization, otherwise we get donuts the
+                # radii coming out of the sim code are not super conservative,
+                # just going to the noise level
+                sim_data['bright_info']['radius_pixels'] += ap_padding
+
             for cell_ix in range(ncells):
                 for cell_iy in range(ncells):
                     logger.info('cell {%s, %s}' % (cell_ix, cell_iy))
@@ -234,11 +244,16 @@ def run_cells(
 
                     apply_apodized_edge_masks_mbexp(**cell_coadd_data)
 
+                    if show:
+                        lsst_vis.show_mbexp(cell_coadd_data['mbexp'])
+
                     if len(sim_data['bright_info']) > 0:
                         apply_apodized_bright_masks_mbexp(
                             bright_info=sim_data['bright_info'],
                             **cell_coadd_data
                         )
+                        if show:
+                            lsst_vis.show_multi_mbexp(cell_coadd_data['mbexp'])
 
                     mask_frac = util.get_mask_frac(
                         cell_coadd_data['mfrac_mbexp'],
@@ -246,9 +261,6 @@ def run_cells(
                     )
 
                     logger.info('mask_frac: %g' % mask_frac)
-
-                    if show:
-                        lsst_vis.show_mbexp(cell_coadd_data['mbexp'])
 
                     tmmeas0 = time.time()
 
