@@ -188,6 +188,7 @@ def main(
             run=run,
             key=key,
             nocancel=nocancel,
+            require_primary=cut_config['require_primary'],
         )
 
         print('writing:', fname)
