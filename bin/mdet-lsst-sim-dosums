@@ -1,0 +1,43 @@
+#!/usr/bin/env python
+from pprint import pprint
+import fitsio
+
+
+def main(cut_config_file, flist_file, output_file):
+    from mdet_lsst_sim.doshear import process_set, read_config
+
+    flist = read_flist(flist_file)
+
+    cut_config = read_config(cut_config_file)
+
+    pprint(cut_config)
+
+    inputs = (cut_config, flist)
+    sums = process_set(inputs)
+
+    print('writing:', output_file)
+    fitsio.write(output_file, sums, clobber=True)
+
+
+def read_flist(fname):
+    with open(fname) as fobj:
+        flist = [line.strip() for line in fobj]
+    return flist
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cut-config', required=True)
+    parser.add_argument('--flist', required=True)
+    parser.add_argument('--output', required=True)
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        cut_config_file=args.cut_config,
+        flist_file=args.flist,
+        output_file=args.output,
+    )

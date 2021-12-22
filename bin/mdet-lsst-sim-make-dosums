@@ -1,0 +1,152 @@
+#!/usr/bin/env python
+
+
+SCRIPT_NAME = 'run.sh'
+
+
+CONDOR_SUBMIT_HEAD = """
+universe = vanilla
+
+notification = Never
+
+executable = %(script)s
+
+request_memory = 2G
+
+getenv = True
+
+kill_sig = SIGINT
+
+should_transfer_files = YES
+transfer_input_files = %(cut_config)s
+
+# so transfer when the job completes
+when_to_transfer_output = ON_EXIT
+
+environment = "OMP_NUM_THREADS=1"
+
++experiment = "astro"
+"""
+
+CONDOR_JOB_TEMPLATE = """
++job_name = "%(job_name)s"
+transfer_output_files = %(output)s
+arguments = %(flist)s %(output)s
+queue
+"""  # noqa
+
+
+SCRIPT = r"""!/usr/bin/env bash
+
+flist=$1
+outfile=$2
+
+cut_config=%(cut_config)s
+
+mdet-lsst-sim-doshear-sums     \
+    --cut-config ${cut_config} \
+    --flist ${flist}           \
+    --output ${outfile}
+"""
+
+
+def copy_config_file(run, cut_config_file):
+    import shutil
+    from mdet_lsst_sim.doshear import get_chunk_dir
+
+    dir = get_chunk_dir(run)
+    print(f'copying {cut_config_file} -> {dir}/')
+    shutil.copy(cut_config_file, dir)
+
+
+def write_script(run, cut_config_file):
+    import os
+    from mdet_lsst_sim.doshear import get_chunk_dir
+
+    d = get_chunk_dir(run)
+    script_file = os.path.join(d, SCRIPT_NAME)
+
+    script = SCRIPT % {'cut_config': os.path.basename(cut_config_file)}
+
+    with open(script_file, 'w') as fobj:
+        fobj.write(script)
+
+
+def main(run, nchunks, cut_config_file, limit):
+    import os
+    from mdet_lsst_sim.doshear import (
+        get_flist,
+        get_chunk_dir,
+        get_chunk_file,
+        get_chunk_flist_file,
+        chunk_flist,
+        get_doshear_condor_file,
+    )
+
+    d = get_chunk_dir(run)
+    print(f'chunk_dir: {d}')
+
+    if not os.path.exists(d):
+        print(f'making directory {d}')
+        os.makedirs(d)
+
+    copy_config_file(run, cut_config_file)
+    write_script(run, cut_config_file)
+
+    flist = get_flist(run, limit=limit)
+    nf = len(flist)
+
+    flists = chunk_flist(flist, nchunks)
+    chunksize = len(flists[0])
+
+    print(f'processing: {nf}')
+    print(f'nchunks: {nchunks}')
+    print(f'chunksize: {chunksize}')
+
+    condor_file = get_doshear_condor_file(run)
+    with open(condor_file, 'w') as condor_fobj:
+        condor_head = CONDOR_SUBMIT_HEAD % {
+            'cut_config': os.path.basename(cut_config_file),
+            'script': SCRIPT_NAME,
+        }
+        condor_fobj.write(condor_head)
+
+        for ichunk, chunk in enumerate(flists):
+            job_name = f'{run}-sums-{ichunk:06d}'
+
+            chunk_file = get_chunk_file(run, ichunk)
+            chunk_flist_file = get_chunk_flist_file(run, ichunk)
+            # print('writing:', chunk_flist_file)
+            with open(chunk_flist_file, 'w') as fobj:
+                for fname in chunk:
+                    fobj.write(f'{fname}\n')
+
+            # we use the basename because it is expected we run the condor
+            # script for that directory
+
+            job = CONDOR_JOB_TEMPLATE % {
+                'job_name': job_name,
+                'output': chunk_file,
+                'flist': os.path.basename(chunk_flist_file),
+            }
+            condor_fobj.write(job)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--cut-config', required=True)
+    parser.add_argument('-n', '--nchunks', type=int, required=True)
+    parser.add_argument('--limit', type=int)
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        run=args.run,
+        nchunks=args.nchunks,
+        cut_config_file=args.cut_config,
+        limit=args.limit,
+    )
