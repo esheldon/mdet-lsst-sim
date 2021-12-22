@@ -35,7 +35,7 @@ def get_flist(run, limit=None):
 def read_config(fname):
     print('reading config:', fname)
     with open(fname) as fobj:
-        return yaml.load_safe(fobj)
+        return yaml.safe_load(fobj)
 
 
 def get_summed(data):
@@ -279,29 +279,29 @@ def get_mc_file(run, key, nocancel, require_primary):
     return os.path.join(OUTDIR, fname)
 
 
-def get_chunk_dir(run):
-    return f'chunks/{run}'
+def get_sums_dir(run):
+    return f'sums/{run}'
 
 
-def get_chunk_file(run, chunk):
-    d = get_chunk_dir(run)
+def get_sums_file(run, chunk):
+    d = get_sums_dir(run)
     fname = f'{run}-sums-{chunk:06d}.fits'
     return os.path.join(d, fname)
 
 
-def get_chunk_flist_file(run, chunk):
-    d = get_chunk_dir(run)
+def get_sums_flist_file(run, chunk):
+    d = get_sums_dir(run)
     fname = f'{run}-flist-{chunk:06d}.txt'
     return os.path.join(d, fname)
 
 
 def get_sums_script_file(run):
-    d = get_chunk_dir(run)
+    d = get_sums_dir(run)
     return os.path.join(d, 'run.sh')
 
 
 def get_doshear_condor_file(run):
-    d = get_chunk_dir(run)
+    d = get_sums_dir(run)
     fname = f'{run}-doshear.condor'
     return os.path.join(d, fname)
 
@@ -387,11 +387,12 @@ def add_more_sums(sums, tsums):
 
 
 def process_set(inputs):
+    from tqdm import tqdm
 
     config, flist = inputs
 
     sums = {}
-    for i, fname in enumerate(flist):
+    for i, fname in enumerate(tqdm(flist)):
         tsums = process_one(config, fname)
         if tsums is not None:
             add_more_sums(sums, tsums)
@@ -401,7 +402,7 @@ def process_set(inputs):
 
 def process_one(config, fname):
 
-    print(fname)
+    # print(fname)
 
     try:
         with fitsio.FITS(fname) as fobj:

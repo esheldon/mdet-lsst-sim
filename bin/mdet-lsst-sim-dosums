@@ -16,7 +16,9 @@ def main(cut_config_file, flist_file, output_file):
     sums = process_set(inputs)
 
     print('writing:', output_file)
-    fitsio.write(output_file, sums, clobber=True)
+    with fitsio.FITS(output_file, 'rw', clobber=True) as fits:
+        for key in sums:
+            fits.write(sums[key], extname=key)
 
 
 def read_flist(fname):
