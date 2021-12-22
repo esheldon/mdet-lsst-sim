@@ -261,11 +261,14 @@ def get_key(
     return '-'.join(klist)
 
 
-def get_mc_file(run, key, nocancel):
+def get_mc_file(run, key, nocancel, require_primary):
     nlist = []
 
     if nocancel:
         nlist += ['nocancel']
+
+    if not require_primary:
+        nlist += ['noprimary']
 
     nlist += [
         'mc',

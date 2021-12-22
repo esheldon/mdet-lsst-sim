@@ -75,6 +75,7 @@ def main():
             run=args.run,
             key=key,
             nocancel=args.nocancel,
+            require_primary=config['require_primary'],
         )
 
         print('writing:', fname)
