@@ -27,10 +27,10 @@ environment = "OMP_NUM_THREADS=1"
 +experiment = "astro"
 """
 
+# transfer_output_files = %(output)s
 CONDOR_JOB_TEMPLATE = """
 +job_name = "%(job_name)s"
 transfer_input_files = %(cut_config)s,%(flist)s
-transfer_output_files = %(output)s
 arguments = %(flist)s %(output)s
 queue
 """  # noqa
@@ -46,7 +46,7 @@ cut_config=%(cut_config)s
 mdet-lsst-sim-dosums     \
     --cut-config ${cut_config} \
     --flist ${flist}           \
-    --output ${outfile}
+    --output ${outfile} &> ${outfile}.log
 """
 
 
