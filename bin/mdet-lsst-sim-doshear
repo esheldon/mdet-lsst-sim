@@ -27,7 +27,7 @@ def get_args():
 
 def main():
     from mdet_lsst_sim.doshear import (
-        process_set, jackknife, read_config, get_flist, print_stats, get_fname,
+        process_set, jackknife, read_config, get_flist, print_stats, get_mc_file,
     )
 
     args = get_args()
@@ -71,7 +71,7 @@ def main():
         st = jackknife(key_data, nocancel=args.nocancel)
         print_stats(st)
 
-        fname = get_fname(
+        fname = get_mc_file(
             run=args.run,
             key=key,
             nocancel=args.nocancel,

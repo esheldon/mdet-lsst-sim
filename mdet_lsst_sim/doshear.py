@@ -35,7 +35,7 @@ def get_flist(run, limit=None):
 def read_config(fname):
     print('reading config:', fname)
     with open(fname) as fobj:
-        return yaml.load(fobj, Loader=yaml.SafeLoader)
+        return yaml.load_safe(fobj)
 
 
 def get_summed(data):
@@ -261,7 +261,7 @@ def get_key(
     return '-'.join(klist)
 
 
-def get_fname(run, key, nocancel):
+def get_mc_file(run, key, nocancel):
     nlist = []
 
     if nocancel:
@@ -274,6 +274,58 @@ def get_fname(run, key, nocancel):
     ]
     fname = '-'.join(nlist) + '.fits'
     return os.path.join(OUTDIR, fname)
+
+
+def get_chunk_dir(run):
+    return f'chunks/{run}'
+
+
+def get_chunk_file(run, chunk):
+    d = get_chunk_dir(run)
+    fname = f'{run}-sums-{chunk:06d}.fits'
+    return os.path.join(d, fname)
+
+
+def get_chunk_flist_file(run, chunk):
+    d = get_chunk_dir(run)
+    fname = f'{run}-flist-{chunk:06d}.txt'
+    return os.path.join(d, fname)
+
+
+def get_sums_script_file(run):
+    d = get_chunk_dir(run)
+    return os.path.join(d, 'run.sh')
+
+
+def get_doshear_condor_file(run):
+    d = get_chunk_dir(run)
+    fname = f'{run}-doshear.condor'
+    return os.path.join(d, fname)
+
+
+def chunk_flist(flist, nchunks):
+
+    nf = len(flist)
+    chunksize = nf // nchunks
+    extra_items = nf % nchunks
+
+    flists = []
+
+    start = 0
+    for i in range(nchunks):
+
+        this_chunksize = chunksize
+        if i <= extra_items:
+            this_chunksize += 1
+
+        end = start + this_chunksize
+
+        chunk = flist[start:end]
+        flists.append(chunk)
+
+        start = start + this_chunksize
+
+    return flists
 
 
 def get_struct(
