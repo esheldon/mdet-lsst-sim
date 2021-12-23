@@ -387,12 +387,12 @@ def add_more_sums(sums, tsums):
 
 
 def process_set(inputs):
-    from tqdm import tqdm
-
     config, flist = inputs
 
+    nf = len(flist)
     sums = {}
-    for i, fname in enumerate(tqdm(flist)):
+    for i, fname in enumerate(flist):
+        print(f'{i+1}/{nf} {fname}')
         tsums = process_one(config, fname)
         if tsums is not None:
             add_more_sums(sums, tsums)
