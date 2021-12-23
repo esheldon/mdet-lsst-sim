@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+import argparse
+import fitsio
+import esutil as eu
+
+
+def main(run, flist, nocancel):
+    from mdet_lsst_sim.doshear import (
+        jackknife, print_stats, get_mc_file,
+    )
+
+    print('run:', run)
+    print('processing:', len(flist))
+
+    nf = len(flist)
+    data = {}
+
+    for i, fname in enumerate(flist):
+        print(f'{i+1}/{nf} {fname}')
+
+        with fitsio.FITS(fname) as fits:
+            for hdu in fits:
+                if not hdu.has_data():
+                    continue
+
+                key = hdu.get_extname()
+                ext_data = hdu.read()
+
+                if key not in data:
+                    data[key] = []
+
+                data[key].append(ext_data)
+
+    for key in data:
+        print('jackknifing:', key)
+        key_data = eu.numpy_util.combine_arrlist(data[key])
+
+        st = jackknife(key_data, nocancel=nocancel)
+        print_stats(st)
+
+        fname = get_mc_file(
+            run=run,
+            key=key,
+            nocancel=nocancel,
+        )
+
+        print('writing:', fname)
+        eu.ostools.makedirs_fromfile(fname)
+        fitsio.write(fname, st, clobber=True)
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--flist', nargs='+', required=True)
+    parser.add_argument('--nocancel', action='store_true')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        run=args.run,
+        flist=args.flist,
+        nocancel=args.nocancel,
+    )

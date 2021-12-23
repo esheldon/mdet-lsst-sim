@@ -261,7 +261,7 @@ def get_key(
     return '-'.join(klist)
 
 
-def get_mc_file(run, key, nocancel, require_primary):
+def get_mc_file(run, key, nocancel, require_primary=False):
     nlist = []
 
     if nocancel:
