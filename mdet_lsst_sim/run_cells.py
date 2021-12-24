@@ -259,6 +259,8 @@ def run_cells(
                         cell_coadd_data['mfrac_mbexp'],
                         trim_pixels=trim_pixels,
                     )
+                    if mask_frac == 0:
+                        continue
 
                     logger.info('mask_frac: %g' % mask_frac)
 
