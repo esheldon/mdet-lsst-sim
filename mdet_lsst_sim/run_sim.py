@@ -241,6 +241,9 @@ def run_sim(
 
             logger.info('mask_frac: %g' % mask_frac)
 
+            if mask_frac == 1:
+                continue
+
             tmmeas0 = time.time()
 
             if use_sx:
