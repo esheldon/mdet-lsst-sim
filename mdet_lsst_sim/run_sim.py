@@ -260,7 +260,8 @@ def run_sim(
                 )
             tmmeas += time.time() - tmmeas0
 
-            if res is None:
+            # res is a dict, so len(res) means no keys
+            if res is None or len(res) == 0:
                 continue
 
             comb_data = util.make_comb_data(
@@ -271,24 +272,25 @@ def run_sim(
                 full_output=full_output,
             )
 
-            if theta is not None:
-                util.unrotate_noshear_shear(
-                    comb_data, meas_type=mdet_config['meas_type'], theta=theta,
-                )
-
-            if trim_pixels > 0:
-                good = util.trim_catalog_boundary_strict(
-                    data=comb_data,
-                    dim=sim_config['coadd_dim'],
-                    trim_pixels=trim_pixels,
-                    checks=['l', 'r', 'u', 'd'],
-                    show=show,
-                )
-                comb_data['primary'][good] = True
-            else:
-                comb_data['primary'] = True
-
             if len(comb_data) > 0:
+                if theta is not None:
+                    util.unrotate_noshear_shear(
+                        comb_data, meas_type=mdet_config['meas_type'],
+                        theta=theta,
+                    )
+
+                if trim_pixels > 0:
+                    good = util.trim_catalog_boundary_strict(
+                        data=comb_data,
+                        dim=sim_config['coadd_dim'],
+                        trim_pixels=trim_pixels,
+                        checks=['l', 'r', 'u', 'd'],
+                        show=show,
+                    )
+                    comb_data['primary'][good] = True
+                else:
+                    comb_data['primary'] = True
+
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
                 else:

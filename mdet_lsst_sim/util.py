@@ -346,13 +346,13 @@ def trim_catalog_boundary_strict(
             raise ValueError(f"bad check '{check}'")
 
     w, = np.where(logic)
+    logger.info('kept: %d/%d', w.size, data.size)
 
     if show:
         import matplotlib.pyplot as mplt
         from matplotlib.patches import Rectangle
 
         fig, ax = mplt.subplots()
-        logger.info('kept: %d/%d', w.size, data.size)
         alpha = 0.1
         ax.add_patch(
             Rectangle(

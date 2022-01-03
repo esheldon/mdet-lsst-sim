@@ -281,7 +281,8 @@ def run_cells(
                         )
                     tmmeas += time.time() - tmmeas0
 
-                    if res is None:
+                    # res is a dict, so len(res) means no keys
+                    if res is None or len(res) == 0:
                         continue
 
                     comb_data = util.make_comb_data(
@@ -291,29 +292,33 @@ def run_cells(
                         mask_frac=mask_frac,
                         full_output=full_output,
                     )
-
-                    if theta is not None:
-                        util.unrotate_noshear_shear(
-                            comb_data, meas_type=mdet_config['meas_type'],
-                            theta=theta,
-                        )
-
-                    if trim_pixels > 0:
-                        checks = get_cell_checks(
-                            ncells=ncells, cell_ix=cell_ix, cell_iy=cell_iy,
-                        )
-                        good = util.trim_catalog_boundary_strict(
-                            data=comb_data,
-                            dim=cell_size,
-                            trim_pixels=trim_pixels,
-                            checks=checks,
-                            show=show,
-                        )
-                        comb_data['primary'][good] = True
-                    else:
-                        comb_data['primary'] = True
-
                     if len(comb_data) > 0:
+
+                        if theta is not None:
+                            util.unrotate_noshear_shear(
+                                comb_data, meas_type=mdet_config['meas_type'],
+                                theta=theta,
+                            )
+
+                        if trim_pixels > 0:
+                            checks = get_cell_checks(
+                                ncells=ncells, cell_ix=cell_ix,
+                                cell_iy=cell_iy,
+                            )
+                            good = util.trim_catalog_boundary_strict(
+                                data=comb_data,
+                                dim=cell_size,
+                                trim_pixels=trim_pixels,
+                                checks=checks,
+                                show=show,
+                            )
+                            if good.size == 0:
+                                continue
+
+                            comb_data['primary'][good] = True
+                        else:
+                            comb_data['primary'] = True
+
                         if shear_type == '1p':
                             dlist_p.append(comb_data)
                         else:
