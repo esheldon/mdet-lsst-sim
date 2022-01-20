@@ -105,7 +105,7 @@ def do_bias_plot(args, data):
     plt = hickory.Plot(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
-        ylim=(-5.0, 6.5),
+        ylim=(-5, 5),
         figsize=(width, height),
     )
     for i, key in enumerate(sorted(data)):
@@ -133,10 +133,14 @@ def do_bias_plot(args, data):
 
     plt.legend()
 
+    lim = 2
     # zorder = 2
     plt.axhline(0, color='black')  # , zorder=zorder)
-    plt.axhline(-1, color='black', linestyle='dashed')  # , zorder=zorder)
-    plt.axhline(1, color='black', linestyle='dashed')  # , zorder=zorder)
+    plt.axhline(-lim, color='black', linestyle='dashed')  # , zorder=zorder)
+    plt.axhline(+lim, color='black', linestyle='dashed')  # , zorder=zorder)
+
+    plt.axhline(0.4, color='grey', lw=2)
+
     plt.ntext(0.1, 0.9, r'$3~\sigma$ range')
 
     print('writing:', args.pdf)
