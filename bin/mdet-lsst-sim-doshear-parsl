@@ -1,0 +1,234 @@
+#!/usr/bin/env python
+from parsl import python_app
+
+WALLTIME = "00:02:00"
+
+CONDOR_SCHED_OPTS = """
+Universe = vanilla
+kill_sig = SIGINT
+Notification = Never
+request_memory = 2G
+GetEnv = True
++job_name = "%s"
+"""
+
+# CONDOR_WORKER_INIT = """
+# export OMP_NUM_THREADS=1
+# """
+CONDOR_WORKER_INIT = ""
+
+
+def get_condor_provider(run, max_workers):
+    from parsl.providers import CondorProvider
+    return CondorProvider(
+        cores_per_slot=1,
+        mem_per_slot=2,
+        nodes_per_block=1,
+        # init_blocks=3,
+        # aggressively try to use max blocks and give work to each
+        parallelism=1,
+        min_blocks=1,
+        max_blocks=max_workers,
+        scheduler_options=CONDOR_SCHED_OPTS % run,
+        worker_init=CONDOR_WORKER_INIT,
+        walltime=WALLTIME,
+        environment={'OMP_NUM_THREADS': '1'},
+    )
+
+
+def get_local_provider(max_workers):
+    from parsl.providers import LocalProvider
+    # because we have cores_per_worker in the executor as 1,
+    # this will know we mean cores by blocks
+    return LocalProvider(
+        # these are the defaults
+        min_blocks=1,
+        max_blocks=max_workers,  # cores
+        # aggressively try to use max blocks and give work to each
+        parallelism=1,
+        walltime=WALLTIME
+    )
+
+
+def get_provider(system, run, max_workers):
+    if system == 'condor':
+        return get_condor_provider(run=run, max_workers=max_workers)
+    elif system == 'local':
+        return get_local_provider(max_workers)
+    else:
+        raise ValueError(f'bad system {system}')
+
+
+def get_parsl_config(system, run, max_workers):
+    from parsl.config import Config
+    from parsl.executors import HighThroughputExecutor
+    from parsl.addresses import address_by_hostname
+
+    provider = get_provider(system=system, run=run, max_workers=max_workers)
+
+    return Config(
+        strategy='htex_auto_scale',
+        executors=[
+            # defaults to cores_per_worker 1
+            HighThroughputExecutor(
+                worker_debug=True,
+                max_workers=1,
+                address=address_by_hostname(),
+                provider=provider,
+            )
+        ],
+    )
+
+
+@python_app
+def process_set(inputs):
+    from mdet_lsst_sim.doshear import process_one, add_more_sums
+
+    config, flist = inputs
+
+    sums = {}
+    for i, fname in enumerate(flist):
+        tsums = process_one(config, fname)
+        if tsums is not None:
+            add_more_sums(sums, tsums)
+
+    return sums
+
+
+def main(
+    system, max_workers, run, cut_config_file, chunksize, limit, nowarp,
+    nocancel,
+):
+    import sys
+    import time
+    import parsl
+    import esutil as eu
+    import fitsio
+    from pprint import pprint
+    from mdet_lsst_sim.doshear import (
+        get_flist, read_config, jackknife, print_stats, get_fname,
+    )
+    from esutil.pbar import StatusPrinter, format_meter
+
+    parsl_config = get_parsl_config(
+        system=system, run=run, max_workers=max_workers,
+    )
+    parsl.load(parsl_config)
+
+    cut_config = read_config(cut_config_file)
+
+    flist = get_flist(run, limit=limit)
+    flist.sort()
+
+    print('run:', run)
+    pprint(cut_config)
+    print('chunksize:', chunksize)
+    print('processing:', len(flist), 'files')
+
+    nf = len(flist)
+
+    all_inputs = [
+        (cut_config, flist[start:start+chunksize])
+        for start in range(0, nf, chunksize)
+    ]
+
+    futures = []
+    for inputs in all_inputs:
+        future = process_set(inputs)
+        futures.append(future)
+
+    n_tot = len(futures)
+    n_left = n_tot
+    start_time = time.time()
+
+    results = []
+
+    sp = StatusPrinter(sys.stderr)
+    sp.print_status(format_meter(0, n_tot, 0))
+    while n_left > 0:
+        for i in range(len(futures)):
+            f = futures[i]
+
+            try:
+                f.result(timeout=10)
+            except Exception:
+                pass
+
+            if f.done():
+                results.append(f.result())
+                futures.pop(i)
+                n_left -= 1
+
+                cur_time = time.time()
+                pstat = format_meter(n_tot-n_left, n_tot, cur_time-start_time)
+                sp.print_status(pstat)
+
+                break
+
+    sys.stderr.write('\n')
+
+    print('processed:', len(flist), 'files')
+
+    data = {}
+
+    for data_dict in results:
+        for key in data_dict:
+            if key not in data:
+                data[key] = []
+            data[key].append(data_dict[key])
+
+    for key in data:
+        print('jackknifing:', key)
+        key_data = eu.numpy_util.combine_arrlist(data[key])
+
+        st = jackknife(key_data, nocancel=nocancel)
+        print_stats(st)
+
+        fname = get_fname(
+            run=run,
+            key=key,
+            nocancel=nocancel,
+            require_primary=cut_config['require_primary'],
+        )
+
+        print('writing:', fname)
+        eu.ostools.makedirs_fromfile(fname)
+        fitsio.write(fname, st, clobber=True)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--system',
+                        required=True,
+                        help='system on which to run, local or condor')
+    parser.add_argument(
+        '-n', '--max-workers', type=int, required=True,
+        help='max number of processors/workers to use'
+    )
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--cut-config', required=True)
+
+    parser.add_argument('--nocancel', action='store_true')
+
+    parser.add_argument('--chunksize', type=int, default=1)
+
+    parser.add_argument('--limit', type=int)
+
+    parser.add_argument('--nowarp', action='store_true')
+
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        system=args.system,
+        max_workers=args.max_workers,
+        run=args.run,
+        cut_config_file=args.cut_config,
+        chunksize=args.chunksize,
+        limit=args.limit,
+        nowarp=args.nowarp,
+        nocancel=args.nocancel,
+    )

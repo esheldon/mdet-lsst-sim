@@ -1,0 +1,202 @@
+#!/usr/bin/env python
+"""
+make sure you set ulimit large enough for all the workers you might spin up.
+
+e.g. ulimit -n 4096
+"""
+
+
+def get_condor_config(run):
+    return {
+        'cores': 1,
+        'memory': '2G',
+        'disk': '1000MB',
+        # 'death_timeout':  '60',
+        'nanny':  False,
+        # 'scheduler_options': {
+        #     'port': n_port,
+        #     'host': socket.gethostname()
+        # },
+        'job_extra': {
+            'GetEnv': 'True',
+            'request_memory': '2.0G',
+            'log': f'{run}.log',
+            # 'output': 'dask_job_output.out',
+            # 'error': 'dask_job_output.err',
+            # 'environment': 'OMP_NUM_THREADS=1',
+            # 'should_transfer_files': 'Yes',
+            # 'when_to_transfer_output': 'ON_EXIT',
+            # '+JobFlavour': '"tomorrow"',
+            '+job_name': '"%s"' % run,
+        },
+        'env_extra': [
+            'OMP_NUM_THREADS=1',
+        ],
+        # 'extra':  ['--worker-port 10000:10100'],
+    }
+
+
+def get_local_config(max_workers):
+    return {
+        'n_workers': max_workers,
+        # numpy seems to be ignoring this
+        'nthreads': 1,
+    }
+
+
+def get_cluster_objects(run, max_workers, system):
+    from dask.distributed import LocalCluster
+    from dask_jobqueue import HTCondorCluster
+
+    if system == 'condor':
+        cluster_config = get_condor_config(run=run)
+        cluster_class = HTCondorCluster
+    elif system == 'local':
+        cluster_config = get_local_config(max_workers=max_workers)
+        cluster_class = LocalCluster
+    else:
+        raise ValueError("bad system '%s'" % system)
+
+    return cluster_class, cluster_config
+
+
+def run_jobs(
+    system,
+    run,
+    nruns,
+    configs,
+    seed,
+    njobs,
+    ntrial,
+    max_workers=1,
+    runstart=0,
+    loglevel='info',
+):
+    import os
+    from copy import deepcopy
+    import numpy as np
+    from dask.distributed import Client
+    from dask.distributed import progress as progress
+    from mdet_lsst_sim.run_sim import run_sim
+    from mdet_lsst_sim.run_cells import run_cells
+
+    if 'cell_size' in configs['mls_config']:
+        cmd = run_cells
+    else:
+        cmd = run_sim
+
+    rng = np.random.RandomState()
+
+    cluster_class, cluster_config = get_cluster_objects(
+        run=run, max_workers=max_workers, system=system,
+    )
+
+    with cluster_class(**cluster_config) as cluster:
+
+        if system != 'local':
+            cluster.adapt(maximum_jobs=max_workers)
+            print(cluster.job_script())
+
+        with Client(cluster) as client:
+            futures = []
+
+            for irun in range(runstart, runstart+nruns):
+                subrun = f'{run}-{irun:03d}'
+                print(subrun)
+
+                if not os.path.exists(subrun):
+                    os.makedirs(subrun)
+
+                for ijob in range(njobs):
+                    iseed = rng.randint(0, 2**30)
+
+                    output = f'{run}-{iseed:010d}.fits.gz'
+                    output = os.path.join(subrun, output)
+
+                    kw = {
+                        'seed': iseed,
+                        'ntrial': ntrial,
+                        'output': output,
+                        # TODO: make descwl-shear-sims deepcopy it
+                        'sim_config': deepcopy(configs['sim_config']),
+                        'mdet_config': configs['mdet_config'],
+                        'coadd_config': configs['coadd_config'],
+                        'loglevel': loglevel,
+                        **configs['mls_config'],
+                    }
+                    f = client.submit(cmd, **kw)
+                    futures.append(f)
+
+            progress(futures, interval='1000ms')
+
+            results = client.gather(futures)
+
+            # we expect no return values
+            assert all((res is None for res in results))
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        '--system', default='local', help='condor, local, default local'
+    )
+
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+
+    parser.add_argument('--config', help='optional simulation config')
+
+    parser.add_argument('--nruns', type=int, default=1)
+    parser.add_argument('--runstart', type=int, default=1)
+
+    parser.add_argument('--njobs', type=int, default=1,
+                        help='number of jobs per sub-run')
+    parser.add_argument('--ntrial', type=int, default=1,
+                        help='number of sim pairs to run')
+
+    parser.add_argument(
+        '--max-workers', type=int,
+        default=1,
+        help='max number of workers'
+    )
+
+    parser.add_argument('--run', help='run name, by default from config')
+    parser.add_argument('--loglevel', default='warn', help='logging level')
+
+    return parser.parse_args()
+
+
+def main(args):
+    import os
+    from mdet_lsst_sim import util
+    import shutil
+
+    # copy in the config for the sake of provenance
+    print('copying:', args.config)
+    shutil.copy(args.config, '.')
+
+    run = args.run
+    if run is None:
+        run = os.path.basename(args.config).replace('.yaml', '')
+
+    configs = util.load_configs_from_args(args)
+
+    run_jobs(
+        system=args.system,
+        run=run,
+        nruns=args.nruns,
+        runstart=args.runstart,
+        configs=configs,
+        seed=args.seed,
+        njobs=args.njobs,
+        ntrial=args.ntrial,
+        max_workers=args.max_workers,
+        loglevel=args.loglevel,
+    )
+    print()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(args)

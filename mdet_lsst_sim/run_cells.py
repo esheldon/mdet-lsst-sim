@@ -30,17 +30,20 @@ from metadetect.lsst.masking import (
     AP_RAD,
 )
 from metadetect.masking import get_ap_range
+
 import fitsio
 import esutil as eu
 
 from . import util, vis
 
 
-def run_sim(
+def run_cells(
     *,
     seed,
     ntrial,
     output,
+    cell_size,
+    cell_buff,
     sim_config=None,
     mdet_config=None,
     coadd_config=None,
@@ -82,6 +85,7 @@ def run_sim(
     loglevel: str
         e.g. 'info'
     """
+
     tm0 = time.time()
     tmsim = 0.0
     tmcoadd = 0.0
@@ -91,6 +95,7 @@ def run_sim(
         stream=sys.stdout,
         level=getattr(logging, loglevel.upper()),
     )
+
     ap_padding = get_ap_range(AP_RAD)
 
     logger = logging.getLogger('mdet_lsst_sim')
@@ -126,6 +131,9 @@ def run_sim(
 
     logger.info(str(sim_config))
     logger.info(str(mdet_config))
+
+    assert sim_config['coadd_dim'] % cell_size == 2*cell_buff
+    ncells = sim_config['coadd_dim'] // (cell_size - 2*cell_buff)
 
     dlist_p = []
     dlist_m = []
@@ -211,90 +219,110 @@ def run_sim(
                 vis.show_sim(sim_data['band_data'])
 
             tmcoadd0 = time.time()
-            coadd_data = util.coadd_sim_data(
+            orig_coadd_data = util.coadd_sim_data(
                 rng=trial_rng, sim_data=sim_data,
                 **coadd_config
             )
+            tmcoadd += time.time() - tmcoadd0
 
-            if show:
-                lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
-
-            apply_apodized_edge_masks_mbexp(**coadd_data)
             if len(sim_data['bright_info']) > 0:
                 # Note padding due to apodization, otherwise we get donuts the
                 # radii coming out of the sim code are not super conservative,
                 # just going to the noise level
                 sim_data['bright_info']['radius_pixels'] += ap_padding
-                apply_apodized_bright_masks_mbexp(
-                    bright_info=sim_data['bright_info'],
-                    **coadd_data
-                )
-                if show:
-                    lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
 
-            mask_frac = util.get_mask_frac(
-                coadd_data['mfrac_mbexp'],
-                trim_pixels=trim_pixels,
-            )
-
-            tmcoadd += time.time() - tmcoadd0
-
-            logger.info('mask_frac: %g' % mask_frac)
-
-            if mask_frac == 1:
-                continue
-
-            tmmeas0 = time.time()
-
-            if use_sx:
-                raise RuntimeError("adapt sx run to exposures")
-                # res = run_metadetect_sx(
-                #     config=mdet_config,
-                #     mbobs=coadd_mbobs,
-                #     rng=trial_rng,
-                # )
-            else:
-                res = run_metadetect(
-                    rng=trial_rng, config=mdet_config, show=show_sheared,
-                    **coadd_data,
-                )
-            tmmeas += time.time() - tmmeas0
-
-            # res is a dict, so len(res) means no keys
-            if res is None or len(res) == 0:
-                continue
-
-            comb_data = util.make_comb_data(
-                res=res,
-                meas_type=mdet_config['meas_type'],
-                star_catalog=star_catalog,
-                mask_frac=mask_frac,
-                full_output=full_output,
-            )
-
-            if len(comb_data) > 0:
-                if theta is not None:
-                    util.unrotate_noshear_shear(
-                        comb_data, meas_type=mdet_config['meas_type'],
-                        theta=theta,
+            for cell_ix in range(ncells):
+                for cell_iy in range(ncells):
+                    logger.info('cell {%s, %s}' % (cell_ix, cell_iy))
+                    cell_coadd_data = util.extract_cell_coadd_data(
+                        coadd_data=orig_coadd_data,
+                        cell_size=cell_size,
+                        cell_buff=cell_buff,
+                        cell_ix=cell_ix,
+                        cell_iy=cell_iy,
                     )
 
-                if trim_pixels > 0:
-                    good = util.trim_catalog_boundary_strict(
-                        data=comb_data,
-                        dim=sim_config['coadd_dim'],
+                    apply_apodized_edge_masks_mbexp(**cell_coadd_data)
+
+                    if show:
+                        lsst_vis.show_mbexp(cell_coadd_data['mbexp'])
+
+                    if len(sim_data['bright_info']) > 0:
+                        apply_apodized_bright_masks_mbexp(
+                            bright_info=sim_data['bright_info'],
+                            **cell_coadd_data
+                        )
+                        if show:
+                            lsst_vis.show_multi_mbexp(cell_coadd_data['mbexp'])
+
+                    mask_frac = util.get_mask_frac(
+                        cell_coadd_data['mfrac_mbexp'],
                         trim_pixels=trim_pixels,
-                        checks=['l', 'r', 'u', 'd'],
-                        show=show,
                     )
-                    comb_data['primary'][good] = True
-                else:
-                    comb_data['primary'] = True
 
-                if shear_type == '1p':
-                    dlist_p.append(comb_data)
-                else:
-                    dlist_m.append(comb_data)
+                    logger.info('mask_frac: %g' % mask_frac)
+
+                    if mask_frac == 1:
+                        continue
+
+                    tmmeas0 = time.time()
+
+                    if use_sx:
+                        raise RuntimeError("adapt sx run to exposures")
+                        # res = run_metadetect_sx(
+                        #     config=mdet_config,
+                        #     mbobs=coadd_mbobs,
+                        #     rng=trial_rng,
+                        # )
+                    else:
+                        res = run_metadetect(
+                            rng=trial_rng, config=mdet_config,
+                            show=show_sheared, **cell_coadd_data,
+                        )
+                    tmmeas += time.time() - tmmeas0
+
+                    # res is a dict, so len(res) means no keys
+                    if res is None or len(res) == 0:
+                        continue
+
+                    comb_data = util.make_comb_data(
+                        res=res,
+                        meas_type=mdet_config['meas_type'],
+                        star_catalog=star_catalog,
+                        mask_frac=mask_frac,
+                        full_output=full_output,
+                    )
+                    if len(comb_data) > 0:
+
+                        if theta is not None:
+                            util.unrotate_noshear_shear(
+                                comb_data, meas_type=mdet_config['meas_type'],
+                                theta=theta,
+                            )
+
+                        if trim_pixels > 0:
+                            checks = get_cell_checks(
+                                ncells=ncells, cell_ix=cell_ix,
+                                cell_iy=cell_iy,
+                            )
+                            good = util.trim_catalog_boundary_strict(
+                                data=comb_data,
+                                dim=cell_size,
+                                trim_pixels=trim_pixels,
+                                checks=checks,
+                                show=show,
+                            )
+                            if good.size == 0:
+                                continue
+
+                            comb_data['primary'][good] = True
+                        else:
+                            comb_data['primary'] = True
+
+                        if shear_type == '1p':
+                            dlist_p.append(comb_data)
+                        else:
+                            dlist_m.append(comb_data)
 
     tm_seconds = time.time()-tm0
     tm_minutes = tm_seconds/60.0
@@ -318,3 +346,20 @@ def run_sim(
 
             if not nocancel:
                 fits.write(data_1m, extname='1m')
+
+
+def get_cell_checks(ncells, cell_ix, cell_iy):
+    checks = ['l', 'r', 'u', 'd']
+    if cell_ix == 0:
+        checks.remove('l')
+
+    if cell_ix == (ncells-1):
+        checks.remove('r')
+
+    if cell_iy == 0:
+        checks.remove('d')
+
+    if cell_iy == (ncells-1):
+        checks.remove('u')
+
+    return checks

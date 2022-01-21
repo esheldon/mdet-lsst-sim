@@ -71,6 +71,32 @@ DEFAULT_MDET_CONFIG_WITH_SX = {
 }
 
 
+def load_configs_from_args(args):
+    if args.config is None:
+        config = {}
+    else:
+        config = eu.io.read(args.config)
+        if config is None:
+            config = {}
+
+    sim_config = config.get('sim', None)
+    mdet_config = config.get('mdet', None)
+    coadd_config = config.get('coadd', None)
+
+    mls_config = config.get('mls', {})
+    if 'shear' not in mls_config:
+        mls_config['shear'] = 0.02
+    if 'randomize_shear' not in mls_config:
+        mls_config['randomize_shear'] = True
+
+    return dict(
+        sim_config=sim_config,
+        mdet_config=mdet_config,
+        coadd_config=coadd_config,
+        mls_config=mls_config,
+    )
+
+
 def get_coadd_config(config=None):
     """
     metadetect configuration
@@ -108,14 +134,17 @@ def get_mdet_config(config=None, sx=False):
     return config_out, use_sx, trim_pixels
 
 
-def trim_output(data, meas_type):
+def trim_output_columns(data, meas_type):
     if meas_type == 'admom':
         meas_type = 'am'
 
+    # note the bmask/ormask compress to nothing
     cols2keep_orig = [
         'flags',
-        'row_noshear',
-        'col_noshear',
+        'bmask',
+        'ormask',
+        'row', 'row0',
+        'col', 'col0',
         'mfrac',
         '%s_s2n' % meas_type,
         '%s_T_ratio' % meas_type,
@@ -142,6 +171,7 @@ def make_comb_data(
         ('shear_type', 'U7'),
         ('true_star_density', 'f4'),
         ('mask_frac', 'f4'),
+        ('primary', bool),
     ]
 
     if not hasattr(res, 'keys'):
@@ -153,7 +183,7 @@ def make_comb_data(
         if data is not None:
 
             if not full_output:
-                data = trim_output(data, meas_type)
+                data = trim_output_columns(data, meas_type)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             newdata['shear_type'] = stype
@@ -270,44 +300,59 @@ def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
     return extract_multiband_coadd_data(coadd_data_list)
 
 
-def get_mask_frac(mfrac_mbexp, stamp_size, trim_pixels=0):
+def get_mask_frac(mfrac_mbexp, trim_pixels=0):
     """
     get the average mask frac for each band and then return the max of those
     """
-
-    trim = trim_pixels + stamp_size // 2
 
     mask_fracs = []
     for mfrac_exp in mfrac_mbexp:
         mfrac = mfrac_exp.image.array
         dim = mfrac.shape[0]
         mfrac = mfrac[
-            trim:dim - trim - 1,
-            trim:dim - trim - 1,
+            trim_pixels:dim - trim_pixels - 1,
+            trim_pixels:dim - trim_pixels - 1,
         ]
         mask_fracs.append(mfrac.mean())
 
     return max(mask_fracs)
 
 
-def trim_catalog_boundary(data, dim, trim_pixels, show=False):
+def trim_catalog_boundary_strict(
+    data,
+    dim,
+    trim_pixels,
+    checks,
+    show=False,
+):
+    """
+    checks should be a list with one of l, r, t, b
+    """
 
-    row = data['row_noshear']
-    col = data['col_noshear']
+    row = data['row'] - data['row0']
+    col = data['col'] - data['col0']
 
-    w, = np.where(
-        (row > trim_pixels) &
-        (col > trim_pixels) &
-        (row < (dim - trim_pixels - 1)) &
-        (col < (dim - trim_pixels - 1))
-    )
+    logic = np.ones(data.size, dtype=bool)
+    for check in checks:
+        if check == 'l':
+            logic &= (col > trim_pixels)
+        elif check == 'r':
+            logic &= (col < (dim - trim_pixels - 1))
+        elif check == 'd':
+            logic &= (row > trim_pixels)
+        elif check == 'u':
+            logic &= (row < (dim - trim_pixels - 1))
+        else:
+            raise ValueError(f"bad check '{check}'")
+
+    w, = np.where(logic)
+    logger.info('kept: %d/%d', w.size, data.size)
 
     if show:
         import matplotlib.pyplot as mplt
         from matplotlib.patches import Rectangle
 
         fig, ax = mplt.subplots()
-        logger.info('kept: %d/%d', w.size, data.size)
         alpha = 0.1
         ax.add_patch(
             Rectangle(
@@ -321,7 +366,7 @@ def trim_catalog_boundary(data, dim, trim_pixels, show=False):
         ax.scatter(col[w], row[w], color='blue', alpha=alpha)
         mplt.show()
 
-    return data[w]
+    return w
 
 
 def get_sim_shear(rng, shear, randomize_shear):
@@ -355,3 +400,119 @@ def unrotate_noshear_shear(data, meas_type, theta):
 
         data[gname][w, 0] = g1
         data[gname][w, 1] = g2
+
+
+def extract_cell_coadd_data(
+    coadd_data, cell_size, cell_buff, cell_ix, cell_iy,
+):
+    """
+    Parameters
+    ----------
+    coadd_data: dict
+        outpout of metadetect.lsst.util.extract_multiband_coadd_data
+    cell_size: int
+        Size of the cell in pixels
+    cell_buff: int
+        Overlap buffer for cells
+    cell_ix: int
+        The index of the cell for x
+    cell_iy: int
+        The index of the cell for y
+
+    Returns
+    --------
+    dict
+    """
+
+    output = {}
+
+    start_x, start_y = get_cell_start(
+        cell_size=cell_size, cell_buff=cell_buff,
+        cell_ix=cell_ix, cell_iy=cell_iy,
+    )
+
+    for key, item in coadd_data.items():
+        if key == 'ormasks':
+            new_item = [
+                ormask[
+                    start_y:start_y+cell_size,
+                    start_x:start_x+cell_size
+                ].copy()
+                for ormask in item
+            ]
+        else:
+            new_item = extract_cell_mbexp(
+                mbexp=item, cell_size=cell_size, cell_buff=cell_buff,
+                cell_ix=cell_ix,
+                cell_iy=cell_iy,
+            )
+        output[key] = new_item
+
+    return output
+
+
+def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
+    """
+    extract a sub mbexp for the specified cell
+
+    Parameters
+    ----------
+    mbexp: lsst.afw.image.MultibandExposure
+        The image data
+    cell_size: int
+        Size of the cell in pixels
+    cell_buff: int
+        Overlap buffer for cells
+    cell_ix: int
+        The index of the cell for x
+    cell_iy: int
+        The index of the cell for y
+
+    Returns
+    --------
+    mbexp: lsst.afw.image.MultibandExposure
+        The sub-mbexp for the cell
+    """
+    import lsst.geom as geom
+    from metadetect.lsst.util import get_mbexp, copy_mbexp
+
+    start_x, start_y = get_cell_start(
+        cell_size=cell_size, cell_buff=cell_buff,
+        cell_ix=cell_ix, cell_iy=cell_iy,
+    )
+
+    bbox_begin = mbexp.getBBox().getBegin()
+
+    new_begin = geom.Point2I(
+        x=bbox_begin.getX() + start_x,
+        y=bbox_begin.getY() + start_y,
+    )
+    extent = geom.Extent2I(cell_size)
+    new_bbox = geom.Box2I(
+        new_begin,
+        extent,
+    )
+
+    subexps = []
+    for band in mbexp.filters:
+        exp = mbexp[band]
+        # we need to make a copy of it
+        subexp = exp[new_bbox]
+
+        assert np.all(
+            exp.image.array[
+                start_y:start_y+cell_size,
+                start_x:start_x+cell_size
+            ] == subexp.image.array[:, :]
+        )
+
+        subexps.append(subexp)
+
+    # subexps = [mbexp[band][new_bbox] for band in mbexp.filters]
+    return copy_mbexp(get_mbexp(subexps))
+
+
+def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
+    start_x = cell_ix*(cell_size - 2*cell_buff)
+    start_y = cell_iy*(cell_size - 2*cell_buff)
+    return start_x, start_y
