@@ -102,6 +102,7 @@ def get_jackknife_struct(data):
         ('Tratio_min', 'f8'),
         ('max_star_density', 'f8'),
 
+        ('R11', 'f8'),
         ('m1', 'f8'),
         ('m1err', 'f8'),
         ('c1', 'f8'),
@@ -153,6 +154,7 @@ def jackknife(data, nocancel):
     c2cov = fac*((c2 - c2vals)**2).sum()
     c2err = np.sqrt(c2cov)
 
+    st['R11'] = R11
     st['m1'] = m1
     st['m1err'] = m1err
     st['c1'] = c1
