@@ -143,6 +143,8 @@ def run_cells(
     else:
         shear_types = ('1p', '1m')
 
+    infolist = []
+
     for trial in range(ntrial):
         logger.info('-'*70)
         logger.info('trial: %d/%d' % (trial+1, ntrial))
@@ -163,8 +165,10 @@ def run_cells(
                 buff=sim_config['buff'],
                 star_config=star_config,
             )
-            logger.info('star_density: %g' % star_catalog.density)
+            star_density = star_catalog.density
+            logger.info('star_density: %g' % star_density)
         else:
+            star_density = 0
             star_catalog = None
 
         trial_seed = rng.randint(0, 2**30)
@@ -233,6 +237,7 @@ def run_cells(
 
             for cell_ix in range(ncells):
                 for cell_iy in range(ncells):
+
                     logger.info('cell {%s, %s}' % (cell_ix, cell_iy))
                     cell_coadd_data = util.extract_cell_coadd_data(
                         coadd_data=orig_coadd_data,
@@ -259,6 +264,12 @@ def run_cells(
                         cell_coadd_data['mfrac_mbexp'],
                         trim_pixels=trim_pixels,
                     )
+
+                    if shear_type == '1p':
+                        info = util.make_info()
+                        info['star_density'] = star_density
+                        info['mask_frac'] = mask_frac
+                        infolist.append(info)
 
                     logger.info('mask_frac: %g' % mask_frac)
 
@@ -333,6 +344,8 @@ def run_cells(
     logger.info('time meas: %g minutes' % (tmmeas / 60))
     logger.info('time per trial: %g seconds' % tm_per_trial)
 
+    info = eu.numpy_util.combine_arrlist(infolist)
+
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     if not nocancel:
         data_1m = eu.numpy_util.combine_arrlist(dlist_m)
@@ -346,6 +359,8 @@ def run_cells(
 
             if not nocancel:
                 fits.write(data_1m, extname='1m')
+
+            fits.write(info, extname='info')
 
 
 def get_cell_checks(ncells, cell_ix, cell_iy):

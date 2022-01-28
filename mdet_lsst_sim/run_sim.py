@@ -135,6 +135,8 @@ def run_sim(
     else:
         shear_types = ('1p', '1m')
 
+    infolist = []
+
     for trial in range(ntrial):
         logger.info('-'*70)
         logger.info('trial: %d/%d' % (trial+1, ntrial))
@@ -148,6 +150,7 @@ def run_sim(
             sep=sim_config['sep'],  # for layout='pair'
             gal_config=gal_config,
         )
+
         if sim_config['stars']:
             star_catalog = make_star_catalog(
                 rng=rng,
@@ -236,6 +239,11 @@ def run_sim(
                 coadd_data['mfrac_mbexp'],
                 trim_pixels=trim_pixels,
             )
+            if shear_type == '1p':
+                info = util.make_info()
+                info['star_density'] = star_catalog.density
+                info['mask_frac'] = mask_frac
+                infolist.append(info)
 
             tmcoadd += time.time() - tmcoadd0
 
@@ -305,6 +313,7 @@ def run_sim(
     logger.info('time meas: %g minutes' % (tmmeas / 60))
     logger.info('time per trial: %g seconds' % tm_per_trial)
 
+    info = eu.numpy_util.combine_arrlist(infolist)
     data_1p = eu.numpy_util.combine_arrlist(dlist_p)
     if not nocancel:
         data_1m = eu.numpy_util.combine_arrlist(dlist_m)
@@ -318,3 +327,5 @@ def run_sim(
 
             if not nocancel:
                 fits.write(data_1m, extname='1m')
+
+            fits.write(info, extname='info')
