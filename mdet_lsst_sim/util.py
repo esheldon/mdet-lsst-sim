@@ -516,3 +516,7 @@ def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
     start_x = cell_ix*(cell_size - 2*cell_buff)
     start_y = cell_iy*(cell_size - 2*cell_buff)
     return start_x, start_y
+
+
+def make_info():
+    return np.zeros(1, dtype=[('mask_frac', 'f8'), ('star_density', 'f8')])
