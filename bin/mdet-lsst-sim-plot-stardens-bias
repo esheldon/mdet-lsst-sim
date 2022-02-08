@@ -133,13 +133,13 @@ def do_bias_plot(args, data):
 
     plt.legend()
 
-    lim = 2
+    lim = 1
     # zorder = 2
     plt.axhline(0, color='black')  # , zorder=zorder)
     plt.axhline(-lim, color='black', linestyle='dashed')  # , zorder=zorder)
     plt.axhline(+lim, color='black', linestyle='dashed')  # , zorder=zorder)
 
-    plt.axhline(0.4, color='grey', lw=2)
+    plt.axhline(0.4, color='grey', lw=2, alpha=0.5)
 
     plt.ntext(0.1, 0.9, r'$3~\sigma$ range')
 
