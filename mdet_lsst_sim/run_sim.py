@@ -158,8 +158,10 @@ def run_sim(
                 buff=sim_config['buff'],
                 star_config=star_config,
             )
+            star_density = star_catalog.density
             logger.info('star_density: %g' % star_catalog.density)
         else:
+            star_density = 0
             star_catalog = None
 
         trial_seed = rng.randint(0, 2**30)
@@ -241,7 +243,7 @@ def run_sim(
             )
             if shear_type == '1p':
                 info = util.make_info()
-                info['star_density'] = star_catalog.density
+                info['star_density'] = star_density
                 info['mask_frac'] = mask_frac
                 infolist.append(info)
 
