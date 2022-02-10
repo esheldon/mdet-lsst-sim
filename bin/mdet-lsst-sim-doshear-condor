@@ -1,0 +1,138 @@
+#!/usr/bin/env python
+from pprint import pprint
+import argparse
+import fitsio
+import esutil as eu
+from mattspy.condor_exec import BNLCondorExecutor
+from concurrent.futures import as_completed
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--config', required=True)
+    parser.add_argument('-n', '--max-workers', type=int, default=300)
+
+    parser.add_argument('--nocancel', action='store_true')
+
+    parser.add_argument('--chunksize', type=int, default=1)
+
+    parser.add_argument('--limit', type=int)
+
+    parser.add_argument('--nowarp', action='store_true')
+
+    return parser.parse_args()
+
+
+def main():
+    from tqdm import trange
+    from mdet_lsst_sim.doshear import (
+        jackknife, read_config, get_flist, print_stats,
+        get_mc_file,
+    )
+
+    args = get_args()
+    config = read_config(args.config)
+
+    flist = get_flist(args.run, limit=args.limit)
+    flist.sort()
+
+    # jackknife chunksize
+    jack_chunksize = args.chunksize
+
+    worker_chunks = split_into_chunks(flist, args.max_workers)
+
+    worker_inputs = [
+        (config, jack_chunksize, worker_chunk)
+        for worker_chunk in worker_chunks
+    ]
+
+    print('run:', args.run)
+    print('processing:', len(flist))
+    print('jackknife chunksize:', jack_chunksize)
+    pprint(config)
+
+    # defaults to mem=2
+    with BNLCondorExecutor(max_workers=args.max_workers) as cexec:
+
+        futures = []
+        for tinputs in worker_inputs:
+            future = cexec.submit(do_work, tinputs)
+            futures.append(future)
+
+        dlist = []
+        fsgen = as_completed(futures)
+        for i in trange(len(futures)):
+            this_data = fsgen.__next__().result()
+            if this_data is not None:
+                dlist += this_data
+
+    print('processed:', len(flist))
+
+    data = {}
+
+    for data_dict in dlist:
+        for key in data_dict:
+            if key not in data:
+                data[key] = []
+            data[key].append(data_dict[key])
+
+    for key in data:
+        print('jackknifing:', key)
+        key_data = eu.numpy_util.combine_arrlist(data[key])
+
+        st = jackknife(key_data, nocancel=args.nocancel)
+        print_stats(st)
+
+        fname = get_mc_file(
+            run=args.run,
+            key=key,
+            nocancel=args.nocancel,
+            require_primary=config['require_primary'],
+        )
+
+        print('writing:', fname)
+        fitsio.write(fname, st, clobber=True)
+
+
+def do_work(inputs):
+    from mdet_lsst_sim.doshear import process_set
+
+    config, jack_chunksize, worker_flist = inputs
+
+    nf = len(worker_flist)
+
+    jack_chunked_inputs = [
+        (config, worker_flist[start:start+jack_chunksize])
+        for start in range(0, nf, jack_chunksize)
+    ]
+
+    # list of dicts
+    return [
+        process_set(inputs) for inputs in jack_chunked_inputs
+    ]
+
+
+def split_into_chunks(flist, nchunks):
+    nel = len(flist)
+    chunksize = nel // nchunks
+
+    chunks = []
+
+    for i in range(nchunks):
+        start = i*chunksize
+
+        if i == (nchunks-1):
+            end = nel
+        else:
+            end = (i+1) * chunksize
+
+        thischunk = flist[start:end]
+        chunks.append(thischunk)
+
+    assert len(chunks) == nchunks
+    return chunks
+
+
+if __name__ == '__main__':
+    main()
