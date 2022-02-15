@@ -1,13 +1,8 @@
 #!/usr/bin/env python
-from pprint import pprint
-import argparse
-import fitsio
-import esutil as eu
-from mattspy.condor_exec import BNLCondorExecutor
-from concurrent.futures import as_completed
 
 
 def get_args():
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--run', required=True)
     parser.add_argument('--config', required=True)
@@ -25,13 +20,21 @@ def get_args():
 
 
 def main():
+    import numpy as np
+    import fitsio
+    import esutil as eu
+    from pprint import pprint
     from tqdm import tqdm as progress
     from mdet_lsst_sim.doshear import (
         jackknife, read_config, get_flist, print_stats,
         get_mc_file,
     )
+    from mattspy.condor_exec import BNLCondorExecutor
+    from concurrent.futures import as_completed
+    # from concurrent.futures import TimeoutError
 
     args = get_args()
+
     config = read_config(args.config)
 
     flist = get_flist(args.run, limit=args.limit)
@@ -40,7 +43,7 @@ def main():
     # jackknife chunksize
     jack_chunksize = args.chunksize
 
-    worker_chunks = split_into_chunks(flist, args.max_workers)
+    worker_chunks = np.array_split(flist, args.max_workers)
 
     worker_inputs = [
         (config, jack_chunksize, worker_chunk)
@@ -60,10 +63,10 @@ def main():
             for worker_input in worker_inputs
         ]
 
-        dlist = [
-            future.result() for future in
-            progress(as_completed(futures), total=len(futures))
-        ]
+        nf = len(futures)
+        dlist = []
+        for future in progress(as_completed(futures), total=nf):
+            dlist += future.result()
 
     print('processed:', len(flist))
 
@@ -109,27 +112,6 @@ def do_work(inputs):
     return [
         process_set(inputs) for inputs in jack_chunked_inputs
     ]
-
-
-def split_into_chunks(flist, nchunks):
-    nel = len(flist)
-    chunksize = nel // nchunks
-
-    chunks = []
-
-    for i in range(nchunks):
-        start = i*chunksize
-
-        if i == (nchunks-1):
-            end = nel
-        else:
-            end = (i+1) * chunksize
-
-        thischunk = flist[start:end]
-        chunks.append(thischunk)
-
-    assert len(chunks) == nchunks
-    return chunks
 
 
 if __name__ == '__main__':
