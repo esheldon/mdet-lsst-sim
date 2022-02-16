@@ -199,14 +199,17 @@ def get_sums(
 
     s2n = data['%s_s2n' % model]
     T_ratio = data['%s_T_ratio' % model]
-    g = data['%s_g' % model]
+    gvals = data['%s_g' % model]
+    g = np.sqrt(gvals[:, 0]**2 + gvals[:, 1]**2)
 
     logic = (
         (data['shear_type'] == stype) &
-        (data['flags'] == 0) &
+        ((data['flags'] == 0) | (data['flags'] == 2**19)) &
+        # (data['flags'] == 0) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
-        between(g[:, 0], -1, 1) & between(g[:, 1], -1, 1)
+        # (g < 1) &
+        (g < 3)
     )
 
     if 'bmask' in data.dtype.names:
@@ -228,12 +231,12 @@ def get_sums(
 
         if use_weights:
             wts = get_weights(data, w, model)
-            g_sum[0] = (wts * g[w, 0]).sum()
-            g_sum[1] = (wts * g[w, 1]).sum()
+            g_sum[0] = (wts * gvals[w, 0]).sum()
+            g_sum[1] = (wts * gvals[w, 1]).sum()
             wsum = wts.sum()
         else:
-            g_sum[0] = g[w, 0].sum()
-            g_sum[1] = g[w, 1].sum()
+            g_sum[0] = gvals[w, 0].sum()
+            g_sum[1] = gvals[w, 1].sum()
             wsum = w.size
 
     return g_sum, wsum
