@@ -164,11 +164,24 @@ def jackknife(data, nocancel):
     return st
 
 
-def get_weights(data, ind, model):
+def get_weights(data, ind, model, weight_type):
     g_cov = data['%s_g_cov' % model]
     err_term = g_cov[ind, 0, 0] + g_cov[ind, 1, 1]
 
-    return 1.0/(2*0.2**2 + err_term)
+    weights = 1.0/(2*0.2**2 + err_term)
+
+    if weight_type == 'g':
+        import ngmix
+        prior = ngmix.priors.GPriorBA(0.3, rng=np.random.RandomState())
+        g = data['%s_g' % model]
+        pvals = prior.get_prob_array2d(g[ind, 0], g[ind, 1])
+        weights *= pvals
+    elif weight_type == 'covar':
+        pass
+    else:
+        raise ValueError(f'bad weight_type {weight_type}')
+
+    return weights
 
 
 def get_sums(
@@ -181,6 +194,7 @@ def get_sums(
     max_star_density,
     require_primary,
     use_weights,
+    weight_type,
     data,
 ):
 
@@ -230,7 +244,7 @@ def get_sums(
     if w.size > 0:
 
         if use_weights:
-            wts = get_weights(data, w, model)
+            wts = get_weights(data, w, model, weight_type=weight_type)
             g_sum[0] = (wts * gvals[w, 0]).sum()
             g_sum[1] = (wts * gvals[w, 1]).sum()
             wsum = wts.sum()
@@ -266,7 +280,7 @@ def get_key(
     return '-'.join(klist)
 
 
-def get_mc_file(run, key, nocancel, require_primary=True):
+def get_mc_file(run, key, nocancel, weight_type, require_primary=True):
     nlist = []
 
     if nocancel:
@@ -274,6 +288,9 @@ def get_mc_file(run, key, nocancel, require_primary=True):
 
     if not require_primary:
         nlist += ['noprimary']
+
+    if weight_type is not None:
+        nlist += [weight_type+'weight']
 
     nlist += [
         'mc',
@@ -447,6 +464,7 @@ def process_one(config, fname):
                                         max_mfrac=max_mfrac,
                                         max_star_density=max_star_density,
                                         use_weights=config['use_weights'],
+                                        weight_type=config['weight_type'],
                                         require_primary=config['require_primary'],  # noqa
                                         data=data,
                                     )
