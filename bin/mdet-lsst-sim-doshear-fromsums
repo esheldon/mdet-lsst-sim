@@ -5,14 +5,13 @@ import esutil as eu
 from pprint import pprint
 
 
-def main(run, flist, nocancel, config_file):
+def main(flist, nocancel, config_file):
     from mdet_lsst_sim.doshear import (
         jackknife, print_stats, get_mc_file, read_config,
     )
 
     config = read_config(config_file)
 
-    print('run:', run)
     pprint(config)
     print('processing:', len(flist))
 
@@ -43,7 +42,6 @@ def main(run, flist, nocancel, config_file):
         print_stats(st)
 
         fname = get_mc_file(
-            run=run,
             key=key,
             nocancel=nocancel,
             weight_type=config.get('weight_type', None),
@@ -57,7 +55,6 @@ def main(run, flist, nocancel, config_file):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run', required=True)
     parser.add_argument('--config', required=True)
     parser.add_argument('--flist', nargs='+', required=True)
     parser.add_argument('--nocancel', action='store_true')
@@ -67,7 +64,6 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     main(
-        run=args.run,
         config_file=args.config,
         flist=args.flist,
         nocancel=args.nocancel,

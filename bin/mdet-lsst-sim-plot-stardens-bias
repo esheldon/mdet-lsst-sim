@@ -59,6 +59,13 @@ def read_data(args):
     return data
 
 
+def key2label(key):
+    ks = key.split('-')
+    if ks[0] == 'imfrac':
+        ks = ks[2:]
+    return ' '.join(ks)
+
+
 def do_error_plot(args, data):
 
     alpha = 0.5
@@ -80,8 +87,10 @@ def do_error_plot(args, data):
     minval = min(errvals)
     for key in sorted(data):
         mdata = data[key]
+
+        label = key2label(key)
         # label = r'mfrac $ < %.2f$' % mfrac
-        label = key
+        # label = key
 
         plt.plot(
             mdata['sdens'],
@@ -110,8 +119,10 @@ def do_bias_plot(args, data):
     )
     for i, key in enumerate(sorted(data)):
         mdata = data[key]
+
+        label = key2label(key)
         # label = r'mfrac $ < %.2f$' % mfrac
-        label = key
+        # label = key
 
         plt.plot(
             mdata['sdens'],
