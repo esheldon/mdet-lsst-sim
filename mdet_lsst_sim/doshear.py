@@ -437,6 +437,9 @@ def process_one(config, fname):
     if data_1p is None or data_1m is None:
         return None
 
+    use_weights = config['use_weights']
+    weight_type = config.get('weight_type', 'g')
+
     data_dict = {}
     for s2n_min in config['s2n_min']:
         for s2n_max in config['s2n_max']:
@@ -463,8 +466,8 @@ def process_one(config, fname):
                                         max_mask_frac=max_mask_frac,
                                         max_mfrac=max_mfrac,
                                         max_star_density=max_star_density,
-                                        use_weights=config['use_weights'],
-                                        weight_type=config['weight_type'],
+                                        use_weights=use_weights,
+                                        weight_type=weight_type,
                                         require_primary=config['require_primary'],  # noqa
                                         data=data,
                                     )
@@ -483,7 +486,7 @@ def process_one(config, fname):
                                 max_mask_frac=max_mask_frac,
                                 max_mfrac=max_mfrac,
                                 max_star_density=max_star_density,
-                                use_weights=config['use_weights'],
+                                use_weights=use_weights,
                             )
                             data_dict[key] = d
 
