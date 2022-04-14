@@ -21,9 +21,11 @@ def read_data(args):
 
         mask_frac = tdata['max_mask_frac']
         mfrac = tdata['max_mfrac']
+        s2n_min = tdata['s2n_min']
         sdens = tdata['max_star_density']
 
-        key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
+        # key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
+        key = f's2n-{s2n_min:.1f}-mfrac-{mfrac:.2f}'
 
         m1err = tdata['m1err'] * 3
         m1high = tdata['m1'] + m1err
@@ -63,6 +65,9 @@ def key2label(key):
     ks = key.split('-')
     if ks[0] == 'imfrac':
         ks = ks[2:]
+    if ks[0] == 's2n':
+        ks[0] = r'S/N $>$'
+        ks = ks[:2]
     return ' '.join(ks)
 
 
@@ -121,8 +126,6 @@ def do_bias_plot(args, data):
         mdata = data[key]
 
         label = key2label(key)
-        # label = r'mfrac $ < %.2f$' % mfrac
-        # label = key
 
         plt.plot(
             mdata['sdens'],
@@ -133,7 +136,8 @@ def do_bias_plot(args, data):
             # alpha=alpha,
         )
 
-        if i == 0:
+        # if i == 0:
+        if True:
             plt.fill_between(
                 mdata['sdens'],
                 mdata['m1high'] / 0.001,

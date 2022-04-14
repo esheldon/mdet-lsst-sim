@@ -235,7 +235,6 @@ def get_sums(
     logic &= (data['mfrac'] < max_mfrac)
     logic &= (data['true_star_density'] < max_star_density)
 
-    print('max mfrac:', max_mfrac, type(max_mfrac))
     w, = np.where(logic)
 
     g_sum = np.zeros(2)
