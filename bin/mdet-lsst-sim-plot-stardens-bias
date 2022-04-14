@@ -2,8 +2,41 @@
 
 import numpy as np
 import argparse
-import hickory
 import fitsio
+from matplotlib import pyplot as mplt
+
+WIDTH = 6
+
+MARKERS = ('o', 'd', '^', 's', 'v', 'h', 'p', 'P', 'H', 'X')
+
+EXTRA_LINESTYLES = {
+    'loose dotted': (0, (1, 10)),
+    'dense dotted': (0, (1, 1)),
+
+    'loose dashed': (0, (5, 5)),
+    'very loose dashed': (0, (5, 10)),
+    'dense dashed': (0, (5, 1)),
+
+    'dashdotdot': (0, (3, 5, 1, 5, 1, 5)),
+
+    'dense dashdot': (0, (3, 1, 1, 1)),
+    'dense dashdotdot': (0, (3, 1, 1, 1, 1, 1)),
+}
+
+LINESTYLES = (
+    'solid', 'dashed', 'dotted',
+    EXTRA_LINESTYLES['dense dashdot'],
+    EXTRA_LINESTYLES['loose dashed'],
+    EXTRA_LINESTYLES['dense dashdotdot'],
+    EXTRA_LINESTYLES['dense dotted'],
+    'dashdot',
+    EXTRA_LINESTYLES['very loose dashed'],
+    EXTRA_LINESTYLES['dense dashed'],
+)
+COLORS = [
+    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+    '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+]
 
 
 def get_args():
@@ -19,13 +52,15 @@ def read_data(args):
     for f in args.flist:
         tdata = fitsio.read(f)[0]
 
-        mask_frac = tdata['max_mask_frac']
-        mfrac = tdata['max_mfrac']
+        # mask_frac = tdata['max_mask_frac']
+        # mfrac = tdata['max_mfrac']
         s2n_min = tdata['s2n_min']
         sdens = tdata['max_star_density']
+        Tratio_min = tdata['Tratio_min']
 
         # key = f'imfrac-{mask_frac:.2f}-mfrac-{mfrac:.2f}'
-        key = f's2n-{s2n_min:.1f}-mfrac-{mfrac:.2f}'
+        # key = f's2n-{s2n_min:.1f}-mfrac-{mfrac:.2f}'
+        key = f's2n-{s2n_min:.1f}-Tratio-{Tratio_min:.1f}'
 
         m1err = tdata['m1err'] * 3
         m1high = tdata['m1'] + m1err
@@ -63,103 +98,150 @@ def read_data(args):
 
 def key2label(key):
     ks = key.split('-')
-    if ks[0] == 'imfrac':
-        ks = ks[2:]
-    if ks[0] == 's2n':
-        ks[0] = r'S/N $>$'
-        ks = ks[:2]
+    # import IPython; IPython.embed()
+    ks = [
+        r'S/N $>$',
+        ks[1],
+        '$T/T_{PSF} > $',
+        ks[3],
+    ]
+    # if ks[0] == 'imfrac':
+    #     ks = ks[2:]
+    # if ks[0] == 's2n':
+    #     ks[0] = r'S/N $>$'
+    #     ks = ks[:2]
     return ' '.join(ks)
 
 
 def do_error_plot(args, data):
 
     alpha = 0.5
-    width = 8
-    height = width * hickory.GOLDEN_ARATIO
-    plt = hickory.Plot(
+    figsize = (WIDTH, WIDTH/1.618)
+
+    fig, ax = mplt.subplots(figsize=figsize)
+    ax.set(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel=r'$\sigma(\gamma) / \sigma_{min}(\gamma)$',
-        ylim=(0.95, 1.5),
-        figsize=(width, height),
+        ylim=(0.95, 1.6),
+
     )
-    plt.axhline(1, color='black')
+
+    ax.axhline(1, color='black')
 
     errvals = []
     for key in data:
         mdata = data[key]
         errvals += list(data[key]['m1err'])
 
+    # colors = ['-', '.', '-.', '--']
     minval = min(errvals)
-    for key in sorted(data):
+    for i, key in enumerate(sorted(data)):
         mdata = data[key]
 
         label = key2label(key)
         # label = r'mfrac $ < %.2f$' % mfrac
         # label = key
 
-        plt.plot(
+        ax.plot(
             mdata['sdens'],
             mdata['m1err']/minval,
-            linestyle='cycle',
+            linestyle=LINESTYLES[i],
+            color=COLORS[i],
+            marker=MARKERS[i],
+            markeredgecolor='black',
             label=label,
             alpha=alpha,
         )
+        # ax.scatter(
+        #     mdata['sdens'],
+        #     mdata['m1err']/minval,
+        #     linestyle='cycle',
+        #     label=label,
+        #     alpha=alpha,
+        # )
 
-    plt.legend()
+    ax.legend()
     fname = args.pdf.replace('.pdf', '-error.pdf')
     print('writing:', fname)
-    plt.savefig(fname)
+    mplt.savefig(fname)
 
 
 def do_bias_plot(args, data):
 
     alpha = 0.3
-    width = 8
-    height = width * hickory.GOLDEN_ARATIO
-    plt = hickory.Plot(
+
+    figsize = (WIDTH, WIDTH/1.618)
+
+    fig, ax = mplt.subplots(figsize=figsize)
+    ax.set(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
-        ylim=(-5, 5),
-        figsize=(width, height),
+        ylim=(-2, 5),
     )
+    # colors = ['red', 'blue', 'cyan', 'green']
+    hatches = [
+        None,
+        '//',
+        '\\\\',
+        '||',
+        # '-',
+        # '+',
+        # 'x',
+        # 'o',
+        # 'O',
+        # '.',
+        # '*',
+        None,
+    ]
     for i, key in enumerate(sorted(data)):
         mdata = data[key]
 
         label = key2label(key)
 
-        plt.plot(
-            mdata['sdens'],
-            mdata['m1'] / 0.001,
-            linestyle='cycle',
-            label=label,
-            markeredgecolor='black',
-            # alpha=alpha,
-        )
+        # ax.plot(
+        #     mdata['sdens'],
+        #     mdata['m1'] / 0.001,
+        #     # label=label,
+        #     # markeredgecolor='black',
+        #     # alpha=alpha,
+        # )
+        # ax.scatter(
+        #     mdata['sdens'],
+        #     mdata['m1'] / 0.001,
+        #     label=label,
+        #     # markeredgecolor='black',
+        #     # alpha=alpha,
+        # )
 
         # if i == 0:
         if True:
-            plt.fill_between(
+            ax.fill_between(
                 mdata['sdens'],
                 mdata['m1high'] / 0.001,
                 mdata['m1low'] / 0.001,
-                # label=label,
+                label=label,
                 alpha=alpha,
+                # color=colors[i],
+                color='black',
+                # color='green',
+                hatch=hatches[i],
             )
 
-    plt.legend()
+    ax.legend()  # loc='lower left')
 
     lim = 1
     # zorder = 2
-    plt.axhline(0, color='black')  # , zorder=zorder)
-    plt.axhline(-lim, color='black', linestyle='dashed')  # , zorder=zorder)
-    plt.axhline(+lim, color='black', linestyle='dashed')  # , zorder=zorder)
+    lcolor = 'seagreen'
+    ax.axhline(0, color='black')  # , zorder=zorder)
+    ax.axhline(-lim, color=lcolor, linestyle='dashed')  # , zorder=zorder)
+    ax.axhline(+lim, color=lcolor, linestyle='dashed')  # , zorder=zorder)
 
-    plt.axhline(0.4, color='grey', lw=2, alpha=0.5)
+    ax.axhline(0.4, color='blue', lw=2, alpha=0.5)
 
-    plt.ntext(0.1, 0.9, r'$3~\sigma$ range')
+    ax.text(5, 4, r'$3~\sigma$ range')
 
     print('writing:', args.pdf)
-    plt.savefig(args.pdf)
+    mplt.savefig(args.pdf)
 
 
 def main():
