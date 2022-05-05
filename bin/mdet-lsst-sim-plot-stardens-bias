@@ -43,6 +43,9 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('flist', nargs='+')
     parser.add_argument('--pdf', required=True)
+    parser.add_argument(
+        '--add-nostars', action='store_true', help='add nostar point'
+    )
     return parser.parse_args()
 
 
@@ -102,8 +105,8 @@ def key2label(key):
     ks = [
         r'S/N $>$',
         ks[1],
-        '$T/T_{PSF} > $',
-        ks[3],
+        # '$T/T_{PSF} > $',
+        # ks[3],
     ]
     # if ks[0] == 'imfrac':
     #     ks = ks[2:]
@@ -227,7 +230,29 @@ def do_bias_plot(args, data):
                 hatch=hatches[i],
             )
 
-    ax.legend()  # loc='lower left')
+    if args.add_nostars:
+        offs = np.array([-0.2, -0.1, 0.1, 0.2]) * 5
+        mlows = [0.000537855, 1.14029e-05, 0.000262504, -6.0565e-05]
+        mhighs = [0.00221166, 0.00155558, 0.00167005, 0.00125373]
+        s2ns = [10, 12.5, 15, 20]
+        # markers = ['o', 'x', 'O', '*']
+        for off, mlow, mhigh, s2n, marker in zip(
+            offs, mlows, mhighs, s2ns, MARKERS
+        ):
+            # mlow = -6.0565e-05
+            # mhigh = 0.00125373
+            m = 0.5 * (mlow + mhigh) / 0.001
+            merr = 0.5 * (mhigh - mlow) / 0.001
+            ax.errorbar(
+                0 + off, m, merr, ls='',
+                # marker='o', color='#c06717',
+                marker=marker,
+                markersize=4,
+                alpha=0.5,
+                label=r'no stars S/N $>$ %.1f' % s2n,
+            )
+
+    ax.legend(ncol=2)  # loc='lower left')
 
     lim = 1
     # zorder = 2
@@ -238,7 +263,13 @@ def do_bias_plot(args, data):
 
     ax.axhline(0.4, color='blue', lw=2, alpha=0.5)
 
-    ax.text(5, 4, r'$3~\sigma$ range')
+    # ax.text(5, 4, r'$3~\sigma$ range')
+    ax.text(
+        # 5,
+        -3,
+        4,
+        r'99.7\% confidence errors',
+    )
 
     print('writing:', args.pdf)
     mplt.savefig(args.pdf)
