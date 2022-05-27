@@ -223,10 +223,6 @@ def run_sim(
 
             if show:
                 if len(coadd_data['mbexp']) >= 3:
-                    # from metadetect.lsst.util import get_mbexp
-                    # exps = [bd[0] for band, bd in sim_data['band_data'].items()]
-                    # sim_mbexp = get_mbexp(exps[:3])
-                    # lsst_vis.show_mbexp(sim_mbexp)
                     lsst_vis.show_mbexp(
                         coadd_data['mbexp'],
                         stretch=3,
