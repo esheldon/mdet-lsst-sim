@@ -231,25 +231,41 @@ def do_bias_plot(args, data):
             )
 
     if args.add_nostars:
-        offs = np.array([-0.2, -0.1, 0.1, 0.2]) * 5
-        mlows = [0.000537855, 1.14029e-05, 0.000262504, -6.0565e-05]
-        mhighs = [0.00221166, 0.00155558, 0.00167005, 0.00125373]
+        # baseoff = 5
+        # offs = np.array([-0.2, -0.1, 0.1, 0.2]) * baseoff
+        baseoff = 10
+        offs = np.array([-0.75, -0.25, 0.25, 0.75])
+
+        mlows = [0.000553132, -5.80659e-05, 0.000227885, -3.67881e-05]
+        mhighs = [0.0020267, 0.00131326, 0.00148068, 0.00113388]
+
         s2ns = [10, 12.5, 15, 20]
         # markers = ['o', 'x', 'O', '*']
         for off, mlow, mhigh, s2n, marker in zip(
             offs, mlows, mhighs, s2ns, MARKERS
         ):
+            label = r'no stars S/N $>$ %.1f' % s2n
             # mlow = -6.0565e-05
             # mhigh = 0.00125373
-            m = 0.5 * (mlow + mhigh) / 0.001
-            merr = 0.5 * (mhigh - mlow) / 0.001
-            ax.errorbar(
-                0 + off, m, merr, ls='',
-                # marker='o', color='#c06717',
-                marker=marker,
-                markersize=4,
+            # m = 0.5 * (mlow + mhigh) / 0.001
+            # merr = 0.5 * (mhigh - mlow) / 0.001
+            # ax.errorbar(
+            #     0 + off, m, merr, ls='',
+            #     # marker='o', color='#c06717',
+            #     marker=marker,
+            #     markersize=4,
+            #     alpha=0.5,
+            #     label=label,
+            # )
+            mlow = mlow / 0.001
+            mhigh = mhigh / 0.001
+            ax.fill_between(
+                [off-0.5, off+0.5],
+                # [-1, 1],
+                [mhigh, mhigh],
+                [mlow, mlow],
+                label=label,
                 alpha=0.5,
-                label=r'no stars S/N $>$ %.1f' % s2n,
             )
 
     ax.legend(ncol=2)  # loc='lower left')
