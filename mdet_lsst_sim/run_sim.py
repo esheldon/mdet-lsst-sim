@@ -222,7 +222,14 @@ def run_sim(
             )
 
             if show:
-                lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
+                if len(coadd_data['mbexp']) >= 3:
+                    lsst_vis.show_mbexp(
+                        coadd_data['mbexp'],
+                        stretch=3,
+                        # q=20,
+                    )
+                else:
+                    lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
 
             apply_apodized_edge_masks_mbexp(**coadd_data)
             if len(sim_data['bright_info']) > 0:

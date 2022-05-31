@@ -11,8 +11,7 @@ NSIGMA = 3
 perc = '99.7'
 
 
-def get_flist(run, limit=None):
-    directory = f'runs/{run}'
+def get_flist(directory, limit=None):
 
     flist = []
     for root, dirs, files in os.walk(directory, topdown=False):
@@ -280,7 +279,7 @@ def get_key(
     return '-'.join(klist)
 
 
-def get_mc_file(run, key, nocancel, weight_type, require_primary=True):
+def get_mc_file(key, nocancel, weight_type, require_primary=True):
     nlist = []
 
     if nocancel:
@@ -294,38 +293,28 @@ def get_mc_file(run, key, nocancel, weight_type, require_primary=True):
 
     nlist += [
         'mc',
-        run,
         key,
     ]
     fname = '-'.join(nlist) + '.fits'
     return os.path.join(OUTDIR, fname)
 
 
-def get_sums_dir(run):
-    return f'sums/{run}'
+def get_sums_file(chunk):
+    fname = f'sums-{chunk:06d}.fits'
+    return fname
 
 
-def get_sums_file(run, chunk):
-    d = get_sums_dir(run)
-    fname = f'{run}-sums-{chunk:06d}.fits'
-    return os.path.join(d, fname)
+def get_sums_flist_file(chunk):
+    fname = f'flist-{chunk:06d}.txt'
+    return fname
 
 
-def get_sums_flist_file(run, chunk):
-    d = get_sums_dir(run)
-    fname = f'{run}-flist-{chunk:06d}.txt'
-    return os.path.join(d, fname)
+def get_sums_script_file():
+    return 'run.sh'
 
 
-def get_sums_script_file(run):
-    d = get_sums_dir(run)
-    return os.path.join(d, 'run.sh')
-
-
-def get_doshear_condor_file(run):
-    d = get_sums_dir(run)
-    fname = f'{run}-doshear.condor'
-    return os.path.join(d, fname)
+def get_doshear_condor_file():
+    return 'doshear.condor'
 
 
 def chunk_flist(flist, nchunks):
