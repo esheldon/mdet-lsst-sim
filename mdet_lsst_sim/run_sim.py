@@ -184,7 +184,11 @@ def run_sim(
             logger.info('shear: %.3f, %.3f theta: %s', g1, g2, theta)
 
             if sim_config['psf_type'] == 'ps':
-                psf = make_ps_psf(rng=trial_rng, dim=sim_config['se_dim'])
+                psf = make_ps_psf(
+                    rng=trial_rng,
+                    dim=sim_config['se_dim'],
+                    variation_factor=sim_config['psf_variation_factor'],
+                )
             else:
                 psf = make_fixed_psf(psf_type=sim_config["psf_type"])
 
