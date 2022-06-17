@@ -236,6 +236,7 @@ def do_bias_plot(args, data):
         baseoff = 10
         offs = np.array([-0.75, -0.25, 0.25, 0.75])
 
+        # from run-riz-drcbWP-cells
         mlows = [0.000553132, -5.80659e-05, 0.000227885, -3.67881e-05]
         mhighs = [0.0020267, 0.00131326, 0.00148068, 0.00113388]
 
