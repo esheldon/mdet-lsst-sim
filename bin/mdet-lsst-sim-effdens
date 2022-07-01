@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+import numpy as np
+import argparse
+import esutil as eu
+from esutil.numpy_util import between
+import ngmix
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--area', type=float, required=True,
+                        help='area in square degrees')
+    parser.add_argument('--R', type=float, required=True)
+    parser.add_argument('--sgamma', type=float, required=True)
+    parser.add_argument('--max-stellar-density', type=float, required=True)
+    parser.add_argument('--min-s2n', type=float, required=True)
+    parser.add_argument('--max-s2n', type=float, default=100)
+    parser.add_argument('--min-Tratio', type=float, default=1.2)
+    parser.add_argument('--use-weights', action='store_true')
+    parser.add_argument('--flist', nargs='+', required=True)
+    return parser.parse_args()
+
+
+def go():
+
+    args = get_args()
+    data = eu.io.read(args.flist)
+
+    wbasic, = np.where(
+        (data['shear_type'] == 'noshear') &
+        (data['flags'] == 0)
+    )
+
+    mean_mask_frac = data['mask_frac'].mean()
+    usedarea = args.area * (1 - mean_mask_frac) * 60**2
+
+    w, = np.where(
+        (data['shear_type'] == 'noshear') &
+        (data['flags'] == 0) &
+        (data['wmom_T_ratio'] > args.min_Tratio) &
+        between(data['wmom_s2n'], args.min_s2n, args.max_s2n) &
+        (data['bmask'] == 0) &
+        data['primary'] &
+        (data['mfrac'] < 0.02) &
+        (data['mask_frac'] < 0.10) &
+        # (g < 3) &
+        (data['true_star_density'] < args.max_stellar_density)
+    )
+
+    raw_sn = data['wmom_g'][w, 0].std()
+    if args.use_weights:
+        ctrace = data['wmom_g_cov'][w, 0, 0] + data['wmom_g_cov'][w, 1, 1]
+        covw = 1.0 / (ctrace + 2 * raw_sn**2)
+
+        prior = ngmix.priors.GPriorBA(0.3, rng=np.random.RandomState())
+
+        gw = prior.get_prob_array2d(data['wmom_g'][w, 0], data['wmom_g'][w, 1])
+
+        weights = covw * gw
+        mn, err, sn = eu.stat.wmom(data['wmom_g'][w, 0], weights, sdev=True)
+
+    else:
+        sn = raw_sn
+
+    print(f'mean mask frac: {mean_mask_frac:.2f}')
+    print(f'used area: {usedarea/3600:.3f} square degrees')
+    print(f'sn: {sn:.3f}')
+    effdens = sn**2 / (args.R**2 * usedarea * args.sgamma**2)
+    print(f'effdens: {effdens:.3f} per square arcminute')
+
+
+go()
