@@ -339,6 +339,9 @@ def chunk_flist(flist, nchunks):
 
         start = start + this_chunksize
 
+    flists = [
+        flist for flist in flists if len(flist) > 0
+    ]
     return flists
 
 
