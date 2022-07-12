@@ -16,10 +16,6 @@ def get_args():
         help='number of trials per file',
     )
 
-    parser.add_argument(
-        '--example-files',
-        help='optional list of files from which to get the masked fraction',
-    )
     return parser.parse_args()
 
 
@@ -32,21 +28,6 @@ def load_config(fname):
 
     sim_config = config.get('sim', None)
     return get_sim_config(sim_config)
-
-
-def get_mask_frac(flist):
-    import numpy as np
-    import fitsio
-
-    num = 0
-    mask_frac_sum = 0.0
-    for f in flist:
-        t = fitsio.read(f)
-        w, = np.where(t['shear_type'] == 'noshear')
-        num += w.size
-        mask_frac_sum += t['mask_frac'][w].sum()
-
-    return mask_frac_sum / num
 
 
 def go():
@@ -63,13 +44,6 @@ def go():
 
     total_area_degrees = args.nfiles * args.ntrial * drawn_area_degrees
     print(f'{total_area_degrees:.2f} degrees')
-
-    if args.example_files is not None:
-        mask_frac = get_mask_frac(args.example_files)
-        print(f'mask_frac: {mask_frac:.2f}')
-
-        unmasked_area = total_area_degrees * (1 - mask_frac)
-        print(f'unmasked area: {unmasked_area:.2f} degrees')
 
 
 go()
