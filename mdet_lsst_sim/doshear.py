@@ -163,11 +163,11 @@ def jackknife(data, nocancel):
     return st
 
 
-def get_weights(data, ind, model, weight_type):
+def get_weights(data, ind, model, weight_type, sn):
     g_cov = data['%s_g_cov' % model]
     err_term = g_cov[ind, 0, 0] + g_cov[ind, 1, 1]
 
-    weights = 1.0/(2*0.2**2 + err_term)
+    weights = 1.0/(2*sn**2 + err_term)
 
     if weight_type == 'g':
         import ngmix
@@ -194,6 +194,7 @@ def get_sums(
     require_primary,
     use_weights,
     weight_type,
+    shapenoise,
     data,
 ):
 
@@ -243,7 +244,9 @@ def get_sums(
     if w.size > 0:
 
         if use_weights:
-            wts = get_weights(data, w, model, weight_type=weight_type)
+            wts = get_weights(
+                data, w, model, weight_type=weight_type, sn=shapenoise,
+            )
             g_sum[0] = (wts * gvals[w, 0]).sum()
             g_sum[1] = (wts * gvals[w, 1]).sum()
             wsum = wts.sum()
@@ -460,6 +463,7 @@ def process_one(config, fname):
                                         max_star_density=max_star_density,
                                         use_weights=use_weights,
                                         weight_type=weight_type,
+                                        shapenoise=config['shapenoise'],
                                         require_primary=config['require_primary'],  # noqa
                                         data=data,
                                     )
