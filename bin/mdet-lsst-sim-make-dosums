@@ -43,6 +43,8 @@ outfile=$2
 
 cut_config=%(cut_config)s
 
+export OMP_NUM_THREADS=1
+
 mdet-lsst-sim-dosums     \
     --cut-config ${cut_config} \
     --flist ${flist}           \

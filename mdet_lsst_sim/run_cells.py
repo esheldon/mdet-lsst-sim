@@ -20,7 +20,7 @@ from descwl_shear_sims.sim import (
     get_se_dim,
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
-from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf
+from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf, make_rand_psf
 from descwl_shear_sims.stars import make_star_catalog
 import metadetect.lsst.vis as lsst_vis
 from metadetect.lsst.metadetect import run_metadetect
@@ -195,6 +195,10 @@ def run_cells(
                     rng=trial_rng,
                     dim=sim_config['se_dim'],
                     variation_factor=sim_config['psf_variation_factor'],
+                )
+            elif sim_config['randomize_psf']:
+                psf = make_rand_psf(
+                    psf_type=sim_config["psf_type"], rng=trial_rng,
                 )
             else:
                 psf = make_fixed_psf(psf_type=sim_config["psf_type"])

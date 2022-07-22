@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+
+import numpy as np
+import argparse
+import esutil as eu
+import fitsio
+from esutil.numpy_util import between
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--flist', nargs='+', required=True,
+        help='example files for getting shapenoise and mask frac',
+    )
+    parser.add_argument('--area', type=float, required=True,
+                        help='area in square degrees')
+    parser.add_argument('--R', type=float, required=True)
+    parser.add_argument(
+        '--merr', type=float, required=True,
+        help='error on m',
+    )
+    parser.add_argument(
+        '--max-stellar-density', type=float, required=True,
+        help='maximum allowed stellar density',
+    )
+    parser.add_argument(
+        '--min-s2n', type=float, required=True,
+        help='minimum allowed s/n',
+    )
+    parser.add_argument(
+        '--max-s2n', type=float, default=100,
+        help='maximum allowed s/n, default 100',
+    )
+    parser.add_argument(
+        '--min-Tratio', type=float, default=1.2,
+        help='minimum allowed T/Tpsf, default 1.2',
+    )
+    parser.add_argument(
+        '--use-weights', action='store_true',
+        help='use weights',
+    )
+    parser.add_argument(
+        '--max-mask-frac', type=float, default=1.0,
+        help='minimum allowed T/Tpsf, default 1.0',
+    )
+
+    parser.add_argument(
+        '--shear', type=float, default=0.02,
+        help='shear used in simulation, default 0.02',
+    )
+
+    return parser.parse_args()
+
+
+def get_data(flist):
+    nf = len(flist)
+
+    dlist = []
+    ilist = []
+    for i, f in enumerate(flist):
+        if i == 0 or i == nf-1 or (i+1) % 10 == 0:
+            print(f'{i+1}/{nf} {f}')
+        with fitsio.FITS(f) as fobj:
+            dlist.append(fobj['1p'].read())
+            ilist.append(fobj['info'].read())
+
+    data = eu.numpy_util.combine_arrlist(dlist)
+    info = eu.numpy_util.combine_arrlist(ilist)
+    return data, info
+
+
+def go():
+
+    args = get_args()
+    data, info = get_data(args.flist)
+
+    wi, = np.where(
+        (info['mask_frac'] < args.max_mask_frac) &
+        (info['star_density'] < args.max_stellar_density)
+    )
+
+    # fraction of fields kept
+    frac_keep = wi.size / info.size
+    # now mask frac in the kept fields[
+    mean_mask_frac = info['mask_frac'][wi].mean()
+
+    usedarea = args.area * frac_keep * (1 - mean_mask_frac) * 60**2
+
+    print(f'fraction of kept area: {frac_keep:.2f}')
+    print(f'mean mask frac in kept area: {mean_mask_frac:.2f}')
+    print(f'used area: {usedarea/3600:.3f} square degrees')
+
+    sgamma = args.merr * args.shear
+
+    wbasic, = np.where(
+        (data['shear_type'] == 'noshear') &
+        (data['flags'] == 0) &
+        data['primary']
+    )
+
+    g = np.sqrt(data['wmom_g'][:, 0]**2 + data['wmom_g'][:, 1]**2)
+    w, = np.where(
+        (data['shear_type'] == 'noshear') &
+        (data['flags'] == 0) &
+        (data['wmom_T_ratio'] > args.min_Tratio) &
+        between(data['wmom_s2n'], args.min_s2n, args.max_s2n) &
+        (data['bmask'] == 0) &
+        data['primary'] &
+        (data['mfrac'] < 0.02) &
+        (data['mask_frac'] < 0.10) &
+        (g < 3) &
+        (data['true_star_density'] < args.max_stellar_density)
+    )
+
+    g = data['wmom_g']
+    raw_sn = 0.5 * (g[w, 0].std() + g[w, 1].std())
+    if args.use_weights:
+        from mdet_lsst_sim.doshear import get_weights
+        weights = get_weights(
+            data=data,
+            ind=w,
+            model='wmom',
+            weight_type='g',
+        )
+        mn, err, sn = eu.stat.wmom(data['wmom_g'][w, 0], weights, sdev=True)
+
+    else:
+        sn = raw_sn
+
+    print(f'sn: {sn:.3f}')
+    effdens = sn**2 / (args.R**2 * usedarea * sgamma**2)
+    print(f'effdens: {effdens:.3f} per square arcminute')
+
+
+go()

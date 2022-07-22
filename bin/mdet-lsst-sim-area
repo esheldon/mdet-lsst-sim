@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--config', required=True,
+        help='sim config',
+    )
+    parser.add_argument(
+        '--nfiles', type=int, required=True,
+        help='number of files in run',
+    )
+    parser.add_argument(
+        '--ntrial', type=int, required=True,
+        help='number of trials per file',
+    )
+
+    return parser.parse_args()
+
+
+def load_config(fname):
+    import yaml
+    from descwl_shear_sims.sim import get_sim_config
+
+    with open(fname) as fobj:
+        config = yaml.safe_load(fobj)
+
+    sim_config = config.get('sim', None)
+    return get_sim_config(sim_config)
+
+
+def go():
+
+    args = get_args()
+
+    config = load_config(args.config)
+    scale_arcsec = 0.2
+    scale_degrees = scale_arcsec / 3600
+
+    drawn_size_pixels = config['coadd_dim'] - 2 * config['buff']
+
+    drawn_area_degrees = (drawn_size_pixels * scale_degrees) ** 2
+
+    total_area_degrees = args.nfiles * args.ntrial * drawn_area_degrees
+    print(f'{total_area_degrees:.2f} degrees')
+
+
+go()
