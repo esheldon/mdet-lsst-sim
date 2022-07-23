@@ -271,6 +271,9 @@ def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
     bands = list(sim_data['band_data'].keys())
 
     if nowarp:
+        if len(bands) > 1:
+            raise ValueError('currently only one band for nowarp')
+
         exps = sim_data['band_data'][bands[0]]
 
         if len(exps) > 1:
