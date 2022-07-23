@@ -41,6 +41,11 @@ def get_args():
         help='use weights',
     )
     parser.add_argument(
+        '--cutconfig',
+        help='required for weights',
+    )
+
+    parser.add_argument(
         '--max-mask-frac', type=float, default=1.0,
         help='minimum allowed T/Tpsf, default 1.0',
     )
@@ -116,12 +121,17 @@ def go():
     g = data['wmom_g']
     raw_sn = 0.5 * (g[w, 0].std() + g[w, 1].std())
     if args.use_weights:
-        from mdet_lsst_sim.doshear import get_weights
+        from mdet_lsst_sim.doshear import get_weights, read_config
+        if args.cutconfig is None:
+            raise ValueError('send cutconfig with --use-weights')
+
+        cconfig = read_config(args.cutconfig)
         weights = get_weights(
             data=data,
             ind=w,
             model='wmom',
             weight_type='g',
+            sn=cconfig['shapenoise'],
         )
         mn, err, sn = eu.stat.wmom(data['wmom_g'][w, 0], weights, sdev=True)
 

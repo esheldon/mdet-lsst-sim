@@ -163,11 +163,13 @@ def jackknife(data, nocancel):
     return st
 
 
-def get_weights(data, ind, model, weight_type, sn):
+def get_weights(data, ind, model, weight_type, sn, get_cov_weights=False):
     g_cov = data['%s_g_cov' % model]
-    err_term = g_cov[ind, 0, 0] + g_cov[ind, 1, 1]
+    err_term = 0.5 * (g_cov[ind, 0, 0] + g_cov[ind, 1, 1])
 
-    weights = 1.0/(2*sn**2 + err_term)
+    weights = 1.0/(sn**2 + err_term)
+    if get_cov_weights:
+        cov_weights = weights.copy()
 
     if weight_type == 'g':
         import ngmix
@@ -180,7 +182,10 @@ def get_weights(data, ind, model, weight_type, sn):
     else:
         raise ValueError(f'bad weight_type {weight_type}')
 
-    return weights
+    if get_cov_weights:
+        return weights, cov_weights
+    else:
+        return weights
 
 
 def get_sums(
