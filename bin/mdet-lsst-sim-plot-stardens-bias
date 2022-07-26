@@ -3,6 +3,7 @@
 import numpy as np
 import argparse
 import fitsio
+import matplotlib
 from matplotlib import pyplot as mplt
 
 WIDTH = 6
@@ -294,6 +295,7 @@ def do_bias_plot(args, data):
 
 def main():
     args = get_args()
+    matplotlib.rcParams['figure.constrained_layout.use'] = True
 
     data = read_data(args)
     do_bias_plot(args, data)
