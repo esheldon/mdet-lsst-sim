@@ -3,10 +3,10 @@
 import numpy as np
 import argparse
 import fitsio
-import matplotlib
-from matplotlib import pyplot as mplt
+import proplot as pplt
 
-WIDTH = 6
+ASPECT = 1.618
+WIDTH = 3.5
 
 MARKERS = ('o', 'd', '^', 's', 'v', 'h', 'p', 'P', 'H', 'X')
 
@@ -120,17 +120,16 @@ def key2label(key):
 def do_error_plot(args, data):
 
     alpha = 0.5
-    figsize = (WIDTH, WIDTH/1.618)
 
-    fig, ax = mplt.subplots(figsize=figsize)
+    fig, ax = pplt.subplots(refaspect=ASPECT, refwidth=WIDTH)
     ax.set(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel=r'$\sigma(\gamma) / \sigma_{min}(\gamma)$',
+        xlim=(0, 105),
         ylim=(0.95, 1.6),
-
     )
 
-    ax.axhline(1, color='black')
+    ax.axhline(1, color='black', lw=1)
 
     errvals = []
     for key in data:
@@ -152,6 +151,7 @@ def do_error_plot(args, data):
             linestyle=LINESTYLES[i],
             color=COLORS[i],
             marker=MARKERS[i],
+            markersize=4,
             markeredgecolor='black',
             label=label,
             alpha=alpha,
@@ -164,23 +164,28 @@ def do_error_plot(args, data):
         #     alpha=alpha,
         # )
 
-    ax.legend()
+    ax.legend(
+        ncols=2,
+        frame=True,
+        framealpha=1,
+        edgecolor='white',
+        pad=0.5,
+    )
     fname = args.pdf.replace('.pdf', '-error.pdf')
     print('writing:', fname)
-    mplt.savefig(fname)
+    fig.savefig(fname)
 
 
 def do_bias_plot(args, data):
 
     alpha = 0.3
 
-    figsize = (WIDTH, WIDTH/1.618)
-
-    fig, ax = mplt.subplots(figsize=figsize)
+    fig, ax = pplt.subplots(refaspect=ASPECT, refwidth=WIDTH)
     ax.set(
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
-        ylim=(-2, 4),
+        xlim=(0, 105),
+        ylim=(-3.8, 3.8),
     )
     # colors = ['red', 'blue', 'cyan', 'green']
     hatches = [
@@ -234,7 +239,6 @@ def do_bias_plot(args, data):
     if args.add_nostars:
         # baseoff = 5
         # offs = np.array([-0.2, -0.1, 0.1, 0.2]) * baseoff
-        baseoff = 10
         offs = np.array([-0.75, -0.25, 0.25, 0.75])
 
         # from run-riz-drcbWP-cells
@@ -270,32 +274,43 @@ def do_bias_plot(args, data):
                 alpha=0.5,
             )
 
-    ax.legend(ncol=2)  # loc='lower left')
+    ax.legend(
+        ncols=2,
+        frame=True,
+        framealpha=1,
+        edgecolor='white',
+        pad=0.5,
+    )
 
     lim = 1
     # zorder = 2
     lcolor = 'seagreen'
-    ax.axhline(0, color='black')  # , zorder=zorder)
-    ax.axhline(-lim, color=lcolor, linestyle='dashed')  # , zorder=zorder)
-    ax.axhline(+lim, color=lcolor, linestyle='dashed')  # , zorder=zorder)
+    lw = 1
+    ax.axhline(0, color='black', lw=lw)
+    ax.axhline(-lim, color=lcolor, linestyle='dashed', lw=lw)
+    ax.axhline(+lim, color=lcolor, linestyle='dashed', lw=lw)
 
-    ax.axhline(0.4, color='blue', lw=2, alpha=0.5)
+    ax.axhline(0.4, color='blue', lw=lw*2, alpha=0.5)
 
     # ax.text(5, 4, r'$3~\sigma$ range')
+    # ax.text(
+    #     5,
+    #     # -3,
+    #     3,
+    #     r'99.7\% confidence range',
+    # )
     ax.text(
-        5,
-        # -3,
-        3,
-        r'99.7\% confidence range',
+        0.05, 0.1, r'99.7\% confidence range',
+        transform=ax.transAxes,
     )
 
     print('writing:', args.pdf)
-    mplt.savefig(args.pdf)
+    fig.savefig(args.pdf)
 
 
 def main():
     args = get_args()
-    matplotlib.rcParams['figure.constrained_layout.use'] = True
+    # matplotlib.rcParams['figure.constrained_layout.use'] = True
 
     data = read_data(args)
     do_bias_plot(args, data)
