@@ -8,11 +8,12 @@ import shutil
 template = r"""
 command: |
 
-    export OMP_NUM_THREADS=1
-
     . ~/.bashrc
 
-    source activate stack
+    export OMP_NUM_THREADS=1
+    %(extra)s
+
+    source activate %(env)s
 
     %(command)s \
         --seed %(seed)d \
@@ -46,6 +47,11 @@ def get_args():
     parser.add_argument('--ntrial', type=int, required=True,
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='config file')
+
+    parser.add_argument('--env', default='stack',
+                        help='conda env to use')
+    parser.add_argument('--extra', default='',
+                        help='extra setup commands')
     return parser.parse_args()
 
 
@@ -89,6 +95,8 @@ def main():
 
         text = template % {
             'command': command,
+            'extra': args.extra,
+            'env': args.env,
             'full_output': full_output,
             'job_name': job_name,
             'seed': seed,
