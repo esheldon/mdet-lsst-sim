@@ -290,7 +290,7 @@ def do_bias_plot(args, data):
     ax.axhline(-lim, color=lcolor, linestyle='dashed', lw=lw)
     ax.axhline(+lim, color=lcolor, linestyle='dashed', lw=lw)
 
-    ax.axhline(0.4, color='blue', lw=lw*2, alpha=0.5)
+    ax.axhline(0.4, color='blue', lw=lw, alpha=0.5)
 
     # ax.text(5, 4, r'$3~\sigma$ range')
     # ax.text(
