@@ -5,7 +5,7 @@ import esutil as eu
 from pprint import pprint
 
 
-def main(flist, nocancel, config_file):
+def main(flist, config_file, nocancel):
     from mdet_lsst_sim.doshear import (
         jackknife, print_stats, get_mc_file, read_config,
     )
@@ -58,6 +58,7 @@ def get_args():
     parser.add_argument('--config', required=True)
     parser.add_argument('--flist', nargs='+', required=True)
     parser.add_argument('--nocancel', action='store_true')
+    parser.add_argument('--err-err', action='store_true')
     return parser.parse_args()
 
 

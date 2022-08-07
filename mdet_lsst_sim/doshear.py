@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import fitsio
-from esutil.numpy_util import between
+from esutil.numpy_util import between, combine_arrlist
 import yaml
 
 OUTDIR = 'mc-results'
@@ -92,7 +92,7 @@ def get_c2(data):
     return c2
 
 
-def get_jackknife_struct(data):
+def get_jackknife_struct(data, err_err=False):
     dt = [
         ('s2n_min', 'f8'),
         ('s2n_max', 'f8'),
@@ -109,6 +109,9 @@ def get_jackknife_struct(data):
         ('c2', 'f8'),
         ('c2err', 'f8'),
     ]
+    if err_err:
+        dt += [('m1err_err', 'f8')]
+
     jdata = np.zeros(1, dtype=dt)
     jdata['s2n_min'][0] = data['s2n_min'][0]
     jdata['s2n_max'][0] = data['s2n_max'][0]
@@ -119,8 +122,20 @@ def get_jackknife_struct(data):
     return jdata
 
 
-def jackknife(data, nocancel):
-    st = get_jackknife_struct(data)
+def jackknife(data, nocancel, err_err=True):
+    """
+    jackknife the errors
+
+    Parameters
+    ----------
+    data: array
+        The data to be jackknifed
+    nocancel: bool
+        Don't use the noise cancelling trick
+    err_err: bool
+        Don't jackknife to get the error on the error.  Internal use only.
+    """
+    st = get_jackknife_struct(data, err_err=err_err)
 
     sdata = get_summed(data)
     m1, c1, R11 = get_m1_c1(sdata, nocancel=nocancel)  # noqa
@@ -160,6 +175,23 @@ def jackknife(data, nocancel):
     st['c1err'] = c1err
     st['c2'] = c2
     st['c2err'] = c2err
+
+    if err_err:
+        err_stlist = []
+        for i in range(data.size):
+            indices = np.array(
+                [ii for ii in range(data.size) if ii != i]
+            )
+            tmpst = jackknife(data[indices], nocancel, err_err=False)
+            err_stlist.append(tmpst)
+
+        err_st = combine_arrlist(err_stlist)
+
+        fac = (nchunks-1-1)/float(nchunks-1)
+        m1err_vals = err_st['m1err']
+        m1err_cov = fac * ((m1err - m1err_vals)**2).sum()
+        st['m1err_err'] = np.sqrt(m1err_cov)
+
     return st
 
 
@@ -495,7 +527,9 @@ def process_one(config, fname):
 
 
 def print_stats(st):
-    print('m1err: %g (%s%%)' % (st['m1err'][0]*NSIGMA, perc))
+    print('m1err: %g +/- %g (%s%%)' % (
+        st['m1err'][0]*NSIGMA, st['m1err_err'][0]*NSIGMA, perc)
+    )
 
     print_range(st['m1'][0], st['m1err'][0], 'm1')
     print_range(st['c1'][0], st['c1err'][0], 'c1')
