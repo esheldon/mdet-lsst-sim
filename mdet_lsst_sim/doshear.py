@@ -187,7 +187,6 @@ def jackknife(data, nocancel, err_err=True):
 
         err_st = combine_arrlist(err_stlist)
 
-        fac = (nchunks-1-1)/float(nchunks-1)
         m1err_vals = err_st['m1err']
         m1err_cov = fac * ((m1err - m1err_vals)**2).sum()
         st['m1err_err'] = np.sqrt(m1err_cov)
