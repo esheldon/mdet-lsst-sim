@@ -185,7 +185,7 @@ def do_bias_plot(args, data):
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
         xlim=(0, 105),
-        ylim=(-3.8, 3.8),
+        ylim=(-2.8, 2.8),
     )
     # colors = ['red', 'blue', 'cyan', 'green']
     hatches = [
@@ -274,6 +274,16 @@ def do_bias_plot(args, data):
                 alpha=0.5,
             )
 
+    lim = 1
+    # zorder = 2
+    lcolor = 'seagreen'
+    lw = 1
+    ax.axhline(0, color='black', lw=lw)
+    ax.axhline(-lim, color=lcolor, linestyle='dashed', lw=lw)
+    ax.axhline(+lim, color=lcolor, linestyle='dashed', lw=lw, label='target accuracy')
+
+    ax.axhline(0.4, color='blue', lw=lw, alpha=0.5, label='expected bias')
+
     ax.legend(
         ncols=2,
         frame=True,
@@ -281,16 +291,6 @@ def do_bias_plot(args, data):
         edgecolor='white',
         pad=0.5,
     )
-
-    lim = 1
-    # zorder = 2
-    lcolor = 'seagreen'
-    lw = 1
-    ax.axhline(0, color='black', lw=lw)
-    ax.axhline(-lim, color=lcolor, linestyle='dashed', lw=lw)
-    ax.axhline(+lim, color=lcolor, linestyle='dashed', lw=lw)
-
-    ax.axhline(0.4, color='blue', lw=lw, alpha=0.5)
 
     # ax.text(5, 4, r'$3~\sigma$ range')
     # ax.text(
@@ -306,6 +306,9 @@ def do_bias_plot(args, data):
 
     print('writing:', args.pdf)
     fig.savefig(args.pdf)
+    png = args.pdf.replace('.pdf', '.png')
+    print('writing:', png)
+    fig.savefig(png, dpi=300)
 
 
 def main():
