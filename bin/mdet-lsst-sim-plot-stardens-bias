@@ -185,7 +185,8 @@ def do_bias_plot(args, data):
         xlabel='maximum stellar density [per sq. arcmin]',
         ylabel='m / 0.001',
         xlim=(0, 105),
-        ylim=(-2.8, 2.8),
+        # ylim=(-2.8, 2.8),
+        ylim=(-1.5, 3.1),
     )
     # colors = ['red', 'blue', 'cyan', 'green']
     hatches = [
@@ -300,7 +301,8 @@ def do_bias_plot(args, data):
     #     r'99.7\% confidence range',
     # )
     ax.text(
-        0.05, 0.1, r'99.7\% confidence range',
+        0.05, 0.15,
+        r'99.7\% confidence range',
         transform=ax.transAxes,
     )
 
