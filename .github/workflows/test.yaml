@@ -45,9 +45,9 @@ jobs:
                   lsstdesc-weaklensingdeblending \
                   fitsio
 
-                pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
-                pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
-                pip install --no-deps git+https://github.com/esheldon/metadetect.git
+                pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@0.4.2
+                pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@0.3.0
+                pip install --no-deps git+https://github.com/esheldon/metadetect.git@0.8.2
 
           - name: Lint with flake8
             shell: bash -l {0}

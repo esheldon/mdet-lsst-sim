@@ -47,7 +47,11 @@ def get_args():
 
     parser.add_argument(
         '--max-mask-frac', type=float, default=1.0,
-        help='minimum allowed T/Tpsf, default 1.0',
+        help='max mask frac for whole image',
+    )
+    parser.add_argument(
+        '--max-mfrac', type=float, default=1.0,
+        help='max mask frac for object, default 1.0',
     )
 
     parser.add_argument(
@@ -58,16 +62,36 @@ def get_args():
     return parser.parse_args()
 
 
-def get_data(flist):
-    nf = len(flist)
+def select(args, data):
+    g = np.sqrt(data['wmom_g'][:, 0]**2 + data['wmom_g'][:, 1]**2)
+    w, = np.where(
+        (data['flags'] == 0)
+        & (data['wmom_T_ratio'] > args.min_Tratio)
+        & between(data['wmom_s2n'], args.min_s2n, args.max_s2n)
+        & (data['bmask'] == 0)
+        & data['primary']
+        & (data['mfrac'] < args.max_mfrac)
+        & (data['mask_frac'] < args.max_mask_frac)
+        & (g < 3)
+        & (data['true_star_density'] < args.max_stellar_density)
+        & (data['shear_type'] == 'noshear')
+    )
+    return w
+
+
+def get_data(args):
+    nf = len(args.flist)
 
     dlist = []
     ilist = []
-    for i, f in enumerate(flist):
+    for i, f in enumerate(args.flist):
         if i == 0 or i == nf-1 or (i+1) % 10 == 0:
             print(f'{i+1}/{nf} {f}')
         with fitsio.FITS(f) as fobj:
-            dlist.append(fobj['1p'].read())
+            data = fobj['1p'].read()
+            w = select(args, data)
+            data = data[w]
+            dlist.append(data)
             ilist.append(fobj['info'].read())
 
     data = eu.numpy_util.combine_arrlist(dlist)
@@ -75,14 +99,39 @@ def get_data(flist):
     return data, info
 
 
+def get_sdev(args, data):
+    if args.use_weights:
+        from mdet_lsst_sim.doshear import get_weights, read_config
+        print('using weights')
+        cconfig = read_config(args.cutconfig)
+        weights = get_weights(
+            data=data,
+            ind=np.arange(data.size),
+            model='wmom',
+            weight_type=cconfig['weight_type'],
+            sn=cconfig['shapenoise'],
+        )
+    else:
+        weights = np.ones(data.size)
+
+    _, _, sdev = eu.stat.wmom(
+        data['wmom_g'][:, 0],
+        weights,
+        calcerr=True,
+        sdev=True,
+    )
+
+    return sdev
+
+
 def go():
 
     args = get_args()
-    data, info = get_data(args.flist)
+    data, info = get_data(args)
 
     wi, = np.where(
-        (info['mask_frac'] < args.max_mask_frac) &
-        (info['star_density'] < args.max_stellar_density)
+        (info['mask_frac'] < args.max_mask_frac)
+        & (info['star_density'] < args.max_stellar_density)
     )
 
     # fraction of fields kept
@@ -98,48 +147,11 @@ def go():
 
     sgamma = args.merr * args.shear
 
-    wbasic, = np.where(
-        (data['shear_type'] == 'noshear') &
-        (data['flags'] == 0) &
-        data['primary']
-    )
-
-    g = np.sqrt(data['wmom_g'][:, 0]**2 + data['wmom_g'][:, 1]**2)
-    w, = np.where(
-        (data['shear_type'] == 'noshear') &
-        (data['flags'] == 0) &
-        (data['wmom_T_ratio'] > args.min_Tratio) &
-        between(data['wmom_s2n'], args.min_s2n, args.max_s2n) &
-        (data['bmask'] == 0) &
-        data['primary'] &
-        (data['mfrac'] < 0.02) &
-        (data['mask_frac'] < 0.10) &
-        (g < 3) &
-        (data['true_star_density'] < args.max_stellar_density)
-    )
-
-    g = data['wmom_g']
-    raw_sn = 0.5 * (g[w, 0].std() + g[w, 1].std())
-    if args.use_weights:
-        from mdet_lsst_sim.doshear import get_weights, read_config
-        if args.cutconfig is None:
-            raise ValueError('send cutconfig with --use-weights')
-
-        cconfig = read_config(args.cutconfig)
-        weights = get_weights(
-            data=data,
-            ind=w,
-            model='wmom',
-            weight_type='g',
-            sn=cconfig['shapenoise'],
-        )
-        mn, err, sn = eu.stat.wmom(data['wmom_g'][w, 0], weights, sdev=True)
-
-    else:
-        sn = raw_sn
+    sn = get_sdev(args, data)
 
     print(f'sn: {sn:.3f}')
-    effdens = sn**2 / (args.R**2 * usedarea * sgamma**2)
+    print(f'sn/R: {sn / args.R:.3f}')
+    effdens = (sn / args.R)**2 / sgamma**2 / usedarea
     print(f'effdens: {effdens:.3f} per square arcminute')
 
 
