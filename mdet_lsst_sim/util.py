@@ -140,7 +140,7 @@ def trim_output_columns(data, meas_type):
 
     # note the bmask/ormask compress to nothing
     cols2keep_orig = [
-        'flags',
+        get_flags_name(data=data, meas_type=meas_type),
         'bmask',
         'ormask',
         'row', 'row0',
@@ -158,6 +158,14 @@ def trim_output_columns(data, meas_type):
             cols2keep.append(col)
 
     return eu.numpy_util.extract_fields(data, cols2keep)
+
+
+def get_flags_name(data, meas_type):
+    if 'flags' in data.dtype.names:
+        flags_name = 'flags'
+    else:
+        flags_name = f'{meas_type}_flags'
+    return flags_name
 
 
 def make_comb_data(
@@ -389,7 +397,10 @@ def unrotate_noshear_shear(data, meas_type, theta):
     """
     only unrotate the noshear version
     """
-    w, = np.where((data['flags'] == 0) & (data['shear_type'] == 'noshear'))
+
+    flags_name = get_flags_name(data=data, meas_type=meas_type)
+
+    w, = np.where((data[flags_name] == 0) & (data['shear_type'] == 'noshear'))
 
     if w.size > 0:
 
