@@ -250,6 +250,7 @@ def run_sim(
                     **coadd_data
                 )
                 if show:
+                    # lsst_vis.show_image_and_mask(coadd_data['mbexp'])
                     lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
 
             mask_frac = util.get_mask_frac(
