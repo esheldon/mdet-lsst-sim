@@ -11,7 +11,7 @@ jobs:
       name: tests
       strategy:
           matrix:
-            pyver: [3.8]
+            pyver: [3.11]
 
       runs-on: "ubuntu-latest"
 
@@ -31,8 +31,8 @@ jobs:
                 conda config --set always_yes yes
                 conda install -q mamba
 
-                # mamba install -q stackvana=0
-                mamba install stackvana=0.2021.32
+                mamba install -q stackvana=0
+                # mamba install stackvana=0.2021.32
                 
                 mamba install -q \
                   flake8 \
