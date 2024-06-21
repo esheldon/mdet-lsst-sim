@@ -99,9 +99,41 @@ def get_data(args):
     return data, info
 
 
+def get_weights(data, ind, model, weight_type, sn, get_cov_weights=False):
+    g_cov = data['%s_g_cov' % model]
+    err_term = 0.5 * (g_cov[ind, 0, 0] + g_cov[ind, 1, 1])
+
+    weights = 1.0/(sn**2 + err_term)
+    if get_cov_weights:
+        cov_weights = weights.copy()
+
+    if weight_type == 'g':
+        import ngmix
+        prior = ngmix.priors.GPriorBA(0.3, rng=np.random.RandomState())
+        g = data['%s_g' % model]
+        pvals = prior.get_prob_array2d(g[ind, 0], g[ind, 1])
+        weights *= pvals
+    elif weight_type == 'covar':
+        pass
+    else:
+        raise ValueError(f'bad weight_type {weight_type}')
+
+    if get_cov_weights:
+        return weights, cov_weights
+    else:
+        return weights
+
+
+def read_config(fname):
+    import yaml
+    print('reading config:', fname)
+    with open(fname) as fobj:
+        return yaml.safe_load(fobj)
+
+
 def get_sdev(args, data):
     if args.use_weights:
-        from mdet_lsst_sim.doshear import get_weights, read_config
+        # from mdet_lsst_sim.doshear import get_weights, read_config
         print('using weights')
         cconfig = read_config(args.cutconfig)
         weights = get_weights(
@@ -153,6 +185,8 @@ def go():
     print(f'sn/R: {sn / args.R:.3f}')
     effdens = (sn / args.R)**2 / sgamma**2 / usedarea
     print(f'effdens: {effdens:.3f} per square arcminute')
+    rawdens = data.size / usedarea
+    print(f'raw dens: {rawdens:.3f} per square arcminute')
 
 
 go()
