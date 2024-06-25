@@ -98,7 +98,7 @@ def run_sim(
 
     rng = np.random.RandomState(seed)
 
-    mdet_config, use_sx, trim_pixels = util.get_mdet_config(config=mdet_config)
+    mdet_config, extra = util.get_mdet_config(config=mdet_config)
 
     coadd_config = util.get_coadd_config(config=coadd_config)
     assert not coadd_config['remove_poisson'], (
@@ -240,7 +240,7 @@ def run_sim(
                     lsst_vis.show_multi_mbexp(coadd_data['mbexp'])
 
             apply_apodized_edge_masks_mbexp(**coadd_data)
-            if len(sim_data['bright_info']) > 0:
+            if extra['mask_bright'] and len(sim_data['bright_info']) > 0:
                 # Note padding due to apodization, otherwise we get donuts the
                 # radii coming out of the sim code are not super conservative,
                 # just going to the noise level
@@ -255,7 +255,7 @@ def run_sim(
 
             mask_frac = util.get_mask_frac(
                 coadd_data['mfrac_mbexp'],
-                trim_pixels=trim_pixels,
+                trim_pixels=extra['trim_pixels'],
             )
             if shear_type == '1p':
                 info = util.make_info()
@@ -272,7 +272,7 @@ def run_sim(
 
             tmmeas0 = time.time()
 
-            if use_sx:
+            if extra['use_sx']:
                 raise RuntimeError("adapt sx run to exposures")
                 # res = run_metadetect_sx(
                 #     config=mdet_config,
@@ -305,11 +305,11 @@ def run_sim(
                         theta=theta,
                     )
 
-                if trim_pixels > 0:
+                if extra['trim_pixels'] > 0:
                     good = util.trim_catalog_boundary_strict(
                         data=comb_data,
                         dim=sim_config['coadd_dim'],
-                        trim_pixels=trim_pixels,
+                        trim_pixels=extra['trim_pixels'],
                         checks=['l', 'r', 'u', 'd'],
                         show=show,
                     )
