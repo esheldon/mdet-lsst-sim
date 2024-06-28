@@ -123,6 +123,7 @@ def get_mdet_config(config=None, sx=False):
 
     use_sx = config_in.pop('use_sx', False)
     trim_pixels = config_in.pop('trim_pixels', 0)
+    mask_bright = config_in.pop('mask_bright', True)
 
     if use_sx:
         config_out = deepcopy(DEFAULT_MDET_CONFIG_WITH_SX)
@@ -131,7 +132,12 @@ def get_mdet_config(config=None, sx=False):
     else:
         config_out = get_config(config_in)
 
-    return config_out, use_sx, trim_pixels
+    extra = {
+        'use_sx': use_sx,
+        'trim_pixels': trim_pixels,
+        'mask_bright': mask_bright,
+    }
+    return config_out, extra
 
 
 def trim_output_columns(data, meas_type):

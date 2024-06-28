@@ -17,6 +17,8 @@ mls:
 
 sim:
     gal_type: fixed
+    gal_config:
+        mag: 22
     layout: random
 
     # we will do 5 cells
@@ -172,3 +174,7 @@ def test_cells_wldeblend():
         # pixel boundary would be good enough, so I doubt that is it
 
         assert abs(wpc.size / wp.size - 1) < 0.10
+
+
+if __name__ == '__main__':
+    test_cells_rand()

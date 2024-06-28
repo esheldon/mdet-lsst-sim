@@ -103,7 +103,7 @@ def run_cells(
 
     rng = np.random.RandomState(seed)
 
-    mdet_config, use_sx, trim_pixels = util.get_mdet_config(config=mdet_config)
+    mdet_config, extra = util.get_mdet_config(config=mdet_config)
 
     coadd_config = util.get_coadd_config(config=coadd_config)
     assert not coadd_config['remove_poisson'], (
@@ -237,7 +237,7 @@ def run_cells(
             )
             tmcoadd += time.time() - tmcoadd0
 
-            if len(sim_data['bright_info']) > 0:
+            if extra['mask_bright'] and len(sim_data['bright_info']) > 0:
                 # Note padding due to apodization, otherwise we get donuts the
                 # radii coming out of the sim code are not super conservative,
                 # just going to the noise level
@@ -260,7 +260,8 @@ def run_cells(
                     if show:
                         lsst_vis.show_mbexp(cell_coadd_data['mbexp'])
 
-                    if len(sim_data['bright_info']) > 0:
+                    if (extra['mask_bright'] and
+                            len(sim_data['bright_info']) > 0):
                         apply_apodized_bright_masks_mbexp(
                             bright_info=sim_data['bright_info'],
                             **cell_coadd_data
@@ -270,7 +271,7 @@ def run_cells(
 
                     mask_frac = util.get_mask_frac(
                         cell_coadd_data['mfrac_mbexp'],
-                        trim_pixels=trim_pixels,
+                        trim_pixels=extra['trim_pixels'],
                     )
 
                     if shear_type == '1p':
@@ -286,7 +287,7 @@ def run_cells(
 
                     tmmeas0 = time.time()
 
-                    if use_sx:
+                    if extra['use_sx']:
                         raise RuntimeError("adapt sx run to exposures")
                         # res = run_metadetect_sx(
                         #     config=mdet_config,
@@ -319,7 +320,7 @@ def run_cells(
                                 theta=theta,
                             )
 
-                        if trim_pixels > 0:
+                        if extra['trim_pixels'] > 0:
                             checks = get_cell_checks(
                                 ncells=ncells, cell_ix=cell_ix,
                                 cell_iy=cell_iy,
@@ -327,7 +328,7 @@ def run_cells(
                             good = util.trim_catalog_boundary_strict(
                                 data=comb_data,
                                 dim=cell_size,
-                                trim_pixels=trim_pixels,
+                                trim_pixels=extra['trim_pixels'],
                                 checks=checks,
                                 show=show,
                             )
