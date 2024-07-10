@@ -2,6 +2,7 @@ from numba import njit
 import esutil as eu
 import numpy as np
 from lsst.meas.algorithms import AccumulatorMeanStack
+import lsst.afw.image as afw_image
 
 from descwl_coadd.procflags import HIGH_MASKFRAC
 from descwl_coadd.defaults import (
@@ -51,7 +52,7 @@ def make_coadd_fill(
         The random number generator for making noise images (used only if
         `is_warps` is False.)
     remove_poisson: bool, optional
-        If True, remove the poisson noise from the variance
+        If set to True, remove the poisson noise from the variance
         estimate.
     psfs: list of PSF objects, optional
         List of PSF objects. If None, then the PSFs will be extracted from the
@@ -98,6 +99,13 @@ def make_coadd_fill(
                 The fraction of SE images interpolated in each coadd pixel.
     """
 
+    interp_flag = afw_image.Mask.getPlaneBitMask('INTRP')
+    if True:
+        afw_image.Mask.addMaskPlane('ALL_INTRP')
+        bad_flag = afw_image.Mask.getPlaneBitMask('ALL_INTRP')
+    else:
+        bad_flag = 0
+
     check_max_maskfrac(max_maskfrac)
 
     filter_label = exps[0].getFilter()
@@ -124,10 +132,18 @@ def make_coadd_fill(
     coadd_mfrac_exp = make_coadd_exposure(coadd_bbox, coadd_wcs, filter_label)
 
     coadd_dims = coadd_exp.image.array.shape
-    stacker = make_stacker(coadd_dims=coadd_dims)
-    noise_stacker = make_stacker(coadd_dims=coadd_dims)
-    psf_stacker = make_stacker(coadd_dims=psf_dims)
-    mfrac_stacker = make_stacker(coadd_dims=coadd_dims)
+    stacker = make_stacker(
+        coadd_dims=coadd_dims, bit_mask_value=bad_flag,
+    )
+    noise_stacker = make_stacker(
+        coadd_dims=coadd_dims, bit_mask_value=bad_flag,
+    )
+    psf_stacker = make_stacker(
+        coadd_dims=psf_dims, bit_mask_value=bad_flag,
+    )
+    mfrac_stacker = make_stacker(
+        coadd_dims=coadd_dims, bit_mask_value=bad_flag,
+    )
 
     # will zip these with the exposures to warp and add
     stackers = [stacker, noise_stacker, psf_stacker, mfrac_stacker]
@@ -150,8 +166,15 @@ def make_coadd_fill(
         mfrac_warper=mfrac_warper,
     )
 
-    interp_flag = dlist[0]['warp'].mask.getPlaneBitMask('INTRP')
-    weightlist, flagged_count = get_weightlist(dlist, interp_flag)
+    exp_info = eu.numpy_util.combine_arrlist(exp_infos)
+
+    if True:
+        flagged_count = set_bad_bit(
+            dlist=dlist, flags=interp_flag, bad_flag=bad_flag
+        )
+        weightlist = exp_info['weight']
+    else:
+        weightlist, flagged_count = get_weightlist(dlist, interp_flag)
 
     for data, weight in zip(dlist, weightlist):
         warps = [
@@ -159,8 +182,6 @@ def make_coadd_fill(
             data['psf_warp'], data['mfrac_warp'],
         ]
         add_all(stackers, warps, weight)
-
-    exp_info = eu.numpy_util.combine_arrlist(exp_infos)
 
     wkept, = np.where(exp_info['flags'] == 0)
     nkept = wkept.size
@@ -342,7 +363,42 @@ def _set_zero_weights(weight, mask, flags, flagged_count, num):
                     weight[iy, ix] = 0
 
 
-def make_stacker(coadd_dims, stats_ctrl=None):
+def set_bad_bit(dlist, flags, bad_flag):
+
+    flagged_count = np.zeros(dlist[0]['warp'].image.array.shape, dtype='i2')
+
+    for data in dlist:
+        warp = data['warp']
+        wflagged = np.where(warp.mask.array & flags != 0)
+        flagged_count[wflagged] += 1
+
+    for data in dlist:
+        mask = data['warp'].mask.array
+        _set_one_bad_bit(
+            mask=mask,
+            flags=flags,
+            flagged_count=flagged_count,
+            num=len(dlist),
+            bad_flag=bad_flag,
+        )
+
+    return flagged_count
+
+
+@njit
+def _set_one_bad_bit(mask, flags, flagged_count, num, bad_flag):
+    ny, nx = mask.shape
+
+    for iy in range(ny):
+        for ix in range(nx):
+            if mask[iy, ix] & flags != 0:
+                # if we have some other data to fill in the value, set
+                # the bad flag
+                if flagged_count[iy, ix] < num:
+                    mask[iy, ix] |= bad_flag
+
+
+def make_stacker(coadd_dims, bit_mask_value=0, stats_ctrl=None):
     """
     make an AccumulatorMeanStack to do online coadding
 
@@ -368,6 +424,7 @@ def make_stacker(coadd_dims, stats_ctrl=None):
     compute_n_image=False says do not compute number of images input to
         each pixel
     """
+    from lsst.meas.algorithms import AccumulatorMeanStack
     import lsst.afw.math as afw_math
 
     if stats_ctrl is None:
@@ -375,9 +432,11 @@ def make_stacker(coadd_dims, stats_ctrl=None):
 
     # TODO after sprint
     # Eli will fix bug and will set no_good_pixels_mask to None
-    return AccumulatorMeanStackUnbugged(
+    # return AccumulatorMeanStackUnbugged(
+    return AccumulatorMeanStack(
         shape=coadd_dims,
-        bit_mask_value=0,
+        # bit_mask_value=0,
+        bit_mask_value=bit_mask_value,
         mask_threshold_dict={},
         mask_map=[],
         # no_good_pixels_mask=None,
@@ -404,10 +463,9 @@ class AccumulatorMeanStackUnbugged(AccumulatorMeanStack):
             & np.isfinite(masked_image.mask.array)
         )
 
-        try:
-            weight.shape
+        if isinstance(weight, np.ndarray):
             uweight = weight[good_pixels]
-        except AttributeError:
+        else:
             uweight = weight
 
         uweight2 = uweight ** 2
