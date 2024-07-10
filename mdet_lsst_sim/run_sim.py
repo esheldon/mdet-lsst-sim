@@ -11,6 +11,7 @@ TODO
 
 import sys
 import time
+from pprint import pformat
 import logging
 import numpy as np
 
@@ -124,8 +125,9 @@ def run_sim(
 
     star_config = sim_config.get('star_config', None)
 
-    logger.info(str(sim_config))
-    logger.info(str(mdet_config))
+    logger.info('\n' + pformat(sim_config))
+    logger.info('\n' + pformat(mdet_config))
+    logger.info('\n' + pformat(coadd_config))
 
     dlist_p = []
     dlist_m = []

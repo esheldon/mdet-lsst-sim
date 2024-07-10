@@ -6,7 +6,12 @@ import ngmix
 
 logger = logging.getLogger('mdet_lsst.util')
 
-DEFAULT_COADD_CONFIG = {'nowarp': False, 'remove_poisson': False}
+DEFAULT_COADD_CONFIG = {
+    'nowarp': False,
+    'remove_poisson': False,
+    'interpolator': 'ct',
+    'coadder': 'make_coadd',
+}
 
 DEFAULT_MDET_CONFIG_WITH_SX = {
     "model": "wmom",
@@ -277,12 +282,36 @@ def get_command_from_config_file(config_file):
     return command
 
 
-def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
-    from descwl_coadd.coadd import make_coadd
+def get_interpolator(interp_type):
+    import descwl_coadd
+
+    if interp_type == 'ct':
+        return descwl_coadd.interp.CTInterpolator()
+    elif interp_type == 'gp':
+        from .interp_gp import GPInterpolator
+        return GPInterpolator()
+
+
+def _get_coadder_func(coadder):
+    if coadder == 'make_coadd':
+        from descwl_coadd.coadd import make_coadd
+        return make_coadd
+    elif coadder == 'make_coadd_fill':
+        from .coadd_fill import make_coadd_fill
+        return make_coadd_fill
+
+
+def coadd_sim_data(
+    rng, sim_data, nowarp, interpolator, remove_poisson, coadder,
+):
     from descwl_coadd.coadd_nowarp import make_coadd_nowarp
     from metadetect.lsst.util import extract_multiband_coadd_data
 
+    interp_obj = get_interpolator(interpolator)
+
     bands = list(sim_data['band_data'].keys())
+
+    coadder_func = _get_coadder_func(coadder)
 
     if nowarp:
         if len(bands) > 1:
@@ -299,18 +328,24 @@ def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
                 psf_dims=sim_data['psf_dims'],
                 rng=rng,
                 remove_poisson=remove_poisson,
+                interpolator=interp_obj,
             )
             for band in bands
         ]
     else:
+        # import pickle
+        # with open('/tmp/example.pkl', 'wb') as fobj:
+        #     pickle.dump(sim_data['band_data']['i'][0].maskedImage, fobj)
+        #     stop
         coadd_data_list = [
-            make_coadd(
+            coadder_func(
                 exps=sim_data['band_data'][band],
                 psf_dims=sim_data['psf_dims'],
                 rng=rng,
                 coadd_wcs=sim_data['coadd_wcs'],
                 coadd_bbox=sim_data['coadd_bbox'],
                 remove_poisson=remove_poisson,
+                interpolator=interp_obj,
             )
             for band in bands
         ]
