@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+
+import ngmix
+import numpy as np
+import descwl_shear_sims
+from tqdm import trange
+from matplotlib import pyplot as mplt
+import galsim
+
+
+def get_admom_runner(rng):
+    import ngmix
+
+    fitter = ngmix.admom.AdmomFitter(rng=rng)
+
+    guesser = ngmix.guessers.GMixPSFGuesser(
+        rng=rng, ngauss=1, guess_from_moms=True,
+    )
+
+    return ngmix.runners.Runner(
+        fitter=fitter, guesser=guesser,
+        ntry=2,
+    )
+
+
+def fit_admom(rng, obs):
+    runner = get_admom_runner(rng)
+    return runner.go(obs)
+
+
+def main():
+
+    num = 10000
+    rng = np.random.RandomState()
+    fwhm = np.zeros(num)
+    fwhm_meas = np.zeros(num)
+
+    for i in trange(num):
+        ppsf = descwl_shear_sims.psfs.ps_psf.PowerSpectrumPSF(
+            rng=rng,
+            im_width=4000,
+            buff=50,
+            scale=0.2,
+        )
+
+        x = rng.uniform(low=ppsf._buff, high=ppsf._tot_width - ppsf._buff)
+        y = rng.uniform(low=ppsf._buff, high=ppsf._tot_width - ppsf._buff)
+
+        # psf = ppsf._get_atm(
+
+        xs = (x + 1 - ppsf._im_cen) * ppsf._scale
+        ys = (y + 1 - ppsf._im_cen) * ppsf._scale
+        g1, g2, mu = ppsf._get_lensing((xs, ys))
+
+        if g1*g1 + g2*g2 >= 1.0:
+            norm = np.sqrt(g1*g1 + g2*g2) / 0.5
+            g1 /= norm
+            g2 /= norm
+
+        # expand for pixelization
+        fwhm[i] = ppsf._fwhm_central / np.power(mu, 0.75)
+
+        if True:
+            if True:
+                psf = galsim.Moffat(
+                    beta=2.5,
+                    fwhm=fwhm[i],
+                )
+            else:
+                psf = galsim.Gaussian(
+                    fwhm=fwhm[i],
+                )
+
+            psf = psf.shear(
+                g1=g1 + ppsf._g1_mean, g2=g2 + ppsf._g2_mean
+            )
+
+            im = psf.drawImage(nx=25, ny=25, scale=0.2).array
+            jac = ngmix.DiagonalJacobian(row=12, col=12, scale=0.2)
+            obs = ngmix.Observation(
+                im, jacobian=jac,
+            )
+            res = fit_admom(rng=rng, obs=obs)
+            fwhm_meas[i] = ngmix.moments.T_to_fwhm(res['T'])
+
+    bins = 50
+    fig, ax = mplt.subplots()
+    ax.set(xlabel='FWHM [arcsec]')
+    # ax.hist(fwhm, bins=bins, alpha=0.5, label='raw')
+    ax.hist(fwhm_meas, bins=bins, alpha=0.5, label='meas')
+    # ax.legend()
+    fig.savefig('fwhm-dist.pdf')
+    fig.savefig('fwhm-dist.png', dpi=150)
+    # mplt.show()
+
+
+if __name__ == '__main__':
+    main()
