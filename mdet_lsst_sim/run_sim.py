@@ -22,6 +22,7 @@ from descwl_shear_sims.sim import (
 from descwl_shear_sims.galaxies import make_galaxy_catalog
 from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf, make_rand_psf
 from descwl_shear_sims.stars import make_star_catalog
+from descwl_shear_sims.constants import SCALE
 import metadetect.lsst.vis as lsst_vis
 from metadetect.lsst.metadetect import run_metadetect
 from metadetect.lsst.masking import (
@@ -110,8 +111,8 @@ def run_sim(
 
     if sim_config['se_dim'] is None:
         sim_config['se_dim'] = get_se_dim(
+            coadd_scale=SCALE, se_scale=SCALE,
             coadd_dim=sim_config['coadd_dim'],
-            dither=sim_config['dither'],
             rotate=sim_config['rotate'],
         )
 

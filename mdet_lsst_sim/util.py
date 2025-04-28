@@ -115,7 +115,7 @@ def get_mdet_config(config=None, sx=False):
     """
     metadetect configuration
     """
-    from metadetect.lsst.metadetect import get_config
+    from metadetect.lsst.configs import get_config
     if config is None:
         config_in = {}
     else:
