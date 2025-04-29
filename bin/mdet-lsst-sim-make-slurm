@@ -100,7 +100,7 @@ def write_slurm(args, rng):
             'job_name': job_name,
             'seed': job_seed,
             'ntrial': args.ntrial,
-            'time': args.time,
+            'time': args.walltime,
             'output': outfile,
         }
         with open(slurm_file, 'w') as fobj:
@@ -160,7 +160,7 @@ def get_args():
     parser.add_argument('--config', required=True, help='config file')
 
     parser.add_argument('--walltime', required=True,
-                        help=('walltime for each job, e.g. 4:00'))
+                        help=('walltime for each job, e.g. 03:00:00'))
 
     return parser.parse_args()
 
