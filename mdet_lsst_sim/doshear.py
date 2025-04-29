@@ -470,8 +470,6 @@ def process_set(inputs):
 
 def process_one(config, fname):
 
-    # print(fname)
-
     try:
         with fitsio.FITS(fname) as fobj:
             data_1p = fobj['1p'].read()
