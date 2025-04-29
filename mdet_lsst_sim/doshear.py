@@ -251,7 +251,11 @@ def get_sums(
     g = np.sqrt(gvals[:, 0]**2 + gvals[:, 1]**2)
 
     if stype == 'noshear':
-        logic = (data['shear_type'] == stype) | (data['shear_type'] == 'ns')
+        logic = (
+            (data['shear_type'] == stype)
+            | (data['shear_type'] == 'ns')
+            | (data['shear_type'] == 'no')
+        )
     else:
         logic = (data['shear_type'] == stype)
 
