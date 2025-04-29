@@ -247,7 +247,7 @@ def get_sums(
 
     s2n = data[f'{model}_s2n']
     T_ratio = data[f'{model}_T_ratio']
-    gvals = data[f'{model}_g']
+    gvals = data[f'{model}_g'].astype('f8')
     g = np.sqrt(gvals[:, 0]**2 + gvals[:, 1]**2)
 
     if stype == 'noshear':
