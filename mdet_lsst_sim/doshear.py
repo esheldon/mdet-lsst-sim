@@ -16,7 +16,7 @@ def get_flist(directory, limit=None):
     flist = []
     for root, dirs, files in os.walk(directory, topdown=False):
         for basename in files:
-            if '.fits' in basename:
+            if '.fits' in basename and basename[:4] != 'sums':
                 fname = os.path.join(root, basename)
                 fname = os.path.abspath(fname)
                 flist.append(fname)
@@ -247,15 +247,19 @@ def get_sums(
     else:
         model = 'gauss'
 
-    s2n = data['%s_s2n' % model]
-    T_ratio = data['%s_T_ratio' % model]
-    gvals = data['%s_g' % model]
+    if 'flags' in data.dtype.names:
+        flags = data['flags']
+    else:
+        flags = data[f'{model}_flags']
+
+    s2n = data[f'{model}_s2n']
+    T_ratio = data[f'{model}_T_ratio']
+    gvals = data[f'{model}_g']
     g = np.sqrt(gvals[:, 0]**2 + gvals[:, 1]**2)
 
     logic = (
         (data['shear_type'] == stype) &
-        ((data['flags'] == 0) | (data['flags'] == 2**19)) &
-        # (data['flags'] == 0) &
+        ((flags == 0) | (flags == 2**19)) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
         # (g < 1) &
