@@ -199,25 +199,27 @@ def convert_to_f4(data):
         return data
 
 
-def extract_g_err(data):
+def extract_g_err(data, meas_type):
     new_dt = []
+
+    g_cov_name = f'{meas_type}_g_cov'
+    g_err_name = f'{meas_type}_g_err'
 
     found = False
     for d in data.dtype.descr:
         name = d[0]
-        if 'g_cov' in name:
+        if name == g_cov_name:
             found = True
-            old_name = name
-            new_name = old_name.replace('g_cov', 'g_err')
-            new_dt.append((new_name, 'f4'))
+            new_dt.append((g_err_name, 'f4'))
         else:
             new_dt.append(d)
 
     assert found
+
     new_data = np.zeros(data.size, dtype=new_dt)
     eu.numpy_util.copy_fields(data, new_data)
-    g_err2 = 0.5 * (data[old_name][:, 0, 0] + data[old_name][:, 1, 1])
-    new_data[new_name] = np.sqrt(g_err2)
+    g_err2 = 0.5 * (data[g_cov_name][:, 0, 0] + data[g_cov_name][:, 1, 1])
+    new_data[g_err_name] = np.sqrt(g_err2)
     return new_data
 
 
@@ -267,7 +269,7 @@ def make_comb_data(
             else:
                 data = orig_data
 
-            data = extract_g_err(data)
+            data = extract_g_err(data=data, meas_type=meas_type)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
             if stype == 'noshear':
