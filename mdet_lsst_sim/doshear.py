@@ -16,7 +16,11 @@ def get_flist(directory, limit=None):
     flist = []
     for root, dirs, files in os.walk(directory, topdown=False):
         for basename in files:
-            if '.fits' in basename and basename[:4] != 'sums':
+            if (
+                '.fits' in basename
+                and basename[:4] != 'sums'
+                and 'mc-results' not in root
+            ):
                 fname = os.path.join(root, basename)
                 fname = os.path.abspath(fname)
                 flist.append(fname)
