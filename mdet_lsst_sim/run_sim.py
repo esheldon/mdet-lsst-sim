@@ -48,7 +48,7 @@ def run_sim(
     shear=0.02,
     randomize_shear=True,
     nocancel=False,
-    full_output=False,
+    columns=None,
     show=False,
     show_sheared=False,
     show_sim=False,
@@ -72,8 +72,8 @@ def run_sim(
         Magnitude of the shear.  Shears +/- shear will be applied
     nocancel: bool, optional
         If True, don't run -shear
-    full_output: bool, optional
-        If True, write full output rather than trimming.  Default False
+    columns: list or None
+        Subset of columns to keep
     show: bool, optional
         If True, show some images.  Default False
     show_sheared: bool, optional
@@ -296,7 +296,10 @@ def run_sim(
                 meas_type=mdet_config['meas_type'],
                 star_catalog=star_catalog,
                 mask_frac=mask_frac,
-                full_output=full_output,
+                columns=columns,
+                trim_pixels=extra['trim_pixels'],
+                coadd_dim=sim_config['coadd_dim'],
+                show=show,
             )
 
             if len(comb_data) > 0:
@@ -306,17 +309,18 @@ def run_sim(
                         theta=theta,
                     )
 
-                if extra['trim_pixels'] > 0:
-                    good = util.trim_catalog_boundary_strict(
-                        data=comb_data,
-                        dim=sim_config['coadd_dim'],
-                        trim_pixels=extra['trim_pixels'],
-                        checks=['l', 'r', 'u', 'd'],
-                        show=show,
-                    )
-                    comb_data['primary'][good] = True
-                else:
-                    comb_data['primary'] = True
+                # if 'primary' in comb_data.dtype.names:
+                #     if extra['trim_pixels'] > 0:
+                #         good = util.trim_catalog_boundary_strict(
+                #             data=comb_data,
+                #             dim=sim_config['coadd_dim'],
+                #             trim_pixels=extra['trim_pixels'],
+                #             checks=['l', 'r', 'u', 'd'],
+                #             show=show,
+                #         )
+                #         comb_data['primary'][good] = True
+                #     else:
+                #         comb_data['primary'] = True
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)

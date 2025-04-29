@@ -199,8 +199,13 @@ def jackknife(data, nocancel, err_err=True):
 
 
 def get_weights(data, ind, model, weight_type, sn, get_cov_weights=False):
-    g_cov = data['%s_g_cov' % model]
-    err_term = 0.5 * (g_cov[ind, 0, 0] + g_cov[ind, 1, 1])
+    name = '%s_g_cov' % model
+    if name in data.dtype.names:
+        g_cov = data[name]
+        err_term = 0.5 * (g_cov[ind, 0, 0] + g_cov[ind, 1, 1])
+    else:
+        name = '%s_g_err' % model
+        err_term = data[name][ind] ** 2
 
     weights = 1.0/(sn**2 + err_term)
     if get_cov_weights:
@@ -261,8 +266,12 @@ def get_sums(
     gvals = data[f'{model}_g']
     g = np.sqrt(gvals[:, 0]**2 + gvals[:, 1]**2)
 
-    logic = (
-        (data['shear_type'] == stype) &
+    if stype == 'noshear':
+        logic = (data['shear_type'] == stype) | (data['shear_type'] == 'ns')
+    else:
+        logic = (data['shear_type'] == stype)
+
+    logic = logic & (
         ((flags == 0) | (flags == 2**19)) &
         between(s2n, s2n_min, s2n_max) &
         (T_ratio > Tratio_min) &
@@ -276,9 +285,14 @@ def get_sums(
     if 'primary' in data.dtype.names and require_primary:
         logic &= data['primary']
 
-    logic &= (data['mask_frac'] < max_mask_frac)
-    logic &= (data['mfrac'] < max_mfrac)
-    logic &= (data['true_star_density'] < max_star_density)
+    if 'mask_frac' in data.dtype.names:
+        logic &= (data['mask_frac'] < max_mask_frac)
+
+    if 'mfrac' in data.dtype.names:
+        logic &= (data['mfrac'] < max_mfrac)
+
+    if 'true_star_density' in data.dtype.names:
+        logic &= (data['true_star_density'] < max_star_density)
 
     w, = np.where(logic)
 
@@ -534,6 +548,7 @@ def process_one(config, fname):
 
 
 def print_stats(st):
+    print(f'R11 {st["R11"]:g}')
     print('m1err: %g +/- %g (%s%%)' % (
         st['m1err'][0]*NSIGMA, st['m1err_err'][0]*NSIGMA, perc)
     )

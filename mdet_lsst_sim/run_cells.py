@@ -86,6 +86,7 @@ def run_cells(
         e.g. 'info'
     """
 
+    raise RuntimeError('adapt for new columns rather than full output')
     tm0 = time.time()
     tmsim = 0.0
     tmcoadd = 0.0

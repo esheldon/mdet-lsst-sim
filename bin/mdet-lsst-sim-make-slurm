@@ -18,7 +18,6 @@ config=%(config)s
 export OMP_NUM_THREADS=1
 
 %(command)s \
-    %(full_output)s \
     --seed ${seed} \
     --config ${config} \
     --ntrial ${ntrial} \
@@ -40,7 +39,6 @@ config=%(config)s
 export OMP_NUM_THREADS=1
 
 %(command)s \
-    %(full_output)s \
     --seed ${seed} \
     --config ${config} \
     --ntrial ${ntrial} \
@@ -68,7 +66,7 @@ SLURM_TEMPLATE = r'''#!/bin/bash
 '''
 
 
-def write_script(ntrial, sim_config, command, full_output):
+def write_script(ntrial, sim_config, command):
     import os
 
     fnames = ['run.sh', 'test.sh']
@@ -80,7 +78,6 @@ def write_script(ntrial, sim_config, command, full_output):
             text = template % {
                 'config': sim_config,
                 'command': command,
-                'full_output': full_output,
             }
             fobj.write(text)
 
@@ -152,10 +149,6 @@ def go(args):
     args = get_args()
 
     command = get_command_from_config_file(args.config)
-    if 'phot' in command:
-        full_output = '--full-output'
-    else:
-        full_output = ''
 
     write_seed(args.seed)
 
@@ -165,7 +158,6 @@ def go(args):
         ntrial=args.ntrial,
         sim_config=args.config,
         command=command,
-        full_output=full_output,
     )
 
     if not os.path.exists(OUTDIR):

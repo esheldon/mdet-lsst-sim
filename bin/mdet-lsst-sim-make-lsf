@@ -49,7 +49,6 @@ config=%(config)s
 export OMP_NUM_THREADS=1
 
 %(command)s \
-    %(full_output)s \
     --seed ${seed} \
     --config ${config} \
     --ntrial %(ntrial)d \
@@ -65,7 +64,6 @@ config=%(config)s
 export OMP_NUM_THREADS=1
 
 %(command)s \
-    %(full_output)s \
     --seed ${seed} \
     --config ${config} \
     --ntrial 3 \
@@ -73,7 +71,7 @@ export OMP_NUM_THREADS=1
 """
 
 
-def write_script(*, ntrial, sim_config, command, full_output):
+def write_script(*, ntrial, sim_config, command):
 
     data = [
         (get_script_file(), SCRIPT_TEMPLATE),
@@ -87,7 +85,6 @@ def write_script(*, ntrial, sim_config, command, full_output):
                 'ntrial': ntrial,
                 'config': sim_config,
                 'command': command,
-                'full_output': full_output,
             }
             fobj.write(text)
 
@@ -129,10 +126,6 @@ def main():
     args = get_args()
 
     command = get_command_from_config_file(args.config)
-    if 'phot' in command:
-        full_output = '--full-output'
-    else:
-        full_output = ''
 
     copy_config_file(args.config)
     sim_config_base = os.path.basename(args.config)
@@ -146,7 +139,6 @@ def main():
         ntrial=args.ntrial,
         sim_config=sim_config_base,
         command=command,
-        full_output=full_output,
     )
 
     with open(lsf_file, 'w') as fobj:
