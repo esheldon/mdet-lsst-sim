@@ -159,7 +159,7 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='config file')
 
-    parser.add_argument('--walltime', required=True,
+    parser.add_argument('--walltime',
                         help=('walltime for each job, e.g. 03:00:00'))
 
     return parser.parse_args()
