@@ -228,6 +228,7 @@ def make_comb_data(
     mask_frac,
     trim_pixels,
     coadd_dim,
+    checks,
     columns=None,
     show=False,
 ):
@@ -280,7 +281,7 @@ def make_comb_data(
                         data=orig_data,  # this has row/col
                         dim=coadd_dim,
                         trim_pixels=trim_pixels,
-                        checks=['l', 'r', 'u', 'd'],
+                        checks=checks,
                         show=show,
                     )
                     newdata['primary'][good] = True

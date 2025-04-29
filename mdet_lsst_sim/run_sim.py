@@ -299,6 +299,7 @@ def run_sim(
                 columns=columns,
                 trim_pixels=extra['trim_pixels'],
                 coadd_dim=sim_config['coadd_dim'],
+                checks=['l', 'r', 'u', 'd'],
                 show=show,
             )
 
@@ -308,19 +309,6 @@ def run_sim(
                         comb_data, meas_type=mdet_config['meas_type'],
                         theta=theta,
                     )
-
-                # if 'primary' in comb_data.dtype.names:
-                #     if extra['trim_pixels'] > 0:
-                #         good = util.trim_catalog_boundary_strict(
-                #             data=comb_data,
-                #             dim=sim_config['coadd_dim'],
-                #             trim_pixels=extra['trim_pixels'],
-                #             checks=['l', 'r', 'u', 'd'],
-                #             show=show,
-                #         )
-                #         comb_data['primary'][good] = True
-                #     else:
-                #         comb_data['primary'] = True
 
                 if shear_type == '1p':
                     dlist_p.append(comb_data)
