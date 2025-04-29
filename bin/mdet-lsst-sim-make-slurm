@@ -1,0 +1,174 @@
+#!/usr/bin/env python
+
+MAX_SEED = 2**30
+OUTDIR = 'outputs'
+
+SCRIPT = r"""#!/usr/bin/bash
+if [ $# -lt 3 ]; then
+    echo "./run.sh seed ntrial output"
+    exit 1
+fi
+
+seed=$1
+ntrial=$2
+output=$3
+
+config=%(config)s
+
+export OMP_NUM_THREADS=1
+
+%(command)s \
+    %(full_output)s \
+    --seed ${seed} \
+    --config ${config} \
+    --ntrial ${ntrial} \
+    --output ${output}
+"""  # noqa
+
+
+SLURM_TEMPLATE = r'''#!/bin/bash
+# Name of the job
+#SBATCH --job-name=%(job_name)s
+
+# Number of compute nodes
+#SBATCH --nodes=1
+
+# Number of cores, in this case one
+#SBATCH --ntasks-per-node=1
+
+# Walltime (job duration)
+#SBATCH --time=%(time)s
+
+#SBATCH --partition=milano
+#SBATCH --account=rubin:default
+
+./run.sh %(seed)s %(ntrial)d %(output)s
+'''
+
+
+def write_script(ntrial, sim_config, command, full_output):
+    import os
+
+    script_file = 'run.sh'
+    print('writing:', script_file)
+    with open(script_file, 'w') as fobj:
+        text = SCRIPT % {
+            'config': sim_config,
+            'command': command,
+            'full_output': full_output,
+        }
+        fobj.write(text)
+
+    os.system('chmod 755 %s' % script_file)
+
+
+def get_job_name(args, seed):
+    return f'{args.run}-{seed}'
+
+
+def get_output_file(args, seed):
+    import os
+    job_name = get_job_name(args=args, seed=seed)
+    fname = f'{job_name}.fits.gz'
+    return os.path.join(OUTDIR, fname)
+
+
+def get_slurm_file(args, seed):
+    import os
+    job_name = get_job_name(args=args, seed=seed)
+    fname = f'{job_name}.slurm'
+    return os.path.join(OUTDIR, fname)
+
+
+def write_seed(seed):
+    fname = 'seed.txt'
+    print('writing seed file:', fname)
+    with open(fname, 'w') as fobj:
+        fobj.write(f'{seed}\n')
+
+
+def write_slurm(args, rng):
+
+    for ijob in range(args.njobs):
+        job_seed = rng.choice(MAX_SEED)
+
+        job_name = get_job_name(args=args, seed=job_seed)
+        outfile = get_output_file(args=args, seed=job_seed)
+        slurm_file = get_slurm_file(args=args, seed=job_seed)
+
+        job_text = SLURM_TEMPLATE % {
+            'job_name': job_name,
+            'seed': job_seed,
+            'ntrial': args.ntrial,
+            'time': args.time,
+            'output': outfile,
+        }
+        with open(slurm_file, 'w') as fobj:
+            fobj.write(job_text)
+
+
+def get_command_from_config_file(config_file):
+    import yaml
+    with open(config_file) as fobj:
+        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+
+    if config.get('do_photometry', False):
+        command = 'mdet-lsst-sim-phot'
+    else:
+        command = 'mdet-lsst-sim'
+
+    return command
+
+
+def go(args):
+    import os
+    import numpy as np
+
+    args = get_args()
+
+    command = get_command_from_config_file(args.config)
+    if 'phot' in command:
+        full_output = '--full-output'
+    else:
+        full_output = ''
+
+    write_seed(args.seed)
+
+    rng = np.random.RandomState(args.seed)
+
+    write_script(
+        ntrial=args.ntrial,
+        sim_config=args.config,
+        command=command,
+        full_output=full_output,
+    )
+
+    if not os.path.exists(OUTDIR):
+        os.makedirs(OUTDIR)
+
+    write_slurm(args=args, rng=rng)
+
+
+def get_args():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--njobs', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run for each job')
+    parser.add_argument('--config', required=True, help='config file')
+
+    parser.add_argument('--walltime', required=True,
+                        help=('walltime for each job, e.g. 4:00'))
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+    go(args)
+
+
+if __name__ == '__main__':
+    main()
