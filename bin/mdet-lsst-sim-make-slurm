@@ -22,6 +22,28 @@ export OMP_NUM_THREADS=1
     --seed ${seed} \
     --config ${config} \
     --ntrial ${ntrial} \
+    --output ${output} > /dev/null
+"""  # noqa
+
+TEST_SCRIPT = r"""#!/usr/bin/bash
+if [ $# -lt 3 ]; then
+    echo "./run.sh seed ntrial output"
+    exit 1
+fi
+
+seed=$1
+ntrial=$2
+output=$3
+
+config=%(config)s
+
+export OMP_NUM_THREADS=1
+
+%(command)s \
+    %(full_output)s \
+    --seed ${seed} \
+    --config ${config} \
+    --ntrial ${ntrial} \
     --output ${output}
 """  # noqa
 
@@ -49,17 +71,20 @@ SLURM_TEMPLATE = r'''#!/bin/bash
 def write_script(ntrial, sim_config, command, full_output):
     import os
 
-    script_file = 'run.sh'
-    print('writing:', script_file)
-    with open(script_file, 'w') as fobj:
-        text = SCRIPT % {
-            'config': sim_config,
-            'command': command,
-            'full_output': full_output,
-        }
-        fobj.write(text)
+    fnames = ['run.sh', 'test.sh']
+    templates = [SCRIPT, TEST_SCRIPT]
 
-    os.system('chmod 755 %s' % script_file)
+    for script_file, template in zip(fnames, templates):
+        print('writing:', script_file)
+        with open(script_file, 'w') as fobj:
+            text = template % {
+                'config': sim_config,
+                'command': command,
+                'full_output': full_output,
+            }
+            fobj.write(text)
+
+        os.system('chmod 755 %s' % script_file)
 
 
 def get_job_name(args, seed):
