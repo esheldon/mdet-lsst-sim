@@ -17,10 +17,6 @@ def get_args():
     parser.add_argument('--nocancel', action='store_true',
                         help=("don't run two cancelling shears"))
 
-    parser.add_argument('--full-output',
-                        action='store_true',
-                        help='write all output columns')
-
     parser.add_argument('--show', action='store_true')
     parser.add_argument('--show-sheared', action='store_true',
                         help='show sheared images')
@@ -49,7 +45,6 @@ def main():
             ntrial=args.ntrial,
             output=args.output,
             nocancel=args.nocancel,
-            full_output=args.full_output,
             show=args.show,
             show_sheared=args.show_sheared,
             show_sim=args.show_sim,
@@ -68,7 +63,6 @@ def main():
             ntrial=args.ntrial,
             output=args.output,
             nocancel=args.nocancel,
-            full_output=args.full_output,
             show=args.show,
             show_sheared=args.show_sheared,
             show_sim=args.show_sim,

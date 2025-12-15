@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+import os
+import argparse
+import shutil
+
+
+SLURM_TEMPLATE = r"""#!/bin/bash
+
+#SBATCH --job-name=%(job_name)s
+#SBATCH --account=metashear
+#SBATCH --partition=bdwall
+#SBATCH --nodes=%(nodes)d
+#SBATCH --ntasks-per-node=36
+#SBATCH --output=%(logfile)s
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=esheldon@bnl.gov
+#SBATCH --time=%(walltime)s
+
+export OMP_NUM_THREADS=1
+
+echo `which python`
+
+srun -n $SLURM_NTASKS --mpi=pmi2 \
+    python -m mpi4py.futures $(which mdet-lsst-sim-mpi) \
+    --run %(run)s \
+    --config %(sim_config)s \
+    --mdet-config %(mdet_config)s \
+    --njobs %(njobs)d \
+    --ntrial %(ntrial)d \
+    %(deblend)s \
+    %(replace_bright)s \
+    %(interp_bright)s \
+    --seed %(seed)d
+"""
+
+
+def copy_config_file(config_file):
+    print('copying', config_file)
+    shutil.copy(config_file, '.')
+
+
+def get_name_base(run, seed):
+    return '%s-%010d' % (run, seed)
+
+
+def get_slurm_script_file(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.slr' % name
+
+
+def get_output(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.fits.gz' % name
+
+
+def get_logfile(run, seed):
+    name = get_name_base(run, seed)
+    return '%s.log' % name
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--config', required=True, help='simulation config')
+    parser.add_argument('--mdet-config', required=True, help='mdet config')
+    parser.add_argument('--nodes', type=int, required=True,
+                        help='number of 36 core nodes to use')
+    parser.add_argument('--njobs', type=int, required=True,
+                        help='number of jobs to run in our homespun queue')
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to do in each job')
+
+    parser.add_argument('--replace-bright', action='store_true',
+                        help='replace regions marked bright with noise')
+    parser.add_argument('--no-interp-bright', action='store_true',
+                        help='interpolate regions marked bright')
+    parser.add_argument('--deblend', action='store_true',
+                        help=('use the lsst deblender'))
+
+    parser.add_argument('--walltime', required=True, help='simulation config')
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+
+    copy_config_file(args.config)
+    copy_config_file(args.mdet_config)
+    sim_config_base = os.path.basename(args.config)
+    mdet_config_base = os.path.basename(args.mdet_config)
+
+    slurm_file = get_slurm_script_file(args.run, args.seed)
+    logfile = get_logfile(args.run, args.seed)
+    job_name = get_name_base(args.run, args.seed)
+
+    if os.path.exists(slurm_file):
+        raise RuntimeError('script already exists: %s' % slurm_file)
+
+    if args.deblend:
+        deblend = '--deblend'
+    else:
+        deblend = ''
+
+    if args.replace_bright:
+        replace_bright = '--replace-bright'
+    else:
+        replace_bright = ''
+
+    if args.no_interp_bright:
+        interp_bright = ''
+    else:
+        interp_bright = '--interp-bright'
+
+    with open(slurm_file, 'w') as fobj:
+        text = SLURM_TEMPLATE % {
+            'job_name': job_name,
+            'nodes': args.nodes,
+            'logfile': logfile,
+            'walltime': args.walltime,
+            'run': args.run,
+            'sim_config': sim_config_base,
+            'mdet_config': mdet_config_base,
+            'njobs': args.njobs,
+            'ntrial': args.ntrial,
+            'deblend': deblend,
+            'replace_bright': replace_bright,
+            'interp_bright': interp_bright,
+            'seed': args.seed,
+        }
+        fobj.write(text)
+
+    print(slurm_file)
+
+
+main()

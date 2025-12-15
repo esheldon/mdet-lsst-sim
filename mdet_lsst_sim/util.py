@@ -88,6 +88,8 @@ def load_configs_from_args(args):
         mls_config['shear'] = 0.02
     if 'randomize_shear' not in mls_config:
         mls_config['randomize_shear'] = True
+    if 'columns' not in mls_config:
+        mls_config['columns'] = None
 
     return dict(
         sim_config=sim_config,
@@ -174,33 +176,120 @@ def get_flags_name(data, meas_type):
     return flags_name
 
 
+def convert_to_f4(data):
+    new_dt = []
+
+    convert = False
+    for d in data.dtype.descr:
+        if 'f8' in d[1] and d[0] not in ['ra', 'dec']:
+            if len(d) == 2:
+                new_d = (d[0], 'f4')
+            else:
+                new_d = (d[0], 'f4', d[2])
+            convert = True
+        else:
+            new_d = d
+        new_dt.append(new_d)
+
+    if convert:
+        new_data = np.zeros(data.size, dtype=new_dt)
+        eu.numpy_util.copy_fields(data, new_data)
+        return new_data
+    else:
+        return data
+
+
+def extract_g_err(data, meas_type):
+    new_dt = []
+
+    g_cov_name = f'{meas_type}_g_cov'
+    g_err_name = f'{meas_type}_g_err'
+
+    found = False
+    for d in data.dtype.descr:
+        name = d[0]
+        if name == g_cov_name:
+            found = True
+            new_dt.append((g_err_name, 'f4'))
+        else:
+            new_dt.append(d)
+
+    assert found
+
+    new_data = np.zeros(data.size, dtype=new_dt)
+    eu.numpy_util.copy_fields(data, new_data)
+    g_err2 = 0.5 * (data[g_cov_name][:, 0, 0] + data[g_cov_name][:, 1, 1])
+    new_data[g_err_name] = np.sqrt(g_err2)
+    return new_data
+
+
 def make_comb_data(
     res,
     meas_type,
     star_catalog,
     mask_frac,
-    full_output=False,
+    trim_pixels,
+    coadd_dim,
+    checks,
+    columns=None,
+    show=False,
 ):
     add_dt = [
-        ('shear_type', 'U7'),
+        ('shear_type', 'U2'),
+    ]
+    possible_extra = [
         ('true_star_density', 'f4'),
         ('mask_frac', 'f4'),
         ('primary', bool),
     ]
+    possible_extra_cols = [p[0] for p in possible_extra]
+    if columns is not None:
+        for pe in possible_extra:
+            name = pe[0]
+            if name in columns:
+                add_dt += [pe]
+    else:
+        add_dt += possible_extra
 
     if not hasattr(res, 'keys'):
         res = {'noshear': res}
 
     dlist = []
     for stype in res.keys():
-        data = res[stype]
-        if data is not None:
+        orig_data = res[stype]
+        orig_data = convert_to_f4(orig_data)
+        if orig_data is not None:
 
-            if not full_output:
-                data = trim_output_columns(data, meas_type)
+            if columns is not None:
+                data = eu.numpy_util.extract_fields(
+                    orig_data,
+                    [c for c in columns if c not in possible_extra_cols]
+                )
+                # data = trim_output_columns(data, meas_type)
+            else:
+                data = orig_data
+
+            data = extract_g_err(data=data, meas_type=meas_type)
 
             newdata = eu.numpy_util.add_fields(data, add_dt)
-            newdata['shear_type'] = stype
+            if stype == 'noshear':
+                newdata['shear_type'] = 'ns'
+            else:
+                newdata['shear_type'] = stype
+
+            if 'primary' in newdata.dtype.names:
+                if trim_pixels > 0:
+                    good = trim_catalog_boundary_strict(
+                        data=orig_data,  # this has row/col
+                        dim=coadd_dim,
+                        trim_pixels=trim_pixels,
+                        checks=checks,
+                        show=show,
+                    )
+                    newdata['primary'][good] = True
+                else:
+                    newdata['primary'] = True
+
             add_truth_summary(
                 data=newdata,
                 star_catalog=star_catalog,
@@ -248,10 +337,11 @@ def add_truth_summary(data, star_catalog, mask_frac):
     get field stats and assign for each object
     """
 
-    if star_catalog is not None:
+    if star_catalog is not None and 'true_star_density' in data.dtype.names:
         data['true_star_density'] = star_catalog.density
 
-    data['mask_frac'] = mask_frac
+    if 'mask_frac' in data.dtype.names:
+        data['mask_frac'] = mask_frac
 
     return data
 

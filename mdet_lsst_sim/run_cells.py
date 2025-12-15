@@ -50,7 +50,7 @@ def run_cells(
     shear=0.02,
     randomize_shear=True,
     nocancel=False,
-    full_output=False,
+    columns=None,
     show=False,
     show_sheared=False,
     show_sim=False,
@@ -74,8 +74,6 @@ def run_cells(
         Magnitude of the shear.  Shears +/- shear will be applied
     nocancel: bool, optional
         If True, don't run -shear
-    full_output: bool, optional
-        If True, write full output rather than trimming.  Default False
     show: bool, optional
         If True, show some images.  Default False
     show_sheared: bool, optional
@@ -305,12 +303,21 @@ def run_cells(
                     if res is None or len(res) == 0:
                         continue
 
+                    checks = get_cell_checks(
+                        ncells=ncells, cell_ix=cell_ix,
+                        cell_iy=cell_iy,
+                    )
+
                     comb_data = util.make_comb_data(
                         res=res,
                         meas_type=mdet_config['meas_type'],
                         star_catalog=star_catalog,
                         mask_frac=mask_frac,
-                        full_output=full_output,
+                        columns=columns,
+                        trim_pixels=extra['trim_pixels'],
+                        coadd_dim=cell_size,
+                        checks=checks,
+                        show=show,
                     )
                     if len(comb_data) > 0:
 
@@ -319,25 +326,6 @@ def run_cells(
                                 comb_data, meas_type=mdet_config['meas_type'],
                                 theta=theta,
                             )
-
-                        if extra['trim_pixels'] > 0:
-                            checks = get_cell_checks(
-                                ncells=ncells, cell_ix=cell_ix,
-                                cell_iy=cell_iy,
-                            )
-                            good = util.trim_catalog_boundary_strict(
-                                data=comb_data,
-                                dim=cell_size,
-                                trim_pixels=extra['trim_pixels'],
-                                checks=checks,
-                                show=show,
-                            )
-                            if good.size == 0:
-                                continue
-
-                            comb_data['primary'][good] = True
-                        else:
-                            comb_data['primary'] = True
 
                         if shear_type == '1p':
                             dlist_p.append(comb_data)

@@ -2,6 +2,7 @@
 import argparse
 import fitsio
 import esutil as eu
+from esutil.pbar import pbar
 from pprint import pprint
 
 
@@ -18,8 +19,8 @@ def main(flist, config_file, nocancel):
     nf = len(flist)
     data = {}
 
-    for i, fname in enumerate(flist):
-        print(f'{i+1}/{nf} {fname}')
+    for i, fname in enumerate(pbar(flist)):
+        # print(f'{i+1}/{nf} {fname}')
 
         with fitsio.FITS(fname) as fits:
             for hdu in fits:
