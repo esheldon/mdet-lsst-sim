@@ -367,7 +367,7 @@ def get_command_from_config_file(config_file):
     return command
 
 
-def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
+def coadd_sim_data(rng, sim_data, sim_config, nowarp, remove_poisson):
     from descwl_coadd.coadd import make_coadd
     from descwl_coadd.coadd_nowarp import make_coadd_nowarp
     from metadetect.lsst.util import extract_multiband_coadd_data
@@ -375,23 +375,29 @@ def coadd_sim_data(rng, sim_data, nowarp, remove_poisson):
     bands = list(sim_data['band_data'].keys())
 
     if nowarp:
-        if len(bands) > 1:
-            raise ValueError('currently only one band for nowarp')
+        if len(bands) > 1 and sim_config['rotate'] or sim_config['dither']:
+            raise ValueError(
+                'can only do one band nowarp if there are '
+                'rotations and dithers'
+            )
 
-        exps = sim_data['band_data'][bands[0]]
+        coadd_data_list = []
+        for band in bands:
 
-        if len(exps) > 1:
-            raise ValueError('only one epoch for nowarp')
+            exps = sim_data['band_data'][band]
 
-        coadd_data_list = [
-            make_coadd_nowarp(
-                exp=exps[0],
+            if len(exps) > 1:
+                raise ValueError('only one epoch for nowarp')
+
+            exp = exps[0]
+
+            coadd = make_coadd_nowarp(
+                exp=exp,
                 psf_dims=sim_data['psf_dims'],
                 rng=rng,
                 remove_poisson=remove_poisson,
             )
-            for band in bands
-        ]
+            coadd_data_list.append(coadd)
     else:
         coadd_data_list = [
             make_coadd(

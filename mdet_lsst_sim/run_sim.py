@@ -228,7 +228,9 @@ def run_sim(
 
             tmcoadd0 = time.time()
             coadd_data = util.coadd_sim_data(
-                rng=trial_rng, sim_data=sim_data,
+                rng=trial_rng,
+                sim_data=sim_data,
+                sim_config=sim_config,
                 **coadd_config
             )
 

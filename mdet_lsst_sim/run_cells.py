@@ -230,7 +230,9 @@ def run_cells(
 
             tmcoadd0 = time.time()
             orig_coadd_data = util.coadd_sim_data(
-                rng=trial_rng, sim_data=sim_data,
+                rng=trial_rng,
+                sim_data=sim_data,
+                sim_config=sim_config,
                 **coadd_config
             )
             tmcoadd += time.time() - tmcoadd0
