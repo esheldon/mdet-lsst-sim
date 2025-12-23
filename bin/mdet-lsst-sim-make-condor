@@ -5,42 +5,54 @@ import argparse
 import shutil
 
 
-CONDOR_SUBMIT_HEAD = """
-Universe = vanilla
+CONDOR_SUBMIT_TEMPLATE = """
 
-Notification = Never
-
-# Run this exe with these args
-Executable = run.sh
+executable = run.sh
+arguments = "$(SEED)"
 
 # Image_Size =  2500000
 request_memory = %(mem)s
 
-GetEnv = True
+getenv = True
 
 kill_sig = SIGINT
 
 should_transfer_files = YES
 transfer_input_files = %(sim_config)s
 
-# so transfer when the job completes
+# transfer when the job completes
 when_to_transfer_output = ON_EXIT
 
+notification = Never
 environment = "OMP_NUM_THREADS=1"
 
 +Experiment = "astro"
++job_name = "%(job_name)s"
+
+queue SEED from (
+%(seeds_str)s
+)
 """
 
-CONDOR_JOB_TEMPLATE = """
-+job_name = "%(job_name)s"
-transfer_output_files = %(output)s
-Arguments = %(seed)d %(output)s
-Queue
-"""  # noqa
 
+SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
 
-def get_script_file():
-    return 'run.sh'
+if [ $# -lt 1 ]; then
+    echo "run.sh seed"
+    exit 1
+fi
+
+set -e
+export OMP_NUM_THREADS=1
+
+seed=$1
+
+%(command)s \
+    --seed ${seed} \
+    --config %(sim_config)s \
+    --ntrial %(ntrial)d \
+    --output "%(job_name)s-${seed}.fits.gz" &> /dev/null
+"""
 
 
 def copy_config_file(config_file):
@@ -48,63 +60,22 @@ def copy_config_file(config_file):
     shutil.copy(config_file, '.')
 
 
-def get_name_base(run, seed):
-    return '%s-%010d' % (run, seed)
+def write_script(job_name, main_seed, ntrial, sim_config, command):
 
+    script_file = 'run.sh'
 
-def get_condor_script_file(run, seed):
-    name = get_name_base(run, seed)
-    return '%s.condor' % name
-
-
-def get_output(run, seed):
-    name = get_name_base(run, seed)
-    return '%s.fits.gz' % name
-
-
-SCRIPT_TEMPLATE = r"""#!/usr/bin/bash
-
-set -e
-export OMP_NUM_THREADS=1
-
-seed=$1
-output=$2
-
-%(command)s \
-    --seed ${seed} \
-    --config %(sim_config)s \
-    --ntrial %(ntrial)d \
-    --output ${output} &> /dev/null
-"""
-
-
-def write_script(*, ntrial, sim_config, command):
-
-    script_file = get_script_file()
     print('writing:', script_file)
     with open(script_file, 'w') as fobj:
         text = SCRIPT_TEMPLATE % {
             'command': command,
+            'job_name': job_name,
+            'main_seed': main_seed,
             'ntrial': ntrial,
             'sim_config': sim_config,
         }
         fobj.write(text)
 
     os.system('chmod 755 %s' % script_file)
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--run', required=True)
-    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
-    parser.add_argument('--njobs', type=int, required=True)
-    parser.add_argument('--ntrial', type=int, required=True,
-                        help='number of sim pairs to run for each job')
-    parser.add_argument('--config', required=True, help='config file')
-
-    parser.add_argument('--mem', default='2G', help='expected mem usage')
-
-    return parser.parse_args()
 
 
 def get_command_from_config_file(config_file):
@@ -120,49 +91,84 @@ def get_command_from_config_file(config_file):
     return command
 
 
-def main():
-    args = get_args()
+def get_seeds_str(rng, njobs):
+    """
+    will look like
 
-    command = get_command_from_config_file(args.config)
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    """
+    seeds = rng.choice(2**30, size=njobs)
 
-    copy_config_file(args.config)
-    sim_config_base = os.path.basename(args.config)
+    strings = []
+    for i in range(njobs):
 
-    rng = np.random.RandomState(args.seed)
+        sstr = str(seeds[i])
 
-    condor_file = get_condor_script_file(args.run, args.seed)
+        if i < njobs - 1:
+            sstr = sstr + ','
+
+            if (i + 1) % 10 == 0:
+                sstr = sstr + '\n'
+            else:
+                sstr = sstr + ' '
+
+        strings.append(sstr)
+
+    seeds_str = ''.join(strings)
+    return seeds_str
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run', required=True)
+    parser.add_argument('--seed', type=int, required=True, help='seed for rng')
+    parser.add_argument('--njobs', type=int, required=True)
+    parser.add_argument('--ntrial', type=int, required=True,
+                        help='number of sim pairs to run for each job')
+    parser.add_argument('--config', required=True, help='config file')
+
+    parser.add_argument('--mem', default='1.5G', help='expected mem usage')
+
+    return parser.parse_args()
+
+
+def main(args):
+
+    job_name = f'{args.run}-{args.seed:d}'
+    condor_file = f'{job_name}.condor'
 
     if os.path.exists(condor_file):
         raise RuntimeError('script already exists: %s' % condor_file)
 
+    command = get_command_from_config_file(args.config)
+
+    copy_config_file(args.config)
+    sim_config_local = os.path.basename(args.config)
+
+    rng = np.random.RandomState(args.seed)
+    seeds_str = get_seeds_str(rng=rng, njobs=args.njobs)
+
     write_script(
+        job_name=job_name,
+        main_seed=args.seed,
         ntrial=args.ntrial,
-        sim_config=sim_config_base,
+        sim_config=sim_config_local,
         command=command,
     )
 
+    text = CONDOR_SUBMIT_TEMPLATE % {
+        'sim_config': sim_config_local,
+        'mem': args.mem,
+        'job_name': job_name,
+        'seeds_str': seeds_str,
+    }
+
+    print('writing', args.njobs, 'jobs to', condor_file)
     with open(condor_file, 'w') as fobj:
-        fobj.write(CONDOR_SUBMIT_HEAD % {
-            'sim_config': sim_config_base,
-            'mem': args.mem,
-        })
-
-        for i in range(args.njobs):
-
-            seed = rng.randint(0, 2**31)
-            output = get_output(args.run, seed)
-            job_name = '%s-%010d' % (args.run, seed)
-
-            job_text = CONDOR_JOB_TEMPLATE % {
-                'job_name': job_name,
-                'seed': seed,
-                'output': output,
-            }
-
-            fobj.write(job_text)
-
-    print(condor_file)
-    print('wrote:', args.njobs)
+        fobj.write(text)
 
 
-main()
+if __name__ == '__main__':
+    main(args=get_args())
