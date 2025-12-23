@@ -47,17 +47,6 @@ def test_run_nocancel(nocancel):
     )
 
 
-@pytest.mark.parametrize('model', ['wmom', 'ksigma'])
-def test_run_model(model):
-
-    run_sim(
-        mdet_config={'model': model},
-        seed=3125,
-        ntrial=1,
-        output=None,
-    )
-
-
 @pytest.mark.parametrize(
     'cosmic_rays, bad_columns',
     [(True, False),

@@ -89,6 +89,8 @@ def run_cells(
     tmcoadd = 0.0
     tmmeas = 0.0
 
+    meas_type = 'gauss'
+
     logging.basicConfig(
         stream=sys.stdout,
         level=getattr(logging, loglevel.upper()),
@@ -312,7 +314,7 @@ def run_cells(
 
                     comb_data = util.make_comb_data(
                         res=res,
-                        meas_type=mdet_config['meas_type'],
+                        meas_type=meas_type,
                         star_catalog=star_catalog,
                         mask_frac=mask_frac,
                         columns=columns,
@@ -325,7 +327,7 @@ def run_cells(
 
                         if theta is not None:
                             util.unrotate_noshear_shear(
-                                comb_data, meas_type=mdet_config['meas_type'],
+                                comb_data, meas_type=meas_type,
                                 theta=theta,
                             )
 

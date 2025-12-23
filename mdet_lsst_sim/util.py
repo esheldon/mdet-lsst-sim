@@ -214,7 +214,9 @@ def extract_g_err(data, meas_type):
         else:
             new_dt.append(d)
 
-    assert found
+    assert found, (
+        f'did not find {g_cov_name}, {g_err_name} in {data.dtype.names}'
+    )
 
     new_data = np.zeros(data.size, dtype=new_dt)
     eu.numpy_util.copy_fields(data, new_data)
