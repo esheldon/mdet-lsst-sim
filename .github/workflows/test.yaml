@@ -69,4 +69,5 @@ jobs:
 
           - name: Run pytest
             shell: bash -l {0}
+            unsetup -j metadetect
             run: pytest -vv
