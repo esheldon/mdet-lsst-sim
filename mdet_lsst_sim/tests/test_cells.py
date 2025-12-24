@@ -32,7 +32,6 @@ coadd:
     nowarp: true
 
 mdet:
-    meas_type: wmom
     trim_pixels: 50
 """
 
@@ -62,7 +61,6 @@ coadd:
     nowarp: true
 
 mdet:
-    meas_type: wmom
     trim_pixels: 50
 """
 
