@@ -117,8 +117,10 @@ def run_sim(
 
     if sim_config is not None:
         psf_pars = sim_config.pop('psf_pars', {})
+        draw_method = sim_config.pop('draw_method', 'auto')
     else:
         psf_pars = {}
+        draw_method = 'auto'
 
     logger.info(pformat(psf_pars))
 
@@ -243,6 +245,7 @@ def run_sim(
                 bad_columns=sim_config['bad_columns'],
                 star_bleeds=sim_config['star_bleeds'],
                 sky_n_sigma=sim_config['sky_n_sigma'],
+                draw_method=draw_method,
             )
             tmsim += time.time() - tmsim0
 
