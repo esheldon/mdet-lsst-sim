@@ -111,7 +111,7 @@ class ShapeletPSFLibrary:
         gsimage = psf.drawImage(
             nx=n,
             ny=n,
-            method='sb',
+            method='no_pixel',
             scale=pixel_scale,
             wcs=wcs,
         )
@@ -200,7 +200,7 @@ class ShapeletPSF(object):
             else:
                 psf += tmp
 
-        return psf
+        return psf.withFlux(1.0)
 
     def _get_one_psf(self, pos):
         return self.shlib.sample_psf()
