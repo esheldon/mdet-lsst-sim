@@ -1,74 +1,151 @@
 name: tests
 
 on:
-      push:
-          branches:
-              - master
-      pull_request: null
+  push:
+    branches:
+      - master
+  pull_request: null
+
+env:
+  PY_COLORS: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    tests:
-      name: tests
-      strategy:
-          matrix:
-            pyver: [3.12]
+  lsst-tests:
+    name: lsst-tests
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
 
-      runs-on: "ubuntu-latest"
+    steps:
+      - name: free disk space for stackvana
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          rm_cmd: "rmz"  # Faster cleanup
 
-      steps:
-          - name: free disk space
-            uses: endersonmenezes/free-disk-space@v3
-            with:
-              remove_android: true
-              remove_dotnet: true
-              remove_haskell: true
-              rm_cmd: "rmz"
+      - uses: actions/checkout@v6
 
-          - uses: actions/checkout@v6
+      - uses: mamba-org/setup-micromamba@v3.0.0
+        with:
+          environment-name: test
+          condarc: |
+            channels:
+              - conda-forge
+            channel_priority: strict
+            show_channel_urls: true
+            always_yes: true
+          create-args: >-
+            stackvana=0
+            lsstdesc-weaklensingdeblending
+            pip
 
-          - uses: mamba-org/setup-micromamba@v2.0.7
-            with:
-              environment-name: test
-              condarc: |
-                channels:
-                  - conda-forge
-                channel_priority: strict
-                show_channel_urls: true
-                always_yes: true
-              create-args: >-
-                python=${{ matrix.pyver }}
-                pip
+      - name: configure conda and install code
+        shell: bash -l {0}
+        run: |
 
-          - name: Install special dependencies with conda and pip
-            shell: bash -l {0}
-            run: |
+          micromamba install -q \
+            flake8 \
+            pytest \
+            numpy \
+            "galsim>=2.3" \
+            "numba!=0.54.0" \
+            ngmix \
+            meds \
+            fitsio
 
-                micromamba install -q stackvana
-                
-                micromamba install -q \
-                  flake8 \
-                  pytest \
-                  numpy \
-                  "galsim>=2.3" \
-                  "numba!=0.54.0" \
-                  ngmix \
-                  meds \
-                  lsstdesc-weaklensingdeblending \
-                  fitsio
+          pip install --no-deps --no-build-isolation git+https://github.com/LSSTDESC/descwl-shear-sims.git
+          pip install --no-deps --no-build-isolation git+https://github.com/LSSTDESC/descwl_coadd.git
+          pip install --no-deps --no-build-isolation git+https://github.com/esheldon/metadetect.git
 
-                # pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@0.4.2
-                # pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@0.3.0
-                # pip install --no-deps git+https://github.com/esheldon/metadetect.git@0.8.2
-                pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
-                pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
-                pip install --no-deps git+https://github.com/esheldon/metadetect.git
+          pip install --no-deps --no-build-isolation  -e .
 
-          - name: Lint with flake8
-            shell: bash -l {0}
-            run: flake8
+      - name: Lint with flake8
+        shell: bash -l {0}
+        run: flake8
 
-          - name: Run pytest
-            shell: bash -l {0}
-            run: |
-                unsetup -j metadetect
-                pytest -vv
+      - name: Run pytest
+        shell: bash -l {0}
+        run: |
+          unsetup -j metadetect
+          pytest -vv
+
+# name: tests
+#
+# on:
+#       push:
+#           branches:
+#               - master
+#       pull_request: null
+#
+# jobs:
+#     tests:
+#       name: tests
+#       strategy:
+#           matrix:
+#             pyver: [3.12]
+#
+#       runs-on: "ubuntu-latest"
+#
+#       steps:
+#           - name: free disk space
+#             uses: endersonmenezes/free-disk-space@v3
+#             with:
+#               remove_android: true
+#               remove_dotnet: true
+#               remove_haskell: true
+#               rm_cmd: "rmz"
+#
+#           - uses: actions/checkout@v6
+#
+#           - uses: mamba-org/setup-micromamba@v2.0.7
+#             with:
+#               environment-name: test
+#               condarc: |
+#                 channels:
+#                   - conda-forge
+#                 channel_priority: strict
+#                 show_channel_urls: true
+#                 always_yes: true
+#               create-args: >-
+#                 python=${{ matrix.pyver }}
+#                 pip
+#
+#           - name: Install special dependencies with conda and pip
+#             shell: bash -l {0}
+#             run: |
+#
+#                 micromamba install -q stackvana
+#                 
+#                 micromamba install -q \
+#                   flake8 \
+#                   pytest \
+#                   numpy \
+#                   "galsim>=2.3" \
+#                   "numba!=0.54.0" \
+#                   ngmix \
+#                   meds \
+#                   lsstdesc-weaklensingdeblending \
+#                   fitsio
+#
+#                 # pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git@0.4.2
+#                 # pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git@0.3.0
+#                 # pip install --no-deps git+https://github.com/esheldon/metadetect.git@0.8.2
+#                 pip install --no-deps git+https://github.com/LSSTDESC/descwl-shear-sims.git
+#                 pip install --no-deps git+https://github.com/LSSTDESC/descwl_coadd.git
+#                 pip install --no-deps git+https://github.com/esheldon/metadetect.git
+#
+#           - name: Lint with flake8
+#             shell: bash -l {0}
+#             run: flake8
+#
+#           - name: Run pytest
+#             shell: bash -l {0}
+#             run: |
+#                 unsetup -j metadetect
+#                 pytest -vv

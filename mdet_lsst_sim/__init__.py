@@ -3,3 +3,4 @@ from .version import __version__
 from . import run_sim
 from . import util
 from . import vis
+from . import shapelet_psf
