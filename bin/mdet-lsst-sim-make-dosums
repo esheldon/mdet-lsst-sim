@@ -11,7 +11,7 @@ notification = Never
 
 executable = %(script)s
 
-request_memory = 2G
+request_memory = %(mem)s
 
 getenv = True
 
@@ -78,6 +78,7 @@ def main(
     nchunks,
     cut_config_file,
     limit,
+    mem,
 ):
     import os
     from mdet_lsst_sim.doshear import (
@@ -104,6 +105,7 @@ def main(
     condor_file = get_doshear_condor_file()
     with open(condor_file, 'w') as condor_fobj:
         condor_head = CONDOR_SUBMIT_HEAD % {
+            'mem': mem,
             'script': SCRIPT_NAME,
         }
         condor_fobj.write(condor_head)
@@ -136,6 +138,7 @@ def get_args():
     parser.add_argument('--cut-config', required=True)
     parser.add_argument('-n', '--nchunks', type=int, required=True)
     parser.add_argument('--limit', type=int)
+    parser.add_argument('--mem', default='1G')
     return parser.parse_args()
 
 
@@ -146,4 +149,5 @@ if __name__ == '__main__':
         nchunks=args.nchunks,
         cut_config_file=args.cut_config,
         limit=args.limit,
+        mem=args.mem,
     )

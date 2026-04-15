@@ -13,6 +13,7 @@ import sys
 import time
 import logging
 import numpy as np
+from pprint import pformat
 
 from descwl_shear_sims.sim import (
     make_sim,
@@ -129,25 +130,25 @@ def run_cells(
 
     star_config = sim_config.get('star_config', None)
 
-    logger.info(str(sim_config))
-    logger.info(str(mdet_config))
+    logger.info(pformat(sim_config))
+    logger.info(pformat(mdet_config))
 
-    assert sim_config['coadd_dim'] % cell_size == 2*cell_buff
-    ncells = sim_config['coadd_dim'] // (cell_size - 2*cell_buff)
+    assert sim_config['coadd_dim'] % cell_size == 2 * cell_buff
+    ncells = sim_config['coadd_dim'] // (cell_size - 2 * cell_buff)
 
     dlist_p = []
     dlist_m = []
 
     if nocancel:
-        shear_types = ('1p', )
+        shear_types = ('1p',)
     else:
         shear_types = ('1p', '1m')
 
     infolist = []
 
     for trial in range(ntrial):
-        logger.info('-'*70)
-        logger.info('trial: %d/%d' % (trial+1, ntrial))
+        logger.info('-' * 70)
+        logger.info('trial: %d/%d' % (trial + 1, ntrial))
 
         galaxy_catalog = make_galaxy_catalog(
             rng=rng,
@@ -174,7 +175,6 @@ def run_cells(
         trial_seed = rng.randint(0, 2**30)
 
         for shear_type in shear_types:
-
             logger.info(str(shear_type))
 
             trial_rng = np.random.RandomState(trial_seed)
@@ -185,7 +185,8 @@ def run_cells(
                 this_shear = -shear
 
             g1, g2, theta = util.get_sim_shear(
-                rng=trial_rng, shear=this_shear,
+                rng=trial_rng,
+                shear=this_shear,
                 randomize_shear=randomize_shear,
             )
             logger.info('shear: %.3f, %.3f theta: %s', g1, g2, theta)
@@ -194,14 +195,20 @@ def run_cells(
                 psf = make_ps_psf(
                     rng=trial_rng,
                     dim=sim_config['se_dim'],
+                    median_seeing=sim_config['psf_fwhm'],
                     variation_factor=sim_config['psf_variation_factor'],
                 )
             elif sim_config['randomize_psf']:
                 psf = make_rand_psf(
-                    psf_type=sim_config["psf_type"], rng=trial_rng,
+                    psf_type=sim_config["psf_type"],
+                    psf_fwhm_mean=sim_config['psf_fwhm'],
+                    rng=trial_rng,
                 )
             else:
-                psf = make_fixed_psf(psf_type=sim_config["psf_type"])
+                psf = make_fixed_psf(
+                    psf_type=sim_config["psf_type"],
+                    psf_fwhm=sim_config['psf_fwhm'],
+                )
 
             tmsim0 = time.time()
             sim_data = make_sim(
@@ -235,7 +242,7 @@ def run_cells(
                 rng=trial_rng,
                 sim_data=sim_data,
                 sim_config=sim_config,
-                **coadd_config
+                **coadd_config,
             )
             tmcoadd += time.time() - tmcoadd0
 
@@ -247,7 +254,6 @@ def run_cells(
 
             for cell_ix in range(ncells):
                 for cell_iy in range(ncells):
-
                     logger.info('cell {%s, %s}' % (cell_ix, cell_iy))
                     cell_coadd_data = util.extract_cell_coadd_data(
                         coadd_data=orig_coadd_data,
@@ -262,11 +268,13 @@ def run_cells(
                     if show:
                         lsst_vis.show_mbexp(cell_coadd_data['mbexp'])
 
-                    if (extra['mask_bright'] and
-                            len(sim_data['bright_info']) > 0):
+                    if (
+                        extra['mask_bright']
+                        and len(sim_data['bright_info']) > 0
+                    ):
                         apply_apodized_bright_masks_mbexp(
                             bright_info=sim_data['bright_info'],
-                            **cell_coadd_data
+                            **cell_coadd_data,
                         )
                         if show:
                             lsst_vis.show_multi_mbexp(cell_coadd_data['mbexp'])
@@ -298,8 +306,10 @@ def run_cells(
                         # )
                     else:
                         res = run_metadetect(
-                            rng=trial_rng, config=mdet_config,
-                            show=show_sheared, **cell_coadd_data,
+                            rng=trial_rng,
+                            config=mdet_config,
+                            show=show_sheared,
+                            **cell_coadd_data,
                         )
                     tmmeas += time.time() - tmmeas0
 
@@ -308,7 +318,8 @@ def run_cells(
                         continue
 
                     checks = get_cell_checks(
-                        ncells=ncells, cell_ix=cell_ix,
+                        ncells=ncells,
+                        cell_ix=cell_ix,
                         cell_iy=cell_iy,
                     )
 
@@ -324,10 +335,10 @@ def run_cells(
                         show=show,
                     )
                     if len(comb_data) > 0:
-
                         if theta is not None:
                             util.unrotate_noshear_shear(
-                                comb_data, meas_type=meas_type,
+                                comb_data,
+                                meas_type=meas_type,
                                 theta=theta,
                             )
 
@@ -336,9 +347,9 @@ def run_cells(
                         else:
                             dlist_m.append(comb_data)
 
-    tm_seconds = time.time()-tm0
-    tm_minutes = tm_seconds/60.0
-    tm_per_trial = tm_seconds/ntrial
+    tm_seconds = time.time() - tm0
+    tm_minutes = tm_seconds / 60.0
+    tm_per_trial = tm_seconds / ntrial
     logger.info('time: %g minutes' % tm_minutes)
     logger.info('time sim: %g minutes' % (tmsim / 60))
     logger.info('time coadd: %g minutes' % (tmcoadd / 60))
@@ -369,13 +380,13 @@ def get_cell_checks(ncells, cell_ix, cell_iy):
     if cell_ix == 0:
         checks.remove('l')
 
-    if cell_ix == (ncells-1):
+    if cell_ix == (ncells - 1):
         checks.remove('r')
 
     if cell_iy == 0:
         checks.remove('d')
 
-    if cell_iy == (ncells-1):
+    if cell_iy == (ncells - 1):
         checks.remove('u')
 
     return checks

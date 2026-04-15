@@ -13,6 +13,7 @@ import sys
 import time
 import logging
 import numpy as np
+from pprint import pformat
 
 from descwl_shear_sims.sim import (
     make_sim,
@@ -20,7 +21,11 @@ from descwl_shear_sims.sim import (
     get_se_dim,
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
-from descwl_shear_sims.psfs import make_fixed_psf, make_ps_psf, make_rand_psf
+from descwl_shear_sims.psfs import (
+    make_fixed_psf,
+    make_ps_psf,
+    make_rand_psf,
+)
 from descwl_shear_sims.stars import make_star_catalog
 from descwl_shear_sims.constants import SCALE
 import metadetect.lsst.vis as lsst_vis
@@ -113,7 +118,8 @@ def run_sim(
 
     if sim_config['se_dim'] is None:
         sim_config['se_dim'] = get_se_dim(
-            coadd_scale=SCALE, se_scale=SCALE,
+            coadd_scale=SCALE,
+            se_scale=SCALE,
             coadd_dim=sim_config['coadd_dim'],
             rotate=sim_config['rotate'],
         )
@@ -127,22 +133,22 @@ def run_sim(
 
     star_config = sim_config.get('star_config', None)
 
-    logger.info(str(sim_config))
-    logger.info(str(mdet_config))
+    logger.info(pformat(sim_config))
+    logger.info(pformat(mdet_config))
 
     dlist_p = []
     dlist_m = []
 
     if nocancel:
-        shear_types = ('1p', )
+        shear_types = ('1p',)
     else:
         shear_types = ('1p', '1m')
 
     infolist = []
 
     for trial in range(ntrial):
-        logger.info('-'*70)
-        logger.info('trial: %d/%d' % (trial+1, ntrial))
+        logger.info('-' * 70)
+        logger.info('trial: %d/%d' % (trial + 1, ntrial))
 
         galaxy_catalog = make_galaxy_catalog(
             rng=rng,
@@ -170,7 +176,6 @@ def run_sim(
         trial_seed = rng.randint(0, 2**30)
 
         for shear_type in shear_types:
-
             logger.info(str(shear_type))
 
             trial_rng = np.random.RandomState(trial_seed)
@@ -181,7 +186,8 @@ def run_sim(
                 this_shear = -shear
 
             g1, g2, theta = util.get_sim_shear(
-                rng=trial_rng, shear=this_shear,
+                rng=trial_rng,
+                shear=this_shear,
                 randomize_shear=randomize_shear,
             )
             logger.info('shear: %.3f, %.3f theta: %s', g1, g2, theta)
@@ -190,14 +196,20 @@ def run_sim(
                 psf = make_ps_psf(
                     rng=trial_rng,
                     dim=sim_config['se_dim'],
+                    median_seeing=sim_config['psf_fwhm'],
                     variation_factor=sim_config['psf_variation_factor'],
                 )
             elif sim_config['randomize_psf']:
                 psf = make_rand_psf(
-                    psf_type=sim_config["psf_type"], rng=trial_rng,
+                    psf_type=sim_config["psf_type"],
+                    psf_fwhm_mean=sim_config['psf_fwhm'],
+                    rng=trial_rng,
                 )
             else:
-                psf = make_fixed_psf(psf_type=sim_config["psf_type"])
+                psf = make_fixed_psf(
+                    psf_type=sim_config["psf_type"],
+                    psf_fwhm=sim_config['psf_fwhm'],
+                )
 
             tmsim0 = time.time()
             sim_data = make_sim(
@@ -231,7 +243,7 @@ def run_sim(
                 rng=trial_rng,
                 sim_data=sim_data,
                 sim_config=sim_config,
-                **coadd_config
+                **coadd_config,
             )
 
             if show:
@@ -251,8 +263,7 @@ def run_sim(
                 # just going to the noise level
                 sim_data['bright_info']['radius_pixels'] += ap_padding
                 apply_apodized_bright_masks_mbexp(
-                    bright_info=sim_data['bright_info'],
-                    **coadd_data
+                    bright_info=sim_data['bright_info'], **coadd_data
                 )
                 if show:
                     # lsst_vis.show_image_and_mask(coadd_data['mbexp'])
@@ -286,7 +297,9 @@ def run_sim(
                 # )
             else:
                 res = run_metadetect(
-                    rng=trial_rng, config=mdet_config, show=show_sheared,
+                    rng=trial_rng,
+                    config=mdet_config,
+                    show=show_sheared,
                     **coadd_data,
                 )
             tmmeas += time.time() - tmmeas0
@@ -310,7 +323,8 @@ def run_sim(
             if len(comb_data) > 0:
                 if theta is not None:
                     util.unrotate_noshear_shear(
-                        comb_data, meas_type=meas_type,
+                        comb_data,
+                        meas_type=meas_type,
                         theta=theta,
                     )
 
@@ -319,9 +333,9 @@ def run_sim(
                 else:
                     dlist_m.append(comb_data)
 
-    tm_seconds = time.time()-tm0
-    tm_minutes = tm_seconds/60.0
-    tm_per_trial = tm_seconds/ntrial
+    tm_seconds = time.time() - tm0
+    tm_minutes = tm_seconds / 60.0
+    tm_per_trial = tm_seconds / ntrial
     logger.info('time: %g minutes' % tm_minutes)
     logger.info('time sim: %g minutes' % (tmsim / 60))
     logger.info('time coadd: %g minutes' % (tmcoadd / 60))
