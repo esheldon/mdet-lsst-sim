@@ -211,6 +211,7 @@ def run_sim(
                 )
             elif sim_config['psf_type'] == 'shapelet':
                 psf = make_shapelet_psf(rng=trial_rng, **psf_pars)
+                assert draw_method == 'no_pixel'
 
             elif sim_config['randomize_psf']:
                 psf = make_rand_psf(
