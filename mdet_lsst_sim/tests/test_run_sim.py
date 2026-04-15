@@ -134,3 +134,23 @@ def test_run_star_bleeds():
         ntrial=1,
         output=None,
     )
+
+
+@pytest.mark.skipif(
+    'CATSIM_DIR' not in os.environ,
+    reason='simulation input data is not present',
+)
+def test_run_shapelet_psf():
+    sim_config = {
+        'gal_type': 'wldeblend',
+        'layout': 'random',
+        'coadd_dim': 101,
+        'buff': 5,
+        'psf_type': 'shapelet',
+    }
+    run_sim(
+        sim_config=sim_config,
+        seed=125,
+        ntrial=1,
+        output=None,
+    )

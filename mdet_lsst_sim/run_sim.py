@@ -40,6 +40,7 @@ import fitsio
 import esutil as eu
 
 from . import util, vis
+from .shapelet_psf import make_shapelet_psf
 
 
 def run_sim(
@@ -199,6 +200,9 @@ def run_sim(
                     median_seeing=sim_config['psf_fwhm'],
                     variation_factor=sim_config['psf_variation_factor'],
                 )
+            elif sim_config['psf_type'] == 'shapelet':
+                psf = make_shapelet_psf(rng=trial_rng)
+
             elif sim_config['randomize_psf']:
                 psf = make_rand_psf(
                     psf_type=sim_config["psf_type"],
