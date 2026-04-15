@@ -115,7 +115,11 @@ def run_sim(
         'there is no poisson noise in the sim'
     )
 
-    psf_pars = sim_config.pop('psf_pars', {})
+    if sim_config is not None:
+        psf_pars = sim_config.pop('psf_pars', {})
+    else:
+        psf_pars = {}
+
     logger.info(pformat(psf_pars))
 
     sim_config = get_sim_config(config=sim_config)
