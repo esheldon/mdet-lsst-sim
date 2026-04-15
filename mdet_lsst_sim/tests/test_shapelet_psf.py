@@ -39,4 +39,5 @@ def test_shapelet_psf(nepoch, threshold):
     assert psf.threshold == threshold
 
     pos = galsim.PositionD(1.5, 2.2)
-    _ = psf.getPSF(pos)
+    opsf = psf.getPSF(pos)
+    assert opsf.flux == 1.0
