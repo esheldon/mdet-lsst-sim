@@ -147,6 +147,9 @@ def test_run_shapelet_psf():
         'coadd_dim': 101,
         'buff': 5,
         'psf_type': 'shapelet',
+        'psf_pars': {
+            'nepoch': 3,
+        }
     }
     run_sim(
         sim_config=sim_config,

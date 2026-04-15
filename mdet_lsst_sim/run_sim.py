@@ -115,6 +115,9 @@ def run_sim(
         'there is no poisson noise in the sim'
     )
 
+    psf_pars = sim_config.pop('psf_pars', {})
+    logger.info(pformat(psf_pars))
+
     sim_config = get_sim_config(config=sim_config)
 
     if sim_config['se_dim'] is None:
@@ -201,7 +204,7 @@ def run_sim(
                     variation_factor=sim_config['psf_variation_factor'],
                 )
             elif sim_config['psf_type'] == 'shapelet':
-                psf = make_shapelet_psf(rng=trial_rng)
+                psf = make_shapelet_psf(rng=trial_rng, **psf_pars)
 
             elif sim_config['randomize_psf']:
                 psf = make_rand_psf(
