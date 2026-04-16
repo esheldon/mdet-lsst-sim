@@ -53,10 +53,12 @@ def main(infile, outfile, seed, nrand, ngauss, show):
     import numpy as np
     import mdet_lsst_sim
     import galsim
+    import fitsio
+    from tqdm import trange
 
     rng = np.random.RandomState(seed)
 
-    shlib = mdet_lsst_sim.ShapeletPSFLibrary(
+    shlib = mdet_lsst_sim.shapelet_psf.ShapeletPSFLibrary(
         npz_path=infile,
         rng=rng,
         rotate=True,
@@ -64,11 +66,14 @@ def main(infile, outfile, seed, nrand, ngauss, show):
         nmax=15,
     )
 
-    shpsf = mdet_lsst_sim.ShapeletPSF(shlib=shlib)
+    shpsf = mdet_lsst_sim.shapelet_psf.ShapeletPSF(shlib=shlib)
 
     pos_ = galsim.PositionD(0.2, 0.5)
-    for i in range(nrand):
-        psf = shlib.getPSF(pos_)
+
+    pars = np.zeros((nrand, 6 * ngauss))
+
+    for i in trange(nrand, ascii=True, ncols=70):
+        psf = shpsf.getPSF(pos_)
         image = shpsf.shlib.draw(
             psf,
             n=51,
@@ -78,6 +83,11 @@ def main(infile, outfile, seed, nrand, ngauss, show):
         obs = get_obs(image)
 
         gm = do_em(obs, rng, ngauss, show=show)
+
+        pars[i] = gm.get_full_pars()
+
+    print('writing:', outfile)
+    fitsio.write(outfile, pars, clobber=True)
 
 
 def get_args():
