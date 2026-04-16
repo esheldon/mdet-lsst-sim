@@ -42,13 +42,54 @@ def do_em(obs, rng, ngauss, show=False):
     gm = res.get_gmix()
 
     if show:
-        import espy.images
+        import matplotlib.pyplot as mplt
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        from espy.images import asinh_scale
+
         model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
-        espy.images.compare_images(
-            obs.image,
-            model,
-            nonlinear=0.01 * model.max(),
-        )
+        nl = 0.001 * model.max()
+
+        with mplt.style.context('dark_background'):
+            fig, axs = mplt.subplots(nrows=2, ncols=2, layout='tight')
+
+            pim = axs[0, 0].imshow(
+                asinh_scale(obs.image, nl),
+                # norm='log',
+                cmap='inferno',
+            )
+            divider = make_axes_locatable(axs[0, 0])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            fig.colorbar(pim, cax=cax)
+            axs[0, 0].set_title('image')
+
+            pim = axs[0, 1].imshow(
+                asinh_scale(model, nl),
+                # norm='log',
+                cmap='inferno',
+            )
+            divider = make_axes_locatable(axs[0, 1])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            fig.colorbar(pim, cax=cax)
+            axs[0, 1].set_title('model')
+
+            pim = axs[1, 0].imshow(obs.image - model, cmap='inferno')
+            divider = make_axes_locatable(axs[1, 0])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            fig.colorbar(pim, cax=cax)
+            axs[1, 0].set_title('image - model')
+
+            axs[1, 1].axis('off')
+
+            fig.savefig('/astro/u/esheldon/www/tmp/plots/tmp.png', dpi=150)
+        input('hit enter')
+        # mplt.show()
+
+        # import espy.images
+        # espy.images.compare_images(
+        #     obs.image,
+        #     model,
+        #     nonlinear=0.01 * model.max(),
+        # )
 
     return gm
 
