@@ -5,7 +5,12 @@ import galsim
 
 
 def make_shapelet_psf(
-    rng, nepoch=1, threshold=0.0, rotate=True, max_nongauss_frac=None,
+    rng,
+    nepoch=1,
+    threshold=0.0,
+    rotate=True,
+    max_nongauss_frac=None,
+    nmax=None,
 ):
     """
     Load a compiled shapelet bvec library and reconstruct GalSim PSF objects.
@@ -23,6 +28,10 @@ def make_shapelet_psf(
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         shapelets.  power.  Default is None, meaning do not make any cuts.
+    nmax: int, optional
+        Maximum shapelet index to use.  All higher values are set to zero
+            bvec[:nmax] = 0.0
+        Default None.
     """
     npz_path = os.path.join(
         os.environ.get('CATSIM_DIR', '.'),
@@ -34,6 +43,7 @@ def make_shapelet_psf(
         rng=rng,
         rotate=rotate,
         max_nongauss_frac=max_nongauss_frac,
+        nmax=nmax,
     )
 
     return ShapeletPSF(
@@ -60,14 +70,30 @@ class ShapeletPSFLibrary:
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         shapelets.  power.  Default is None, meaning do not make any cuts.
+    nmax: int, optional
+        Maximum shapelet index to use.  All higher values are set to zero
+            bvec[:nmax] = 0.0
+        Default None.
     """
 
-    def __init__(self, npz_path, rng, rotate=True, max_nongauss_frac=None):
+    def __init__(
+        self,
+        npz_path,
+        rng,
+        rotate=True,
+        max_nongauss_frac=None,
+        nmax=None,
+    ):
         self.rotate = rotate
         self.max_nongauss_frac = max_nongauss_frac
+        self.nmax = nmax
         self.rng = rng
 
-        data = cached_bvec_read(npz_path, max_nongauss_frac=max_nongauss_frac)
+        data = cached_bvec_read(
+            npz_path,
+            max_nongauss_frac=max_nongauss_frac,
+            nmax=nmax,
+        )
 
         self.bvec_all = data['bvec']  # (N, n_coeffs) float64
         self.sigma_all = data['sigma']  # (N,) float64
@@ -226,10 +252,14 @@ class ShapeletPSF(object):
 
 
 @functools.lru_cache(maxsize=8)
-def cached_bvec_read(fname, max_nongauss_frac):
+def cached_bvec_read(fname, max_nongauss_frac, nmax):
     """
     Load the shapelets, possibly limiting the amount of non gaussian power
     """
+    print(
+        f'loading {fname} with '
+        f'max_nongauss_frac={max_nongauss_frac:g} nmax={nmax}'
+    )
     data = np.load(fname)
 
     output = {
@@ -253,5 +283,8 @@ def cached_bvec_read(fname, max_nongauss_frac):
 
         for name in ['bvec', 'sigma', 'visit', 'detector']:
             output[name] = output[name][ind]
+
+    if nmax is not None:
+        output['bvec'][:, nmax:] = 0.0
 
     return output
