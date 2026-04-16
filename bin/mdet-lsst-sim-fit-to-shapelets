@@ -44,7 +44,11 @@ def do_em(obs, rng, ngauss, show=False):
     if show:
         import espy.images
         model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
-        espy.images.compare_images(obs.image, model)
+        espy.images.compare_images(
+            obs.image,
+            model,
+            nonlinear=0.01 * model.max(),
+        )
 
     return gm
 
