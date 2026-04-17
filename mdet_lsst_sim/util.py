@@ -638,3 +638,43 @@ def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
 
 def make_info():
     return np.zeros(1, dtype=[('mask_frac', 'f8'), ('star_density', 'f8')])
+
+
+def get_psf(sim_config, psf_pars, draw_method, rng):
+    from descwl_shear_sims.psfs import (
+        make_fixed_psf,
+        make_ps_psf,
+        make_rand_psf,
+    )
+    from .shapelet_psf import make_shapelet_psf
+    from .gmix_psf import make_gmix_psf
+
+    if sim_config['psf_type'] == 'ps':
+        psf = make_ps_psf(
+            rng=rng,
+            dim=sim_config['se_dim'],
+            median_seeing=sim_config['psf_fwhm'],
+            variation_factor=sim_config['psf_variation_factor'],
+        )
+
+    elif sim_config['psf_type'] == 'shapelet':
+        psf = make_shapelet_psf(rng=rng, **psf_pars)
+        assert draw_method == 'no_pixel'
+
+    elif sim_config['psf_type'] == 'gmix':
+        psf = make_gmix_psf(rng=rng, **psf_pars)
+        assert draw_method == 'no_pixel'
+
+    elif sim_config['randomize_psf']:
+        psf = make_rand_psf(
+            psf_type=sim_config["psf_type"],
+            psf_fwhm_mean=sim_config['psf_fwhm'],
+            rng=rng,
+        )
+    else:
+        psf = make_fixed_psf(
+            psf_type=sim_config["psf_type"],
+            psf_fwhm=sim_config['psf_fwhm'],
+        )
+
+    return psf

@@ -21,11 +21,6 @@ from descwl_shear_sims.sim import (
     get_se_dim,
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
-from descwl_shear_sims.psfs import (
-    make_fixed_psf,
-    make_ps_psf,
-    make_rand_psf,
-)
 from descwl_shear_sims.stars import make_star_catalog
 from descwl_shear_sims.constants import SCALE
 import metadetect.lsst.vis as lsst_vis
@@ -40,7 +35,6 @@ import fitsio
 import esutil as eu
 
 from . import util, vis
-from .shapelet_psf import make_shapelet_psf
 
 
 def run_sim(
@@ -202,28 +196,12 @@ def run_sim(
             )
             logger.info('shear: %.3f, %.3f theta: %s', g1, g2, theta)
 
-            if sim_config['psf_type'] == 'ps':
-                psf = make_ps_psf(
-                    rng=trial_rng,
-                    dim=sim_config['se_dim'],
-                    median_seeing=sim_config['psf_fwhm'],
-                    variation_factor=sim_config['psf_variation_factor'],
-                )
-            elif sim_config['psf_type'] == 'shapelet':
-                psf = make_shapelet_psf(rng=trial_rng, **psf_pars)
-                assert draw_method == 'no_pixel'
-
-            elif sim_config['randomize_psf']:
-                psf = make_rand_psf(
-                    psf_type=sim_config["psf_type"],
-                    psf_fwhm_mean=sim_config['psf_fwhm'],
-                    rng=trial_rng,
-                )
-            else:
-                psf = make_fixed_psf(
-                    psf_type=sim_config["psf_type"],
-                    psf_fwhm=sim_config['psf_fwhm'],
-                )
+            psf = util.get_psf(
+                sim_config=sim_config,
+                psf_pars=psf_pars,
+                draw_method=draw_method,
+                rng=trial_rng,
+            )
 
             tmsim0 = time.time()
             sim_data = make_sim(
