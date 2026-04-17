@@ -142,11 +142,36 @@ def test_run_star_bleeds():
 )
 def test_run_shapelet_psf():
     sim_config = {
+        'draw_method': 'no_pixel',
         'gal_type': 'wldeblend',
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
         'psf_type': 'shapelet',
+        'psf_pars': {
+            'nepoch': 3,
+        }
+    }
+    run_sim(
+        sim_config=sim_config,
+        seed=125,
+        ntrial=1,
+        output=None,
+    )
+
+
+@pytest.mark.skipif(
+    'CATSIM_DIR' not in os.environ,
+    reason='simulation input data is not present',
+)
+def test_run_gmix_psf():
+    sim_config = {
+        'draw_method': 'no_pixel',
+        'gal_type': 'wldeblend',
+        'layout': 'random',
+        'coadd_dim': 101,
+        'buff': 5,
+        'psf_type': 'gmix',
         'psf_pars': {
             'nepoch': 3,
         }
