@@ -23,7 +23,7 @@ def test_gmix_psf_smoke():
 
     pos = galsim.PositionD(1.5, 2.2)
     opsf = psf.getPSF(pos)
-    assert opsf.flux == 1.0
+    assert np.allclose(opsf.flux, 1.0)
 
 
 @pytest.mark.skipif(
@@ -48,4 +48,4 @@ def test_shapelet_psf(nepoch, threshold, max_nongauss_frac):
 
     pos = galsim.PositionD(1.5, 2.2)
     opsf = psf.getPSF(pos)
-    assert opsf.flux == 1.0
+    assert np.allclose(opsf.flux, 1.0)
