@@ -123,9 +123,9 @@ def make_output(ngauss, n=1):
     descr = [
         ('index', 'i4'),
         ('flags', 'i4'),
-        ('minval', 'f8'),
+        ('minval', 'f4'),
         ('nongaussian_frac', 'f8'),
-        ('pars', 'f8', 6 * ngauss),
+        ('pars', 'f4', 6 * ngauss),
     ]
 
     output = np.zeros(n, dtype=descr)
@@ -170,18 +170,39 @@ def process_one(rng, shlib, index, ngauss, show):
     return darray
 
 
+def make_meta(infile, seed, ngauss, rotate):
+    import os
+    import numpy as np
+
+    bname = os.path.basename(infile)
+    dtype = [
+        ('infile', 'U%d' % len(bname)),
+        ('seed', 'i8'),
+        ('ngauss', 'i4'),
+        ('rotate', bool),
+    ]
+    meta = np.zeros(1, dtype=dtype)
+    meta['infile'] = bname
+    meta['seed'] = seed
+    meta['ngauss'] = ngauss
+    meta['rotate'] = rotate
+    return meta
+
+
 def main(infile, outfile, seed, ngauss, show, limit):
     import numpy as np
     import mdet_lsst_sim
     import fitsio
     from tqdm import trange
 
+    rotate = False
+
     rng = np.random.RandomState(seed)
 
     shlib = mdet_lsst_sim.shapelet_psf.ShapeletPSFLibrary(
         npz_path=infile,
         rng=rng,
-        rotate=False,
+        rotate=rotate,
         # max_nongauss_frac=0.005,
         # nmax=15,
     )
@@ -203,8 +224,17 @@ def main(infile, outfile, seed, ngauss, show, limit):
 
     output = np.concatenate(dlist)
 
+    meta = make_meta(
+        infile=infile,
+        seed=seed,
+        ngauss=ngauss,
+        rotate=rotate,
+    )
+
     print('writing:', outfile)
-    fitsio.write(outfile, output, clobber=True)
+    with fitsio.FITS(outfile, 'rw', clobber=True) as fits:
+        fits.write(output, extname='fits')
+        fits.write(meta, extname='meta')
 
 
 def get_args():
@@ -213,7 +243,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--infile', required=True, help='shapelets file')
     parser.add_argument('--outfile', required=True, help='output file')
-    parser.add_argument('--seed', type=int)
+    parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--limit', type=int, default=None)
     parser.add_argument('--ngauss', type=int, default=5)
     parser.add_argument('--show', action='store_true')
