@@ -471,9 +471,9 @@ def trim_catalog_boundary_strict(
         alpha = 0.1
         ax.add_patch(
             Rectangle(
-                [trim_pixels]*2,
-                dim-2*trim_pixels,
-                dim-2*trim_pixels,
+                [trim_pixels] * 2,
+                dim - 2 * trim_pixels,
+                dim - 2 * trim_pixels,
                 fill=False,
             ),
         )
@@ -553,8 +553,8 @@ def extract_cell_coadd_data(
         if key == 'ormasks':
             new_item = [
                 ormask[
-                    start_y:start_y+cell_size,
-                    start_x:start_x+cell_size
+                    start_y:start_y + cell_size,
+                    start_x:start_x + cell_size
                 ].copy()
                 for ormask in item
             ]
@@ -619,8 +619,8 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
 
         assert np.all(
             exp.image.array[
-                start_y:start_y+cell_size,
-                start_x:start_x+cell_size
+                start_y:start_y + cell_size,
+                start_x:start_x + cell_size
             ] == subexp.image.array[:, :]
         )
 
@@ -631,8 +631,8 @@ def extract_cell_mbexp(mbexp, cell_size, cell_buff, cell_ix, cell_iy):
 
 
 def get_cell_start(cell_size, cell_buff, cell_ix, cell_iy):
-    start_x = cell_ix*(cell_size - 2*cell_buff)
-    start_y = cell_iy*(cell_size - 2*cell_buff)
+    start_x = cell_ix * (cell_size - 2 * cell_buff)
+    start_y = cell_iy * (cell_size - 2 * cell_buff)
     return start_x, start_y
 
 
