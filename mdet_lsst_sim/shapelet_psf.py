@@ -176,9 +176,9 @@ class ShapeletPSFLibrary:
         )
 
 
-class ShapeletPSF(object):
+class ShapeletPSF:
     """
-    A simple fixed PSF object
+    A shapelets based PSF
 
     Parameters
     ----------
@@ -203,8 +203,7 @@ class ShapeletPSF(object):
 
     def getPSF(self, pos):  # noqa: N802
         """
-        Get a PSF as a galsim.Shapelets.  Note the position is only
-        used to get the local wcs
+        Get a PSF as a galsim.Shapelets.  Note the position is ignored
 
         Parameters
         ----------
