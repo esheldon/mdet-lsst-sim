@@ -19,8 +19,78 @@ def get_obs(image):
     )
 
 
+def plot_with_colorbar(fig, ax, image, title=None, **kw):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    pim = ax.imshow(image, **kw)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(pim, cax=cax)
+
+    if title is not None:
+        ax.set_title(title)
+
+
+def doshow(image, model, gm):
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+
+    cmap = 'inferno'
+
+    norm = AsinhNorm(
+        linear_width=0.001,
+        vmin=None,
+        vmax=None,
+        clip=False,
+    )
+
+    maxval = image.max()
+
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(
+            nrows=2,
+            ncols=2,
+            layout='tight',
+            figsize=(10, 10),
+        )
+        axs[1, 1].axis('off')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 0],
+            image=image / maxval,
+            cmap=cmap,
+            norm=norm,
+            title='image',
+        )
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 1],
+            image=model / maxval,
+            cmap=cmap,
+            norm=norm,
+            title='model',
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[1, 0],
+            image=(image - model) / maxval,
+            cmap=cmap,
+            title='image - model',
+        )
+
+        # fig.savefig('/astro/u/esheldon/www/tmp/plots/tmp.png', dpi=100)
+        mplt.show()
+
+        mplt.close(fig)
+
+
 def do_em(obs, rng, ngauss, show=False):
+    import numpy as np
     import ngmix
+
     obs_with_sky, sky = ngmix.em.prep_obs(obs)
 
     fitter = ngmix.em.EMFitter(maxiter=5000)
@@ -40,64 +110,62 @@ def do_em(obs, rng, ngauss, show=False):
         raise RuntimeError(f'failed {res["message"]}')
 
     gm = res.get_gmix()
+    model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
+    assert np.all(model > 0.0)
 
     if show:
-        import matplotlib.pyplot as mplt
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        from espy.images import asinh_scale
-
-        model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
-        nl = 0.001 * model.max()
-
-        with mplt.style.context('dark_background'):
-            fig, axs = mplt.subplots(nrows=2, ncols=2, layout='tight')
-
-            pim = axs[0, 0].imshow(
-                asinh_scale(obs.image, nl),
-                # norm='log',
-                cmap='inferno',
-            )
-            divider = make_axes_locatable(axs[0, 0])
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            fig.colorbar(pim, cax=cax)
-            axs[0, 0].set_title('image')
-
-            pim = axs[0, 1].imshow(
-                asinh_scale(model, nl),
-                # norm='log',
-                cmap='inferno',
-            )
-            divider = make_axes_locatable(axs[0, 1])
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            fig.colorbar(pim, cax=cax)
-            axs[0, 1].set_title('model')
-
-            pim = axs[1, 0].imshow(obs.image - model, cmap='inferno')
-            divider = make_axes_locatable(axs[1, 0])
-            cax = divider.append_axes("right", size="5%", pad=0.05)
-            fig.colorbar(pim, cax=cax)
-            axs[1, 0].set_title('image - model')
-
-            axs[1, 1].axis('off')
-
-            fig.savefig('/astro/u/esheldon/www/tmp/plots/tmp.png', dpi=150)
+        doshow(obs.image, model, gm)
         input('hit enter')
-        # mplt.show()
-
-        # import espy.images
-        # espy.images.compare_images(
-        #     obs.image,
-        #     model,
-        #     nonlinear=0.01 * model.max(),
-        # )
 
     return gm
 
 
-def main(infile, outfile, seed, nrand, ngauss, show):
+def make_output(ngauss, n=1):
+    import numpy as np
+
+    descr = [
+        ('index', 'i4'),
+        ('flags', 'i4'),
+        ('minval', 'f8'),
+        ('nongaussian_frac', 'f8'),
+        ('pars', 'f8', 6 * ngauss),
+    ]
+
+    output = np.zeros(n, dtype=descr)
+    output['pars'] = np.nan
+    return output
+
+
+def process_one(rng, shlib, index, ngauss, threshold, show):
+    darray = make_output(ngauss)
+    data = darray[0]
+    data['index'] = index
+    data['nongaussian_frac'] = shlib.data['nongaussian_frac'][index]
+
+    psf = shlib.get_psf(index)
+
+    image = shlib.draw(
+        psf,
+        n=51,
+        pixel_scale=SCALE,
+    ).array
+
+    data['minval'] = image.min()
+
+    if data['minval'] < threshold:
+        data['flags'] |= 2 ** 0
+
+    obs = get_obs(image)
+
+    gm = do_em(obs, rng, ngauss, show=show)
+
+    data['pars'] = gm.get_full_pars()
+    return darray
+
+
+def main(infile, outfile, seed, ngauss, show, threshold, limit):
     import numpy as np
     import mdet_lsst_sim
-    import galsim
     import fitsio
     from tqdm import trange
 
@@ -106,33 +174,31 @@ def main(infile, outfile, seed, nrand, ngauss, show):
     shlib = mdet_lsst_sim.shapelet_psf.ShapeletPSFLibrary(
         npz_path=infile,
         rng=rng,
-        rotate=True,
-        max_nongauss_frac=0.005,
-        nmax=15,
+        rotate=False,
+        # max_nongauss_frac=0.005,
+        # nmax=15,
     )
 
-    shpsf = mdet_lsst_sim.shapelet_psf.ShapeletPSF(shlib=shlib)
+    if limit is None:
+        limit = len(shlib)
 
-    pos_ = galsim.PositionD(0.2, 0.5)
+    dlist = []
+    for i in trange(limit, ascii=True, ncols=70):
 
-    pars = np.zeros((nrand, 6 * ngauss))
+        data = process_one(
+            rng=rng,
+            shlib=shlib,
+            index=i,
+            ngauss=ngauss,
+            threshold=threshold,
+            show=show,
+        )
+        dlist.append(data)
 
-    for i in trange(nrand, ascii=True, ncols=70):
-        psf = shpsf.getPSF(pos_)
-        image = shpsf.shlib.draw(
-            psf,
-            n=51,
-            pixel_scale=SCALE,
-        ).array
-
-        obs = get_obs(image)
-
-        gm = do_em(obs, rng, ngauss, show=show)
-
-        pars[i] = gm.get_full_pars()
+    output = np.concatenate(dlist)
 
     print('writing:', outfile)
-    fitsio.write(outfile, pars, clobber=True)
+    fitsio.write(outfile, output, clobber=True)
 
 
 def get_args():
@@ -142,7 +208,8 @@ def get_args():
     parser.add_argument('--infile', required=True, help='shapelets file')
     parser.add_argument('--outfile', required=True, help='output file')
     parser.add_argument('--seed', type=int)
-    parser.add_argument('--nrand', type=int, default=50000)
+    parser.add_argument('--limit', type=int, default=None)
+    parser.add_argument('--threshold', type=float, default=-1.0e-10)
     parser.add_argument('--ngauss', type=int, default=5)
     parser.add_argument('--show', action='store_true')
 
@@ -155,7 +222,8 @@ if __name__ == '__main__':
         infile=args.infile,
         outfile=args.outfile,
         seed=args.seed,
-        nrand=args.nrand,
+        threshold=args.threshold,
+        limit=args.limit,
         ngauss=args.ngauss,
         show=args.show,
     )

@@ -95,6 +95,8 @@ class ShapeletPSFLibrary:
             nmax=nmax,
         )
 
+        self.data = data
+
         self.bvec_all = data['bvec']  # (N, n_coeffs) float64
         self.sigma_all = data['sigma']  # (N,) float64
         self.bmax = int(data['bmax'])
@@ -258,7 +260,7 @@ def cached_bvec_read(fname, max_nongauss_frac, nmax):
     """
     print(
         f'loading {fname} with '
-        f'max_nongauss_frac={max_nongauss_frac:g} nmax={nmax}'
+        f'max_nongauss_frac={max_nongauss_frac} nmax={nmax}'
     )
     data = np.load(fname)
 
@@ -266,22 +268,26 @@ def cached_bvec_read(fname, max_nongauss_frac, nmax):
         name: data[name].copy() for name in data.keys()
     }
 
+    bvec_all = output['bvec']
+
+    bvec_mask = list(range(6, 10)) + list(range(15, 24))
+
+    # fractional power of these coefficients
+    allpower = np.sum(bvec_all[:, :] ** 2, axis=1)
+
+    nongaussian_power = np.sum(bvec_all[:, bvec_mask] ** 2, axis=1)
+    nongaussian_frac = nongaussian_power / allpower
+
+    output['nongaussian_power'] = nongaussian_frac
+    output['nongaussian_frac'] = nongaussian_frac
+
     if max_nongauss_frac is not None:
-        # the shapelet coefficient terms that couple with optics
-
-        bvec_all = output['bvec']
-
-        bvec_mask = list(range(6, 10)) + list(range(15, 24))
-
-        # fractional power of these coefficients
-        allpower = np.sum(bvec_all[:, :] ** 2, axis=1)
-        nongaussian_power = np.sum(bvec_all[:, bvec_mask] ** 2, axis=1)
-
-        nongaussian_frac = nongaussian_power / allpower
-
         ind, = np.where(nongaussian_frac < max_nongauss_frac)
 
-        for name in ['bvec', 'sigma', 'visit', 'detector']:
+        for name in [
+            'bvec', 'sigma', 'visit', 'detector',
+            'nongaussian_power', 'nongaussian_frac',
+        ]:
             output[name] = output[name][ind]
 
     if nmax is not None:
