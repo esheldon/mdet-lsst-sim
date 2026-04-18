@@ -110,7 +110,7 @@ def _check_keep(val, mean, sigma, nsig, ipass):
     return keep
 
 
-def doshow(image, model, data, index, name):
+def doshow(image, model, turb_model, data, index, name, plotfront):
     import matplotlib.pyplot as mplt
     from matplotlib.colors import AsinhNorm
 
@@ -130,11 +130,11 @@ def doshow(image, model, data, index, name):
 
     with mplt.style.context('dark_background'):
         fig, axs = mplt.subplots(
-            nrows=2,
+            nrows=3,
             ncols=2,
-            figsize=(10, 9),
+            figsize=(10, 14),
         )
-        axs[1, 1].axis('off')
+        # axs[0, 1].axis('off')
 
         plot_with_colorbar(
             fig=fig,
@@ -142,14 +142,22 @@ def doshow(image, model, data, index, name):
             image=image_mod / maxval,
             cmap=cmap,
             norm=norm,
-            title=f'image {index}',
+            title=f'image {index} stat: {stat:.4g}',
         )
-
-        dotext(axs[0, 0], 0.1, 0.9, f'stat: {stat:.4g}')
 
         plot_with_colorbar(
             fig=fig,
             ax=axs[0, 1],
+            image=(model - turb_model) / maxval,
+            cmap=cmap,
+            title=f'{name} - turb',
+        )
+
+        # dotext(axs[0, 0], 0.1, 0.9, f'stat: {stat:.4g}')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[1, 0],
             image=model / maxval,
             cmap=cmap,
             norm=norm,
@@ -158,11 +166,29 @@ def doshow(image, model, data, index, name):
 
         plot_with_colorbar(
             fig=fig,
-            ax=axs[1, 0],
+            ax=axs[1, 1],
             image=(image - model) / maxval,
             cmap=cmap,
-            title='image - gmix5',
+            title=f'image - {name}',
         )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[2, 0],
+            image=turb_model / maxval,
+            cmap=cmap,
+            norm=norm,
+            title='turb',
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[2, 1],
+            image=(image - turb_model) / maxval,
+            cmap=cmap,
+            title='image - turb',
+        )
+
         if True:
             fname = [
                 f'{data["raft"]}',
@@ -171,7 +197,7 @@ def doshow(image, model, data, index, name):
                 f'{name}',
             ]
             fname = '-'.join(fname) + '.png'
-            fname = f'plots/{fname}'
+            fname = f'{plotfront}-{fname}'
             print('writing:', fname)
             fig.savefig(fname)
         else:
@@ -345,7 +371,7 @@ def get_stat_old(gm):
     return stat
 
 
-def get_stat(image, model, turb_model):
+def get_stat_old2(image, model, turb_model):
 
     model_chi2 = ((model - image) ** 2).sum()
     turb_chi2 = ((turb_model - image) ** 2).sum()
@@ -354,7 +380,24 @@ def get_stat(image, model, turb_model):
     return stat
 
 
-def process_one(rng, stamp_data, index, ngauss, show):
+def get_stat(model, turb_model, weight=None):
+
+    nmodel = model * 1.0 / model.sum()
+    nturb = turb_model * 1.0 / turb_model.sum()
+
+    sqdiff = (nmodel - nturb) ** 2
+    if weight is not None:
+        sqdiff *= weight
+
+    chi2 = sqdiff.sum()
+
+    chi2 *= 1.0 / model.size
+
+    return np.sqrt(chi2)
+
+
+def process_one(rng, stamp_data, index, ngauss, show, infile):
+    import os
     import numpy as np
 
     darray = make_output(ngauss, stamp_data, index)
@@ -378,26 +421,28 @@ def process_one(rng, stamp_data, index, ngauss, show):
         turb_model = turb_gm.make_image(obs.image.shape, jacobian=obs.jacobian)
 
         data['stat'] = get_stat(
-            image=image, model=model, turb_model=turb_model
+            # image=image,
+            model=model,
+            turb_model=turb_model,
+            weight=obs.weight,
         )
         data['pars'] = gm.get_full_pars()
 
         assert np.all(darray['pars'][0] == data['pars'])
 
         if show:
-            doshow(
-                image=obs.image,
-                model=model,
-                data=data,
-                index=index,
-                name=f'gmix{ngauss}',
+            plotfront = os.path.join(
+                'plots',
+                os.path.basename(infile).replace('.npz', '')
             )
             doshow(
                 image=obs.image,
-                model=turb_model,
+                model=model,
+                turb_model=turb_model,
                 data=data,
                 index=index,
-                name='turb',
+                name=f'gmix{ngauss}',
+                plotfront=plotfront,
             )
 
     return darray
@@ -435,7 +480,6 @@ def main(flist_file, outfile, seed, ngauss, show):
     dlist = []
 
     for infile in tqdm(flist, ascii=True, ncols=70):
-        # print('loading:', infile)
         stamp_data = np.load(infile)
 
         for i in range(stamp_data['cx'].size):
@@ -445,6 +489,7 @@ def main(flist_file, outfile, seed, ngauss, show):
                 index=i,
                 ngauss=ngauss,
                 show=show,
+                infile=infile,
             )
             dlist.append(data)
 
