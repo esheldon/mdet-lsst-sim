@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+
+
+def plot_with_colorbar(fig, ax, image, title=None):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from matplotlib.colors import AsinhNorm
+
+    maxval = image.max()
+
+    norm = AsinhNorm(
+        linear_width=0.001,
+        clip=False,
+    )
+
+    pim = ax.imshow(image / maxval, cmap='inferno', norm=norm)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(pim, cax=cax)
+
+    if title is not None:
+        ax.set_title(title)
+
+
+def plotsome(rng, data, title, plotfile, npages):
+    import matplotlib.pyplot as mplt
+    import ngmix
+
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    stamp_size = 31
+    stamp_dims = [stamp_size] * 2
+    cen = (stamp_size - 1.0) / 2.0
+    jac = ngmix.DiagonalJacobian(row=cen, col=cen, scale=0.2)
+
+    print(f'    writing {plotfile}')
+
+    with PdfPages(plotfile) as pdf:
+        for ipage in range(npages):
+            with mplt.style.context('dark_background'):
+                fig, axs = mplt.subplots(
+                    nrows=3,
+                    ncols=3,
+                    layout='tight',
+                    figsize=(12, 12),
+                )
+                fig.suptitle(title)
+
+                axs = axs.ravel()
+                indices = rng.choice(data.size, size=axs.size, replace=False)
+
+                for ax, index in zip(axs, indices):
+                    stat = data['stat'][index]
+
+                    ititle = f'{index} stat: {stat:.4f}'
+                    pars = data['pars'][index]
+                    gm = ngmix.GMix(pars=pars)
+
+                    model = gm.make_image(stamp_dims, jacobian=jac)
+
+                    plot_with_colorbar(
+                        fig=fig,
+                        ax=ax,
+                        image=model,
+                        title=ititle,
+                    )
+
+                # mplt.show()
+                # fig.savefig(plotfile, dpi=100)
+                pdf.savefig()
+                mplt.close(fig)
+
+
+def main(fname, plotfront, seed, npages):
+    import numpy as np
+    import fitsio
+
+    rng = np.random.RandomState(seed)
+
+    data = fitsio.read(fname, ext='fits')
+    w, = np.where((data['flags'] == 0) & (data['n_stack'] > 80))
+    data = data[w]
+
+    percentiles = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    cuts = np.percentile(data['stat'], percentiles)
+
+    for i in range(cuts.size - 1):
+        perc_low = percentiles[i]
+        perc_high = percentiles[i + 1]
+        cut_low = cuts[i]
+        cut_high = cuts[i + 1]
+
+        w, = np.where((data['stat'] >= cut_low) & (data['stat'] <= cut_high))
+
+        # title = rf'{cut_low:.4f} $<$ stat $<$ {cut_high:.4f}'
+        title = rf'[{perc_low:02d},{perc_high}:02d]: {cut_low:.4f} $<$ stat $<$ {cut_high:.4f}'  # noqa
+        plotfile = plotfront + (
+            f'-stat-{perc_low:02d}-{perc_high:02d}'
+            f'-{cut_low:.4f}-{cut_high:.4f}.pdf'
+        )
+        plotsome(
+            rng=rng, data=data[w], title=title, plotfile=plotfile,
+            npages=npages,
+        )
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--fname', help='gmix file',
+        required=True,
+    )
+    parser.add_argument('--plotfront', required=True, help='plot file front')
+    parser.add_argument('--seed', type=int)
+    parser.add_argument('--npages', type=int, default=10)
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        fname=args.fname,
+        plotfront=args.plotfront,
+        seed=args.seed,
+        npages=args.npages,
+    )
