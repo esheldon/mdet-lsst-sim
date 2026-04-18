@@ -1,0 +1,45 @@
+#!/usr/bin/env python
+
+def main(flist, outfront):
+    import os
+    import numpy as np
+    import esutil as eu
+    import fitsio
+
+    data = eu.io.read(flist, ext='fits')
+    # we only need one
+    meta = eu.io.read(flist, ext='meta', rows=[0])
+
+    bands = np.unique(data['band'])
+
+    for band in bands:
+        w, = np.where(data['band'] == band)
+        bandfile = f'{outfront}-{band}.fits'
+        assert not os.path.exists(bandfile)
+
+        sub = data[w]
+        print(f'writing: {w.size} to {bandfile}')
+        with fitsio.FITS(bandfile, 'rw', clobber=True) as fits:
+            fits.write(sub, extname='fits')
+            fits.write(meta, extname='meta')
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--flist', nargs='+',
+        help='gmix files',
+        required=True,
+    )
+    parser.add_argument('--outfront', required=True, help='output file front')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        flist=args.flist,
+        outfront=args.outfront,
+    )
