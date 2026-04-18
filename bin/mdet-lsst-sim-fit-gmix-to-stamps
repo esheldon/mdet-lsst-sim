@@ -380,7 +380,7 @@ def get_stat_old2(image, model, turb_model):
     return stat
 
 
-def get_stat(model, turb_model, weight=None):
+def get_stat_weight(model, turb_model, weight):
 
     nmodel = model * 1.0 / model.sum()
     nturb = turb_model * 1.0 / turb_model.sum()
@@ -394,6 +394,13 @@ def get_stat(model, turb_model, weight=None):
     chi2 *= 1.0 / model.size
 
     return np.sqrt(chi2)
+
+
+def get_stat(gm, model, turb_model):
+
+    flux = gm.get_flux()
+    chi2_models = ((model / flux - turb_model / flux) ** 2).sum()
+    return chi2_models * model.size
 
 
 def process_one(rng, stamp_data, index, ngauss, show, infile):
@@ -416,15 +423,12 @@ def process_one(rng, stamp_data, index, ngauss, show, infile):
 
     if data['flags'] == 0:
         model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
-        assert np.all(model > 0.0)
-
         turb_model = turb_gm.make_image(obs.image.shape, jacobian=obs.jacobian)
 
         data['stat'] = get_stat(
-            # image=image,
+            gm=gm,
             model=model,
             turb_model=turb_model,
-            weight=obs.weight,
         )
         data['pars'] = gm.get_full_pars()
 
@@ -435,6 +439,7 @@ def process_one(rng, stamp_data, index, ngauss, show, infile):
                 'plots',
                 os.path.basename(infile).replace('.npz', '')
             )
+
             doshow(
                 image=obs.image,
                 model=model,
