@@ -12,12 +12,19 @@ def main(flist, outfront):
 
     bands = np.unique(data['band'])
 
+    minval = np.nanmin(data['stat'])
+    print('minval:', minval)
+    if minval >= 1.0:
+        print('fixing stat')
+        data['stat'] -= 1.0
+
     for band in bands:
         w, = np.where(data['band'] == band)
         bandfile = f'{outfront}-{band}.fits'
         assert not os.path.exists(bandfile)
 
         sub = data[w]
+
         print(f'writing: {w.size} to {bandfile}')
         with fitsio.FITS(bandfile, 'rw', clobber=True) as fits:
             fits.write(sub, extname='fits')
