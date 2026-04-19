@@ -12,11 +12,11 @@ def main(flist, outfront):
 
     bands = np.unique(data['band'])
 
-    minval = np.nanmin(data['stat'])
-    print('minval:', minval)
-    if minval >= 1.0:
+    medval = np.nanmedian(data['stat'])
+    print('medval:', medval)
+    if medval < 0.001:
         print('fixing stat')
-        data['stat'] -= 1.0
+        data['stat'] *= 1000
 
     for band in bands:
         w, = np.where(data['band'] == band)

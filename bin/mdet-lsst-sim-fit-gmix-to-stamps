@@ -5,6 +5,7 @@ from numba import njit
 SCALE = 0.2
 EM_FIT_FAILED = 2**1
 TURB_FIT_FAILED = 2**2
+ZERO_FLUX = 2**3
 
 
 def get_obs(image):
@@ -275,13 +276,11 @@ def do_turb(obs, rng):
 
     if res['flags'] != 0:
         print(f'turb failed {res["message"]}')
-        gm = None
         fit_flags = TURB_FIT_FAILED
     else:
-        gm = res.get_gmix()
         fit_flags = 0
 
-    return gm, fit_flags
+    return res, fit_flags
 
 
 def do_em(obs, rng, ngauss):
@@ -328,7 +327,7 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('pars', 'f4', 6 * ngauss),
         ('stat', 'f4'),
         ('turb_flags', 'i4'),
-        ('turb_pars', 'i4'),
+        ('turb_pars', 'f4', 6),
     ]
 
     output = np.zeros(n, dtype=descr)
@@ -398,9 +397,19 @@ def get_stat_weight(model, turb_model, weight):
 
 def get_stat(gm, model, turb_model):
 
+    flags = 0
     flux = gm.get_flux()
-    chi2_models = ((model / flux - turb_model / flux) ** 2).sum()
-    return chi2_models * model.size
+
+    if flux > 0:
+        chi2_models = ((model / flux - turb_model / flux) ** 2).sum()
+        stat = chi2_models * 1000 / model.size * 1000
+        if not np.isfinite(stat):
+            flags = ZERO_FLUX
+    else:
+        stat = np.nan
+        flags = ZERO_FLUX
+
+    return stat, flags
 
 
 def process_one(rng, stamp_data, index, ngauss, show, infile):
@@ -418,19 +427,25 @@ def process_one(rng, stamp_data, index, ngauss, show, infile):
     gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
     data['flags'] |= fit_flags
 
-    turb_gm, turb_fit_flags = do_turb(obs=obs, rng=rng)
+    turb_res, turb_fit_flags = do_turb(obs=obs, rng=rng)
     data['flags'] |= turb_fit_flags
+    if turb_res['flags'] == 0:
+        data['turb_pars'] = turb_res['pars']
 
     if data['flags'] == 0:
+        data['pars'] = gm.get_full_pars()
+
+        turb_gm = turb_res.get_gmix()
+
         model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
         turb_model = turb_gm.make_image(obs.image.shape, jacobian=obs.jacobian)
 
-        data['stat'] = get_stat(
+        data['stat'], stat_flags = get_stat(
             gm=gm,
             model=model,
             turb_model=turb_model,
         )
-        data['pars'] = gm.get_full_pars()
+        data['flags'] |= stat_flags
 
         assert np.all(darray['pars'][0] == data['pars'])
 

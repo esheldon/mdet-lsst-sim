@@ -1,18 +1,10 @@
 #!/usr/bin/env python
 
 
-def plot_with_colorbar(fig, ax, image, title=None):
+def plot_with_colorbar(fig, ax, image, norm='linear', title=None):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-    from matplotlib.colors import AsinhNorm
 
-    maxval = image.max()
-
-    norm = AsinhNorm(
-        linear_width=0.001,
-        clip=False,
-    )
-
-    pim = ax.imshow(image / maxval, cmap='inferno', norm=norm)
+    pim = ax.imshow(image, cmap='inferno', norm=norm)
 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -20,6 +12,42 @@ def plot_with_colorbar(fig, ax, image, title=None):
 
     if title is not None:
         ax.set_title(title)
+
+
+def plot_three(fig, axsrow, model, turb_model, title=None):
+    from matplotlib.colors import AsinhNorm
+
+    asnorm = AsinhNorm(
+        linear_width=0.001,
+        clip=False,
+    )
+
+    maxval = max(model.max(), turb_model.max())
+
+    nmodel = model / maxval
+    nturb_model = turb_model / maxval
+
+    plot_with_colorbar(
+        fig,
+        axsrow[0],
+        nmodel,
+        norm=asnorm,
+        title=f'gmix {title}',
+    )
+    plot_with_colorbar(
+        fig,
+        axsrow[1],
+        nturb_model,
+        norm=asnorm,
+        title='turb',
+    )
+    plot_with_colorbar(
+        fig,
+        axsrow[2],
+        nmodel - nturb_model,
+        norm='linear',
+        title='model - turb',
+    )
 
 
 def plotsome(rng, data, title, plotfile, npages):
@@ -35,38 +63,40 @@ def plotsome(rng, data, title, plotfile, npages):
 
     print(f'    writing {plotfile}')
 
+    n_per_page = 3
     with PdfPages(plotfile) as pdf:
         for ipage in range(npages):
             with mplt.style.context('dark_background'):
                 fig, axs = mplt.subplots(
-                    nrows=3,
+                    nrows=n_per_page,
                     ncols=3,
                     layout='tight',
                     figsize=(12, 12),
                 )
                 fig.suptitle(title)
 
-                axs = axs.ravel()
-                indices = rng.choice(data.size, size=axs.size, replace=False)
+                indices = rng.choice(data.size, size=n_per_page, replace=False)
 
-                for ax, index in zip(axs, indices):
+                for row, index in enumerate(indices):
                     stat = data['stat'][index]
-
-                    ititle = f'{index} stat: {stat:.4f}'
                     pars = data['pars'][index]
+                    turb_pars = data['turb_pars'][index]
+
                     gm = ngmix.GMix(pars=pars)
+                    turb_gm = ngmix.GMixModel(pars=turb_pars, model='turb')
 
                     model = gm.make_image(stamp_dims, jacobian=jac)
+                    turb_model = turb_gm.make_image(stamp_dims, jacobian=jac)
 
-                    plot_with_colorbar(
+                    title = f'{index} stat: {stat:.4f}'
+                    plot_three(
                         fig=fig,
-                        ax=ax,
-                        image=model,
-                        title=ititle,
+                        axsrow=axs[row],
+                        model=model,
+                        turb_model=turb_model,
+                        title=title,
                     )
 
-                # mplt.show()
-                # fig.savefig(plotfile, dpi=100)
                 pdf.savefig()
                 mplt.close(fig)
 
@@ -78,10 +108,15 @@ def main(fname, plotfront, seed, npages):
     rng = np.random.RandomState(seed)
 
     data = fitsio.read(fname, ext='fits')
-    w, = np.where((data['flags'] == 0) & (data['n_stack'] > 80))
-    data = data[w]
+    (wkeep,) = np.where(
+        (data['flags'] == 0)
+        & (data['n_stack'] > 80)
+        & np.isfinite(data['stat'])
+    )
+    data = data[wkeep]
 
-    percentiles = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    percentiles = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99.5, 100]
+    # percentiles = [0, 99.5, 100]
     cuts = np.percentile(data['stat'], percentiles)
 
     for i in range(cuts.size - 1):
@@ -89,17 +124,31 @@ def main(fname, plotfront, seed, npages):
         perc_high = percentiles[i + 1]
         cut_low = cuts[i]
         cut_high = cuts[i + 1]
+        print(cut_low, cut_high)
 
-        w, = np.where((data['stat'] >= cut_low) & (data['stat'] <= cut_high))
+        logic = data['stat'] >= cut_low
+
+        if (i + 1) == cuts.size - 1:
+            logic &= data['stat'] <= cut_high
+            # cut_high_str = 'max'
+        else:
+            logic &= data['stat'] < cut_high
+            # cut_high_str = f'{cut_high:.4f}'
+
+        (wcut,) = np.where(logic)
 
         # title = rf'{cut_low:.4f} $<$ stat $<$ {cut_high:.4f}'
-        title = rf'[{perc_low:02d},{perc_high}:02d]: {cut_low:.4f} $<$ stat $<$ {cut_high:.4f}'  # noqa
+        # title = rf'[{perc_low:04.1f},{perc_high:04.1f}]: {cut_low:.4f} $<$ stat $<$ {cut_high_str}'  # noqa
+        title = rf'[{perc_low:04.1f},{perc_high:04.1f}]: {cut_low:.4f} $<$ stat $<$ {cut_high:.4f}'  # noqa
         plotfile = plotfront + (
-            f'-stat-{perc_low:02d}-{perc_high:02d}'
+            f'-stat-{perc_low:04.1f}-{perc_high:04.1f}'
             f'-{cut_low:.4f}-{cut_high:.4f}.pdf'
         )
         plotsome(
-            rng=rng, data=data[w], title=title, plotfile=plotfile,
+            rng=rng,
+            data=data[wcut],
+            title=title,
+            plotfile=plotfile,
             npages=npages,
         )
 
@@ -109,12 +158,13 @@ def get_args():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--fname', help='gmix file',
+        '--fname',
+        help='gmix file',
         required=True,
     )
     parser.add_argument('--plotfront', required=True, help='plot file front')
     parser.add_argument('--seed', type=int)
-    parser.add_argument('--npages', type=int, default=10)
+    parser.add_argument('--npages', type=int, default=20)
     return parser.parse_args()
 
 
