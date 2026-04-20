@@ -328,6 +328,8 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('stat', 'f4'),
         ('turb_flags', 'i4'),
         ('turb_pars', 'f4', 6),
+        ('bg', 'f4'),
+        ('bg_err', 'f4'),
     ]
 
     output = np.zeros(n, dtype=descr)
@@ -412,7 +414,61 @@ def get_stat(gm, model, turb_model):
     return stat, flags
 
 
-def process_one(rng, stamp_data, index, ngauss, show, infile):
+def get_sky(rng, all_obs):
+    """
+    Estimate the background from all input observations
+
+    Make two passes
+    """
+    from sfitsky.coellip_fitter import get_coellip_runner_with_sky
+    import esutil as eu
+
+    mednoise = np.median([
+        np.sqrt(1 / obs.weight[0, 0]) for obs in all_obs
+    ])
+
+    current_bg = 0.0
+    current_bg_sigma = mednoise
+
+    for ipass in range(2):
+
+        dlist = []
+        for obs in all_obs:
+
+            scale = obs.jacobian.scale
+            runner = get_coellip_runner_with_sky(
+                rng,
+                ngauss=5,
+                cen_prior_sigma=scale * 0.01,
+                sky_prior_mean=current_bg,
+                sky_prior_sigma=current_bg_sigma,
+            )
+            res = runner.go(obs)
+
+            tmp = np.zeros(1, dtype=[('bg', 'f8'), ('bg_err', 'f8')])
+            tmp['bg'] = res['sky']
+            tmp['bg_err'] = res['sky_err']
+
+            dlist.append(tmp)
+
+        st = eu.numpy_util.combine_arrlist(dlist)
+        current_bg, current_bg_sigma, bg_err = eu.stat.sigma_clip(
+            st['bg'],
+            get_err=True,
+        )
+
+    return current_bg, bg_err
+
+
+def process_one(
+    rng,
+    stamp_data,
+    obs,
+    index,
+    ngauss,
+    show,
+    infile,
+):
     import os
     import numpy as np
 
@@ -420,9 +476,8 @@ def process_one(rng, stamp_data, index, ngauss, show, infile):
 
     data = darray[0]
 
-    image = stamp_data['stamps'][index]
-
-    obs = get_obs(image)
+    # image = stamp_data['stamps'][index]
+    # obs = get_obs(image)
 
     gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
     data['flags'] |= fit_flags
@@ -488,7 +543,18 @@ def get_flist(fname):
     return lines
 
 
-def main(flist_file, outfile, seed, ngauss, show):
+def do_sub_bg(rng, all_obs):
+    bg, bg_err = get_sky(rng=rng, all_obs=all_obs)
+    print(f'bg: {bg} +/- {bg_err}')
+
+    for obs in all_obs:
+        with obs.writeable():
+            obs.image = obs.image - bg
+
+    return bg, bg_err
+
+
+def main(flist_file, outfile, seed, ngauss, sub_bg, show):
     import numpy as np
     import fitsio
     from tqdm import tqdm
@@ -501,16 +567,30 @@ def main(flist_file, outfile, seed, ngauss, show):
 
     for infile in tqdm(flist, ascii=True, ncols=70):
         stamp_data = np.load(infile)
+        stamps = stamp_data['stamps']
+        nstamps = stamps.shape[0]
+
+        all_obs = [
+            get_obs(stamps[i]) for i in range(nstamps)
+        ]
+
+        if sub_bg:
+            bg, bg_err = do_sub_bg(rng=rng, all_obs=all_obs)
 
         for i in range(stamp_data['cx'].size):
             data = process_one(
                 rng=rng,
                 stamp_data=stamp_data,
+                obs=all_obs[i],
                 index=i,
                 ngauss=ngauss,
                 show=show,
                 infile=infile,
             )
+
+            if sub_bg:
+                data['bg'], data['bg_err'] = bg, bg_err
+
             dlist.append(data)
 
     output = np.concatenate(dlist)
@@ -538,6 +618,7 @@ def get_args():
     parser.add_argument('--outfile', required=True, help='output file')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--ngauss', type=int, default=5)
+    parser.add_argument('--sub-bg', action='store_true')
     parser.add_argument('--show', action='store_true')
 
     return parser.parse_args()
@@ -550,5 +631,6 @@ if __name__ == '__main__':
         outfile=args.outfile,
         seed=args.seed,
         ngauss=args.ngauss,
+        sub_bg=args.sub_bg,
         show=args.show,
     )
