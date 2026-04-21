@@ -38,7 +38,7 @@ def make_coadd_ps_psf(
     return CoaddPSPSF(
         rng=rng,
         im_width=dim,
-        buff=dim/2,
+        buff=dim / 2,
         scale=pixel_scale,
         median_seeing=psf_fwhm,
         variation_factor=variation_factor,

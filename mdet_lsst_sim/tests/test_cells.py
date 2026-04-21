@@ -16,9 +16,10 @@ mls:
     cell_buff: 50
 
 sim:
-    gal_type: fixed
-    gal_config:
+    gal:
+        type: "fixed"
         mag: 22
+
     layout: random
 
     # we will do 5 cells
@@ -45,7 +46,8 @@ mls:
     cell_buff: 50
 
 sim:
-    gal_type: wldeblend
+    gal:
+        type: wldeblend
 
     # bring noise down to approximately 3 band level
     noise_factor: 0.58

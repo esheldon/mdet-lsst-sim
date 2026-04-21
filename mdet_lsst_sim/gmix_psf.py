@@ -205,7 +205,7 @@ def cached_gmix_read(fname, max_nongauss_frac, threshold):
     )
 
     with fitsio.FITS(fname) as fits:
-        data = fits['fits'].read()
+        data = fits[1].read()
 
     if max_nongauss_frac is not None or threshold is not None:
         logic = np.ones(data.size, dtype=bool)

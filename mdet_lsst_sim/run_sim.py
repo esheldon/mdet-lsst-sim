@@ -17,7 +17,7 @@ from pprint import pformat
 
 from descwl_shear_sims.sim import (
     make_sim,
-    get_sim_config,
+    # get_sim_config,
     get_se_dim,
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
@@ -109,16 +109,7 @@ def run_sim(
         'there is no poisson noise in the sim'
     )
 
-    if sim_config is not None:
-        psf_pars = sim_config.pop('psf_pars', {})
-        draw_method = sim_config.pop('draw_method', 'auto')
-    else:
-        psf_pars = {}
-        draw_method = 'auto'
-
-    logger.info(pformat(psf_pars))
-
-    sim_config = get_sim_config(config=sim_config)
+    sim_config = util.get_sim_config(config=sim_config)
 
     if sim_config['se_dim'] is None:
         sim_config['se_dim'] = get_se_dim(
@@ -128,8 +119,12 @@ def run_sim(
             rotate=sim_config['rotate'],
         )
 
-    if sim_config['gal_type'] != 'wldeblend':
-        gal_config = sim_config.get('gal_config', None)
+    if sim_config['gal']['type'] != 'wldeblend':
+        gal_config = {
+            key: val for key, val in sim_config['gal'].items()
+            if key != 'type'
+        }
+        # gal_config = sim_config.get('gal_config', None)
     else:
         logger.info("setting wldeblend layout to None")
         sim_config["layout"] = None
@@ -156,7 +151,7 @@ def run_sim(
 
         galaxy_catalog = make_galaxy_catalog(
             rng=rng,
-            gal_type=sim_config['gal_type'],
+            gal_type=sim_config['gal']['type'],
             coadd_dim=sim_config['coadd_dim'],
             buff=sim_config['buff'],
             layout=sim_config['layout'],
@@ -198,8 +193,7 @@ def run_sim(
 
             psf = util.get_psf(
                 sim_config=sim_config,
-                psf_pars=psf_pars,
-                draw_method=draw_method,
+                draw_method=sim_config['draw_method'],
                 rng=trial_rng,
             )
 
@@ -214,7 +208,7 @@ def run_sim(
                 psf=psf,
                 star_catalog=star_catalog,
                 draw_stars=sim_config['draw_stars'],
-                psf_dim=sim_config['psf_dim'],
+                psf_dim=sim_config['psf']['dim'],
                 dither=sim_config['dither'],
                 rotate=sim_config['rotate'],
                 bands=sim_config['bands'],
@@ -224,7 +218,7 @@ def run_sim(
                 bad_columns=sim_config['bad_columns'],
                 star_bleeds=sim_config['star_bleeds'],
                 sky_n_sigma=sim_config['sky_n_sigma'],
-                draw_method=draw_method,
+                draw_method=sim_config['draw_method'],
             )
             tmsim += time.time() - tmsim0
 

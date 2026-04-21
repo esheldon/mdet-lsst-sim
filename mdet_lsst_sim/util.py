@@ -6,6 +6,65 @@ import ngmix
 
 logger = logging.getLogger('mdet_lsst.util')
 
+
+DEFAULT_SIM_CONFIG = {
+    'coadd_dim': 250,
+    'draw_method': 'auto',
+    'se_dim': None,
+    'buff': 0,
+    'layout': 'grid',
+    'sep': None,
+    'dither': False,
+    'rotate': False,
+    'bands': ['i'],
+    'epochs_per_band': 1,
+    'noise_factor': 1.0,
+    'gal': {
+        'type': 'fixed',
+    },
+    'psf': {
+        'type': 'gauss',
+        'fwhm': 0.8,
+        'dim': 51,
+    },
+    'stars': False,
+    'star_bleeds': False,
+    'draw_stars': True,
+    'cosmic_rays': False,
+    'bad_columns': False,
+    'sky_n_sigma': None,
+    'survey_name': 'LSST',
+    'draw_noise': True,
+}
+
+
+def get_sim_config(config):
+    """
+    Get a simulation configuration, with defaults that can
+    be over-ridden by the input.  The defaults are in
+    DEFAULT_SIM_CONFIG
+
+    Parameters
+    ----------
+    config: dict, optional
+        Dict of options to over ride the defaults
+
+    Returns
+    -------
+    config dict
+    """
+    out_config = deepcopy(DEFAULT_SIM_CONFIG)
+
+    if config is not None:
+        for key in config:
+            if key not in out_config:
+                raise ValueError("bad key for sim: '%s'" % key)
+
+        out_config.update(deepcopy(config))
+
+    return out_config
+
+
 DEFAULT_COADD_CONFIG = {'nowarp': False, 'remove_poisson': False}
 
 DEFAULT_MDET_CONFIG_WITH_SX = {
@@ -640,49 +699,63 @@ def make_info():
     return np.zeros(1, dtype=[('mask_frac', 'f8'), ('star_density', 'f8')])
 
 
-def get_psf(sim_config, psf_pars, draw_method, rng):
+def get_psf(sim_config, draw_method, rng):
     from descwl_shear_sims.psfs import (
         make_fixed_psf,
         make_ps_psf,
-        make_rand_psf,
+        # make_rand_psf,
     )
     from .shapelet_psf import make_shapelet_psf
     from .gmix_psf import make_gmix_psf
+    from .coadd_ps_psf import make_coadd_ps_psf
 
-    if sim_config['psf_type'] == 'ps':
+    psf_config = sim_config['psf']
+
+    if psf_config['type'] == 'ps':
         psf = make_ps_psf(
             rng=rng,
             dim=sim_config['se_dim'],
-            median_seeing=sim_config['psf_fwhm'],
-            variation_factor=sim_config['psf_variation_factor'],
+            # psf_fwhm=sim_config['psf_fwhm'],
+            # variation_factor=sim_config['psf_variation_factor'],
+            psf_fwhm=psf_config['fwhm'],
+            variation_factor=psf_config['variation_factor'],
         )
 
-    elif sim_config['psf_type'] == 'coadd_ps':
-        psf = CoaddPSPSF(
+    elif psf_config['type'] == 'coadd_ps':
+        psf = make_coadd_ps_psf(
             rng=rng,
             dim=sim_config['se_dim'],
-            median_seeing=sim_config['psf_fwhm'],
-            variation_factor=sim_config['psf_variation_factor'],
+            psf_fwhm=psf_config['fwhm'],
+            variation_factor=psf_config['variation_factor'],
+            nepoch=psf_config['nepoch'],
         )
 
-    elif sim_config['psf_type'] == 'shapelet':
-        psf = make_shapelet_psf(rng=rng, **psf_pars)
-        assert draw_method == 'no_pixel'
-
-    elif sim_config['psf_type'] == 'gmix':
-        psf = make_gmix_psf(rng=rng, **psf_pars)
-        assert draw_method == 'no_pixel'
-
-    elif sim_config['randomize_psf']:
-        psf = make_rand_psf(
-            psf_type=sim_config["psf_type"],
-            psf_fwhm_mean=sim_config['psf_fwhm'],
+    elif psf_config['type'] == 'shapelet':
+        psf = make_shapelet_psf(
             rng=rng,
+            nepoch=psf_config['nepoch'],
+        )
+        assert sim_config['draw_method'] == 'no_pixel'
+
+    elif psf_config['type'] == 'gmix':
+        psf = make_gmix_psf(
+            rng=rng,
+            nepoch=psf_config['nepoch'],
+        )
+        assert sim_config['draw_method'] == 'no_pixel'
+
+    # elif sim_config['randomize_psf']:
+    #     psf = make_rand_psf(
+    #         rng=rng,
+    #         psf_type=sim_config["psf_type"],
+    #         psf_fwhm_mean=psf_pars['fwhm'],
+    #     )
+    elif psf_config['type'] in ['gauss', 'moffat']:
+        psf = make_fixed_psf(
+            psf_type=psf_config["type"],
+            psf_fwhm=psf_config['fwhm'],
         )
     else:
-        psf = make_fixed_psf(
-            psf_type=sim_config["psf_type"],
-            psf_fwhm=sim_config['psf_fwhm'],
-        )
+        raise ValueError(f'bad psf_type {psf_config["type"]}')
 
     return psf

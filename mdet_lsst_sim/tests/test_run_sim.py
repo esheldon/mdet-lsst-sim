@@ -74,7 +74,7 @@ def test_run_artifacts(cosmic_rays, bad_columns):
 def test_run_gal_wldeblend():
 
     sim_config = {
-        'gal_type': 'wldeblend',
+        'gal': {'type': 'wldeblend'},
         'coadd_dim': 101,
         'buff': 5,
     }
@@ -100,7 +100,7 @@ def test_run_gal_wldeblend():
 def test_run_stars(gal_type, stars):
 
     sim_config = {
-        'gal_type': gal_type,
+        'gal': {'type': gal_type},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
@@ -121,7 +121,7 @@ def test_run_stars(gal_type, stars):
 def test_run_star_bleeds():
 
     sim_config = {
-        'gal_type': 'wldeblend',
+        'gal': {'type': 'wldeblend'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
@@ -143,12 +143,13 @@ def test_run_star_bleeds():
 def test_run_shapelet_psf():
     sim_config = {
         'draw_method': 'no_pixel',
-        'gal_type': 'wldeblend',
+        'gal': {'type': 'wldeblend'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
-        'psf_type': 'shapelet',
-        'psf_pars': {
+        'psf': {
+            'type': 'shapelet',
+            'dim': 51,
             'nepoch': 3,
         }
     }
@@ -167,18 +168,41 @@ def test_run_shapelet_psf():
 def test_run_gmix_psf():
     sim_config = {
         'draw_method': 'no_pixel',
-        'gal_type': 'wldeblend',
+        'gal': {'type': 'wldeblend'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
-        'psf_type': 'gmix',
-        'psf_pars': {
+        'psf': {
+            'type': 'gmix',
+            'dim': 51,
             'nepoch': 3,
         }
     }
     run_sim(
         sim_config=sim_config,
         seed=125,
+        ntrial=1,
+        output=None,
+    )
+
+
+def test_run_coadd_ps_psf():
+    sim_config = {
+        'gal': {'type': 'wldeblend'},
+        'layout': 'random',
+        'coadd_dim': 101,
+        'buff': 5,
+        'psf': {
+            'type': 'coadd_ps',
+            'dim': 51,
+            'fwhm': 0.8,
+            'nepoch': 3,
+            'variation_factor': 3.0,
+        }
+    }
+    run_sim(
+        sim_config=sim_config,
+        seed=782,
         ntrial=1,
         output=None,
     )
