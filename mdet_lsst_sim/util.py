@@ -729,6 +729,7 @@ def get_psf(sim_config, draw_method, rng):
             variation_factor=psf_config['variation_factor'],
             nepoch=psf_config['nepoch'],
         )
+        assert len(psf.psfs) == psf_config['nepoch']
 
     elif psf_config['type'] == 'shapelet':
         psf = make_shapelet_psf(
