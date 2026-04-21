@@ -657,6 +657,14 @@ def get_psf(sim_config, psf_pars, draw_method, rng):
             variation_factor=sim_config['psf_variation_factor'],
         )
 
+    elif sim_config['psf_type'] == 'coadd_ps':
+        psf = CoaddPSPSF(
+            rng=rng,
+            dim=sim_config['se_dim'],
+            median_seeing=sim_config['psf_fwhm'],
+            variation_factor=sim_config['psf_variation_factor'],
+        )
+
     elif sim_config['psf_type'] == 'shapelet':
         psf = make_shapelet_psf(rng=rng, **psf_pars)
         assert draw_method == 'no_pixel'
