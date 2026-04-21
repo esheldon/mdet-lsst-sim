@@ -188,7 +188,7 @@ def test_run_gmix_psf():
 
 def test_run_coadd_ps_psf():
     sim_config = {
-        'gal': {'type': 'wldeblend'},
+        'gal': {'type': 'fixed'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
