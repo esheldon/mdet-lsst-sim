@@ -396,14 +396,20 @@ def get_admom_runner(rng):
 def do_admom(rng, obs):
     import ngmix
 
+    wbad = np.where(obs.weight <= 0.0)
+    if wbad[0].size > 0:
+        oldobs = obs
+        obs = oldobs.copy()
+        weight = obs.weight.copy()
+        weight[wbad] = weight.max()
+
+        obs.weight = weight
+
     runner = get_admom_runner(rng)
     res = runner.go(obs)
 
-    fit_flags = 0
-
     if res['flags'] != 0:
         print(f'AM failed {res["flags"]}')
-        fit_flags |= AM_FIT_FAILED
     else:
         gm = res.get_gmix()
         try:
@@ -411,9 +417,9 @@ def do_admom(rng, obs):
             res['g'] = (g1, g2)
         except ngmix.GMixRangeError:
             print('error converting e1/e2 to g1/g2')
-            fit_flags |= AM_G
+            res['flags'] |= AM_G
 
-    return res, fit_flags
+    return res
 
 
 def get_simple_prior(rng, scale=0.2, T_range=None, F_range=None):
@@ -530,6 +536,8 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('visit', 'i8'),
         ('band', 'U1'),
         ('n_stack', 'i4'),
+        ('am_T', 'f4'),
+        ('am_g', 'f4', 2),
         ('gauss_T', 'f4'),
         ('gauss_g', 'f4', 2),
         ('pars', 'f4', 6 * ngauss),
@@ -677,6 +685,13 @@ def process_one(
     darray = make_output(ngauss, stamp_data, index)
 
     data = darray[0]
+
+    am_res = do_admom(rng=rng, obs=obs)
+    if am_res['flags'] == 0:
+        data['am_T'] = am_res['T']
+        data['am_g'] = am_res['g']
+    else:
+        data['flags'] |= AM_FIT_FAILED
 
     gauss_res = do_simple(rng=rng, obs=obs, model='gauss')
 
