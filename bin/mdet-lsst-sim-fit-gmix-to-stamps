@@ -5,10 +5,12 @@ from numba import njit
 SCALE = 0.2
 EM_FIT_FAILED = 2**1
 TURB_FIT_FAILED = 2**2
-ZERO_FLUX = 2**3
+AM_FIT_FAILED = 2**3
+AM_G = 2**4
+ZERO_FLUX = 2**5
 
 
-def get_obs(image):
+def get_obs(image, mask_nbrs=False, show=False):
     import numpy as np
     import ngmix
 
@@ -20,11 +22,110 @@ def get_obs(image):
         col=cen[1],
         scale=SCALE,
     )
-    return ngmix.Observation(
+    obs = ngmix.Observation(
         image=image,
-        weight=image * 0 + 1.0 / noise ** 2,
+        weight=image * 0 + 1.0 / noise**2,
         jacobian=jac,
     )
+
+    if mask_nbrs:
+        objs, seg = run_sep(obs)
+        cen = ((np.array(obs.image.shape) - 1.0) / 2.0).astype('i4')
+        seg_at_cen = seg[cen[0], cen[1]]
+        w = np.where((seg != 0) & (seg != seg_at_cen))
+        if w[0].size > 0:
+            weight = obs.weight.copy()
+            weight[w] = 0.0
+            obs.weight = weight
+
+        if show:
+            plot_im_wt_seg(obs.image, obs.weight, seg)
+
+    return obs
+
+
+def plot_seg(ax, seg, rng=None):
+    """
+    plot the seg map with randomized colors for better display
+    """
+
+    if rng is None:
+        rng = np.random.RandomState()
+
+    max_seg = seg.max()
+
+    low = 50 / 255
+    high = 255 / 255
+    n = (max_seg + 1) * 3
+    colors = rng.uniform(low=low, high=high, size=n).reshape(
+        (max_seg + 1, 3),
+    )
+
+    cseg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype='f4')
+
+    _make_color_seg(seg, cseg, colors)
+
+    ax.imshow(cseg)
+
+
+@njit
+def _make_color_seg(seg, cseg, colors):
+    nrow, ncol = seg.shape
+    for row in range(nrow):
+        for col in range(ncol):
+            val = seg[row, col]
+            if val > 0:
+                r, g, b = colors[val]
+                cseg[row, col, 0] = r
+                cseg[row, col, 1] = g
+                cseg[row, col, 2] = b
+
+
+def plot_im_wt_seg(image, weight, seg):
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+
+    noise = np.sqrt(1.0 / np.median(weight))
+
+    fig, axs = mplt.subplots(
+        nrows=2,
+        ncols=2,
+        figsize=(10, 10),
+    )
+    axs[1, 1].axis('off')
+
+    norm = AsinhNorm(
+        linear_width=noise,
+        clip=False,
+    )
+    plot_with_colorbar(
+        fig=fig,
+        ax=axs[0, 0],
+        image=image,
+        cmap='inferno',
+        norm=norm,
+        title='image',
+    )
+    plot_with_colorbar(
+        fig=fig,
+        ax=axs[0, 1],
+        image=weight,
+        cmap='inferno',
+        norm=norm,
+        title='weight',
+    )
+    axs[1, 0].set_title('seg')
+    plot_seg(ax=axs[1, 0], seg=seg)
+    # plot_with_colorbar(
+    #     fig=fig,
+    #     ax=axs[1, 0],
+    #     image=seg,
+    #     cmap='inferno',
+    #     norm=norm,
+    #     title='seg',
+    # )
+    mplt.show()
+    mplt.close(fig)
 
 
 def plot_with_colorbar(fig, ax, image, title=None, **kw):
@@ -111,9 +212,10 @@ def _check_keep(val, mean, sigma, nsig, ipass):
     return keep
 
 
-def doshow(image, model, turb_model, data, index, name, plotfront):
+def doplots(image, model, turb_model, data, index, name, plotfront):
     import matplotlib.pyplot as mplt
     from matplotlib.colors import AsinhNorm
+    import esutil as eu
 
     cmap = mplt.colormaps.get_cmap('inferno')
 
@@ -200,11 +302,96 @@ def doshow(image, model, turb_model, data, index, name, plotfront):
             fname = '-'.join(fname) + '.png'
             fname = f'{plotfront}-{fname}'
             print('writing:', fname)
+
+            eu.ostools.makedirs_fromfile(fname)
+
             fig.savefig(fname)
         else:
             mplt.show()
 
         mplt.close(fig)
+
+
+def make_kernel(fwhm):
+    import ngmix
+
+    # this is 0.8 arcseconds at 0.2 arcseconds per pixel
+    fwhm = fwhm / 0.2  # pixels
+    T = ngmix.moments.fwhm_to_T(fwhm)
+    kernel_gm = ngmix.GMixModel(
+        pars=[0.0, 0.0, 0.0, 0.0, T, 1.0],
+        model='gauss',
+    )
+    return kernel_gm.make_image([7, 7])
+
+
+def run_sep(obs, kernel_fwhm=0.8):
+    import numpy as np
+    import sep
+
+    medwt = np.median(obs.weight)
+    noise = 1 / np.sqrt(medwt)
+
+    kernel = make_kernel(kernel_fwhm)
+
+    config = {
+        'deblend_cont': 0.0001,
+        'deblend_nthresh': 64,
+        'minarea': 4,
+        'filter_type': 'conv',
+        'filter_kernel': kernel,
+    }
+
+    with obs.writeable():
+        objs, seg = sep.extract(
+            obs.image,
+            # thresh=0.8,
+            thresh=1.0,
+            err=noise,
+            segmentation_map=True,
+            **config,
+        )
+
+    return objs, seg
+
+
+def get_admom_runner(rng):
+    import ngmix
+
+    fitter = ngmix.admom.AdmomFitter(rng=rng)
+    guesser = ngmix.guessers.GMixPSFGuesser(
+        rng=rng,
+        ngauss=1,
+        guess_from_moms=True,
+    )
+    return ngmix.runners.Runner(
+        fitter=fitter,
+        guesser=guesser,
+        ntry=2,
+    )
+
+
+def do_admom(rng, obs):
+    import ngmix
+
+    runner = get_admom_runner(rng)
+    res = runner.go(obs)
+
+    fit_flags = 0
+
+    if res['flags'] != 0:
+        print(f'turb failed {res["flags"]}')
+        fit_flags |= AM_FIT_FAILED
+    else:
+        gm = res.get_gmix()
+        try:
+            g1, g2, T = gm.get_g1g2T()
+            res['g'] = (g1, g2)
+        except ngmix.GMixRangeError:
+            print('error converting e1/e2 to g1/g2')
+            fit_flags |= AM_G
+
+    return res, fit_flags
 
 
 def get_turb_prior(rng, scale=0.2, T_range=None, F_range=None):
@@ -324,10 +511,11 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('visit', 'i8'),
         ('band', 'U1'),
         ('n_stack', 'i4'),
+        ('am_T', 'f4'),
+        ('am_g', 'f4', 2),
         ('pars', 'f4', 6 * ngauss),
-        ('stat', 'f4'),
-        ('turb_flags', 'i4'),
         ('turb_pars', 'f4', 6),
+        ('stat', 'f4'),
         ('bg', 'f4'),
         ('bg_err', 'f4'),
     ]
@@ -343,6 +531,7 @@ def make_output(ngauss, stamp_data, index, n=1):
 
     output['band'] = stamp_data['band']
     output['pars'] = np.nan
+    output['turb_pars'] = np.nan
     output['stat'] = np.nan
     return output
 
@@ -373,7 +562,6 @@ def get_stat_old(gm):
 
 
 def get_stat_old2(image, model, turb_model):
-
     model_chi2 = ((model - image) ** 2).sum()
     turb_chi2 = ((turb_model - image) ** 2).sum()
 
@@ -382,7 +570,6 @@ def get_stat_old2(image, model, turb_model):
 
 
 def get_stat_weight(model, turb_model, weight):
-
     nmodel = model * 1.0 / model.sum()
     nturb = turb_model * 1.0 / turb_model.sum()
 
@@ -398,7 +585,6 @@ def get_stat_weight(model, turb_model, weight):
 
 
 def get_stat(gm, model, turb_model):
-
     flags = 0
     flux = gm.get_flux()
 
@@ -423,18 +609,14 @@ def get_sky(rng, all_obs):
     from sfitsky.coellip_fitter import get_coellip_runner_with_sky
     import esutil as eu
 
-    mednoise = np.median([
-        np.sqrt(1 / obs.weight[0, 0]) for obs in all_obs
-    ])
+    mednoise = np.median([np.sqrt(1 / obs.weight[0, 0]) for obs in all_obs])
 
     current_bg = 0.0
     current_bg_sigma = mednoise
 
     for ipass in range(2):
-
         dlist = []
         for obs in all_obs:
-
             scale = obs.jacobian.scale
             runner = get_coellip_runner_with_sky(
                 rng,
@@ -466,7 +648,8 @@ def process_one(
     obs,
     index,
     ngauss,
-    show,
+    mask_nbrs,
+    saveplots,
     infile,
 ):
     import os
@@ -476,14 +659,18 @@ def process_one(
 
     data = darray[0]
 
-    # image = stamp_data['stamps'][index]
-    # obs = get_obs(image)
+    am_res, am_fit_flags = do_admom(rng=rng, obs=obs)
+    data['flags'] |= am_fit_flags
+    if am_fit_flags == 0:
+        data['am_T'] = am_res['T']
+        data['am_g'] = am_res['g']
 
     gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
     data['flags'] |= fit_flags
 
     turb_res, turb_fit_flags = do_turb(obs=obs, rng=rng)
     data['flags'] |= turb_fit_flags
+
     if turb_res['flags'] == 0:
         data['turb_pars'] = turb_res['pars']
 
@@ -504,13 +691,14 @@ def process_one(
 
         assert np.all(darray['pars'][0] == data['pars'])
 
-        if show:
+        if saveplots:
+            dim = obs.image.shape[0]
+            dname = f'plots{dim}'
             plotfront = os.path.join(
-                'plots',
-                os.path.basename(infile).replace('.npz', '')
+                dname, os.path.basename(infile).replace('.npz', '')
             )
 
-            doshow(
+            doplots(
                 image=obs.image,
                 model=model,
                 turb_model=turb_model,
@@ -554,7 +742,9 @@ def do_sub_bg(rng, all_obs):
     return bg, bg_err
 
 
-def main(flist_file, outfile, seed, ngauss, sub_bg, show):
+def main(
+    flist_file, outfile, seed, ngauss, sub_bg, mask_nbrs, saveplots, show
+):
     import numpy as np
     import fitsio
     from tqdm import tqdm
@@ -571,7 +761,8 @@ def main(flist_file, outfile, seed, ngauss, sub_bg, show):
         nstamps = stamps.shape[0]
 
         all_obs = [
-            get_obs(stamps[i]) for i in range(nstamps)
+            get_obs(stamps[i], mask_nbrs=mask_nbrs, show=show)
+            for i in range(nstamps)
         ]
 
         if sub_bg:
@@ -584,7 +775,8 @@ def main(flist_file, outfile, seed, ngauss, sub_bg, show):
                 obs=all_obs[i],
                 index=i,
                 ngauss=ngauss,
-                show=show,
+                mask_nbrs=mask_nbrs,
+                saveplots=saveplots,
                 infile=infile,
             )
 
@@ -619,7 +811,9 @@ def get_args():
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--ngauss', type=int, default=5)
     parser.add_argument('--sub-bg', action='store_true')
+    parser.add_argument('--mask-nbrs', action='store_true')
     parser.add_argument('--show', action='store_true')
+    parser.add_argument('--saveplots', action='store_true')
 
     return parser.parse_args()
 
@@ -632,5 +826,7 @@ if __name__ == '__main__':
         seed=args.seed,
         ngauss=args.ngauss,
         sub_bg=args.sub_bg,
+        mask_nbrs=args.mask_nbrs,
         show=args.show,
+        saveplots=args.saveplots,
     )
