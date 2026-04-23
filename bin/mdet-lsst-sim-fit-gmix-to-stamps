@@ -6,8 +6,9 @@ SCALE = 0.2
 EM_FIT_FAILED = 2**1
 TURB_FIT_FAILED = 2**2
 AM_FIT_FAILED = 2**3
-AM_G = 2**4
-ZERO_FLUX = 2**5
+GAUSS_FIT_FAILED = 2**4
+AM_G = 2**5
+ZERO_FLUX = 2**6
 
 
 def get_obs(image, mask_nbrs=False, show=False):
@@ -380,7 +381,7 @@ def do_admom(rng, obs):
     fit_flags = 0
 
     if res['flags'] != 0:
-        print(f'turb failed {res["flags"]}')
+        print(f'AM failed {res["flags"]}')
         fit_flags |= AM_FIT_FAILED
     else:
         gm = res.get_gmix()
@@ -394,7 +395,7 @@ def do_admom(rng, obs):
     return res, fit_flags
 
 
-def get_turb_prior(rng, scale=0.2, T_range=None, F_range=None):
+def get_simple_prior(rng, scale=0.2, T_range=None, F_range=None):
     """
     get a prior for use with the maximum likelihood fitter
 
@@ -417,7 +418,7 @@ def get_turb_prior(rng, scale=0.2, T_range=None, F_range=None):
     if F_range is None:
         F_range = [-100.0, 1.0e9]
 
-    g_prior = ngmix.priors.GPriorBA(sigma=0.1, rng=rng)
+    g_prior = ngmix.priors.GPriorBA(sigma=0.3, rng=rng)
     cen_prior = ngmix.priors.CenPrior(
         cen1=0,
         cen2=0,
@@ -442,12 +443,12 @@ def get_turb_prior(rng, scale=0.2, T_range=None, F_range=None):
     return prior
 
 
-def do_turb(obs, rng):
+def do_simple(obs, rng, model):
     import ngmix
 
-    prior = get_turb_prior(rng=rng)
+    prior = get_simple_prior(rng=rng)
 
-    fitter = ngmix.fitting.Fitter(model='turb', prior=prior)
+    fitter = ngmix.fitting.Fitter(model=model, prior=prior)
 
     guesser = ngmix.guessers.SimplePSFGuesser(
         rng=rng,
@@ -462,12 +463,9 @@ def do_turb(obs, rng):
     res = runner.go(obs)
 
     if res['flags'] != 0:
-        print(f'turb failed {res["message"]}')
-        fit_flags = TURB_FIT_FAILED
-    else:
-        fit_flags = 0
+        print(f'{model} failed {res["message"]}')
 
-    return res, fit_flags
+    return res
 
 
 def do_em(obs, rng, ngauss):
@@ -511,8 +509,8 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('visit', 'i8'),
         ('band', 'U1'),
         ('n_stack', 'i4'),
-        ('am_T', 'f4'),
-        ('am_g', 'f4', 2),
+        ('gauss_T', 'f4'),
+        ('gauss_g', 'f4', 2),
         ('pars', 'f4', 6 * ngauss),
         ('turb_pars', 'f4', 6),
         ('stat', 'f4'),
@@ -659,20 +657,23 @@ def process_one(
 
     data = darray[0]
 
-    am_res, am_fit_flags = do_admom(rng=rng, obs=obs)
-    data['flags'] |= am_fit_flags
-    if am_fit_flags == 0:
-        data['am_T'] = am_res['T']
-        data['am_g'] = am_res['g']
+    gauss_res = do_simple(rng=rng, obs=obs, model='gauss')
 
-    gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
-    data['flags'] |= fit_flags
+    if gauss_res['flags'] == 0:
+        data['gauss_T'] = gauss_res['T']
+        data['gauss_g'] = gauss_res['g']
+    else:
+        data['flags'] |= GAUSS_FIT_FAILED
 
-    turb_res, turb_fit_flags = do_turb(obs=obs, rng=rng)
-    data['flags'] |= turb_fit_flags
+    turb_res = do_simple(obs=obs, rng=rng, model='turb')
 
     if turb_res['flags'] == 0:
         data['turb_pars'] = turb_res['pars']
+    else:
+        data['flags'] |= TURB_FIT_FAILED
+
+    gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
+    data['flags'] |= fit_flags
 
     if data['flags'] == 0:
         data['pars'] = gm.get_full_pars()
