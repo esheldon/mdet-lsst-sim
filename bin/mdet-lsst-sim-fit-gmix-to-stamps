@@ -30,6 +30,8 @@ def get_obs(image, mask_nbrs=False, show=False):
         ignore_zero_weight=False,
     )
 
+    obs.meta['mask_frac'] = 0.0
+
     if mask_nbrs:
         objs, seg = run_sep(obs)
         cen = ((np.array(obs.image.shape) - 1.0) / 2.0).astype('i4')
@@ -39,6 +41,7 @@ def get_obs(image, mask_nbrs=False, show=False):
             weight = obs.weight.copy()
             weight[w] = 0.0
             obs.weight = weight
+            obs.meta['mask_frac'] = w[0].size / obs.image.size
 
         if show:
             plot_im_wt_seg(obs.image, obs.weight, seg)
@@ -524,6 +527,34 @@ def do_em(obs, rng, ngauss):
     return gm, fit_flags
 
 
+def get_nongaussian_frac(obs, gm):
+    import galsim
+
+    gsimage = galsim.Image(obs.image, scale=obs.jacobian.scale)
+    sigma = gm.get_sigma()
+
+    v, u = gm.get_cen()
+    row, col = obs.jacobian.get_rowcol(v, u)
+    cen = galsim.PositionD(x=col, y=row)
+
+    sh = galsim.Shapelet.fit(
+        sigma=sigma,
+        order=6,
+        image=gsimage,
+        center=cen,
+    )
+
+    bvec = sh.bvec
+
+    bvec_mask = list(range(6, 10)) + list(range(15, 24))
+
+    allpower = np.sum(bvec ** 2)
+
+    nongaussian_power = np.sum(bvec[bvec_mask] ** 2)
+    nongaussian_frac = nongaussian_power / allpower
+    return nongaussian_frac
+
+
 def make_output(ngauss, stamp_data, index, n=1):
     import numpy as np
 
@@ -536,6 +567,7 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('visit', 'i8'),
         ('band', 'U1'),
         ('n_stack', 'i4'),
+        ('mask_frac', 'f4'),
         ('am_T', 'f4'),
         ('am_g', 'f4', 2),
         ('gauss_T', 'f4'),
@@ -545,6 +577,7 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('stat', 'f4'),
         ('bg', 'f4'),
         ('bg_err', 'f4'),
+        ('nongaussian_frac', 'f4'),
     ]
 
     output = np.zeros(n, dtype=descr)
@@ -557,9 +590,11 @@ def make_output(ngauss, stamp_data, index, n=1):
             output[name] = stamp_data[name][index]
 
     output['band'] = stamp_data['band']
-    output['pars'] = np.nan
-    output['turb_pars'] = np.nan
-    output['stat'] = np.nan
+    for n in [
+        'pars', 'turb_pars', 'stat', 'am_T', 'am_g', 'gauss_T', 'gauss_g',
+    ]:
+        output[n] = np.nan
+
     return output
 
 
@@ -686,6 +721,8 @@ def process_one(
 
     data = darray[0]
 
+    data['mask_frac'] = obs.meta['mask_frac']
+
     am_res = do_admom(rng=rng, obs=obs)
     if am_res['flags'] == 0:
         data['am_T'] = am_res['T']
@@ -698,6 +735,14 @@ def process_one(
     if gauss_res['flags'] == 0:
         data['gauss_T'] = gauss_res['T']
         data['gauss_g'] = gauss_res['g']
+
+        gm = gauss_res.get_gmix()
+
+        data['nongaussian_frac'] = get_nongaussian_frac(
+            obs=obs,
+            gm=gm,
+        )
+
     else:
         data['flags'] |= GAUSS_FIT_FAILED
 
