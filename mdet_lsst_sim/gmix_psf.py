@@ -138,7 +138,7 @@ class GMixLibrary:
             threshold=self.threshold,
         )
 
-    def get_psf(self, idx):
+    def get_psf(self, idx, as_gmix=False):
         """
         Get the galsim GSObject for the specified index.
         This converts from the ngmix representation
@@ -147,6 +147,9 @@ class GMixLibrary:
         ----------
         idx: int
             Integer of shapelet
+        as_gmix: bool, optional
+            If set to True, return the ngmix GMix object.
+            Note rotation will not be applied.
 
         Returns
         -------
@@ -157,8 +160,13 @@ class GMixLibrary:
 
         pars = self.data['pars'][idx]
 
-        gmix = ngmix.GMix(pars=pars)
-        psf = gmix.make_galsim_object()
+        gm = ngmix.GMix(pars=pars)
+
+        if as_gmix:
+            gm.set_flux(1.0)
+            return gm
+
+        psf = gm.make_galsim_object()
 
         if self.rotate:
             angle = self.rng.uniform(low=0, high=360)
@@ -167,16 +175,22 @@ class GMixLibrary:
         psf = psf.withFlux(1.0)
         return psf
 
-    def sample_psf(self):
+    def sample_psf(self, as_gmix=False):
         """
         Returns a randomly sampled PSF from the library.
+
+        Parameters
+        ----------
+        as_gmix: bool, optional
+            If set to True, return the ngmix GMix object.
+            Note rotation will not be applied.
 
         Returns
         -------
         galsim.GSObject
         """
         idx = self.rng.choice(len(self))
-        return self.get_psf(idx)
+        return self.get_psf(idx, as_gmix=as_gmix)
 
     def __len__(self):
         return self.data.size
