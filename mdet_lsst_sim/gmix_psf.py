@@ -161,9 +161,10 @@ class GMixLibrary:
         pars = self.data['pars'][idx]
 
         gm = ngmix.GMix(pars=pars)
+        gm.set_cen(0.0, 0.0)
+        gm.set_flux(1.0)
 
         if as_gmix:
-            gm.set_flux(1.0)
             return gm
 
         psf = gm.make_galsim_object()
