@@ -27,6 +27,7 @@ def get_obs(image, mask_nbrs=False, show=False):
         image=image,
         weight=image * 0 + 1.0 / noise**2,
         jacobian=jac,
+        ignore_zero_weight=False,
     )
 
     if mask_nbrs:
@@ -41,6 +42,8 @@ def get_obs(image, mask_nbrs=False, show=False):
 
         if show:
             plot_im_wt_seg(obs.image, obs.weight, seg)
+
+        obs.meta['seg'] = seg
 
     return obs
 
@@ -213,15 +216,15 @@ def _check_keep(val, mean, sigma, nsig, ipass):
     return keep
 
 
-def doplots(image, model, turb_model, data, index, name, plotfront):
+def doplots(obs, model, turb_model, data, index, name, plotfront):
     import matplotlib.pyplot as mplt
     from matplotlib.colors import AsinhNorm
     import esutil as eu
 
+    image = obs.image
     cmap = mplt.colormaps.get_cmap('inferno')
 
-    noise = get_edge_std(image, 4, 4)
-
+    noise = np.sqrt(1.0 / np.median(obs.weight))
     norm = AsinhNorm(
         linear_width=noise,
         clip=False,
@@ -232,11 +235,18 @@ def doplots(image, model, turb_model, data, index, name, plotfront):
     maxval = 1.0
     image_mod = image.copy()
 
+    if 'seg' in obs.meta:
+        nrows = 4
+        figsize = (10, 16)
+    else:
+        nrows = 3
+        figsize = (10, 14)
+
     with mplt.style.context('dark_background'):
         fig, axs = mplt.subplots(
-            nrows=3,
+            nrows=nrows,
             ncols=2,
-            figsize=(10, 14),
+            figsize=figsize,
         )
         # axs[0, 1].axis('off')
 
@@ -292,6 +302,17 @@ def doplots(image, model, turb_model, data, index, name, plotfront):
             cmap=cmap,
             title='image - turb',
         )
+
+        if 'seg' in obs.meta:
+            plot_with_colorbar(
+                fig=fig,
+                ax=axs[3, 0],
+                image=obs.weight,
+                cmap=cmap,
+                title='weight',
+            )
+            axs[3, 1].set_title('seg')
+            plot_seg(axs[3, 1], obs.meta['seg'])
 
         if True:
             fname = [
@@ -700,7 +721,7 @@ def process_one(
             )
 
             doplots(
-                image=obs.image,
+                obs=obs,
                 model=model,
                 turb_model=turb_model,
                 data=data,
