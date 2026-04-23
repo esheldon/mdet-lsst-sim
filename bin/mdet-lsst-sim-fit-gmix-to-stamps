@@ -484,7 +484,7 @@ def do_simple(obs, rng, model):
     res = runner.go(obs)
 
     if res['flags'] != 0:
-        print(f'{model} failed {res["message"]}')
+        print(f'{model} failed {res["flags"]}')
 
     return res
 
