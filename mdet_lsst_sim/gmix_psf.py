@@ -28,7 +28,7 @@ def make_gmix_psf(
 
     fname = os.path.join(
         os.environ.get('CATSIM_DIR', '.'),
-        'gmix_psf',
+        'gmix-psfs',
         'gmix-5gauss-dp2-i.fits',
     )
     gmix_lib = GMixLibrary(
