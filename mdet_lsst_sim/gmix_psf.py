@@ -1,7 +1,6 @@
 import functools
 
 DEFAULT_MAX_NONGAUSS_FRAC = 0.005
-DEFAULT_THRESHOLD = 0.0
 
 
 def make_gmix_psf(
@@ -9,7 +8,6 @@ def make_gmix_psf(
     nepoch=1,
     rotate=True,
     max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
-    threshold=DEFAULT_THRESHOLD,
 ):
     """
     Load a compiled shapelet bvec library and reconstruct GalSim PSF objects.
@@ -25,23 +23,19 @@ def make_gmix_psf(
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         original shapelets.  Default is 0.005
-    threshold: float, optional
-        Lowest allowed value in origial shapelets reconstruction image.
-        Default is None, meaning do not make any cuts.
     """
     import os
 
     fname = os.path.join(
         os.environ.get('CATSIM_DIR', '.'),
-        'shapelet_bvec_stacked',
-        'gmix-5gauss-i.fits',
+        'gmix_psf',
+        'gmix-5gauss-dp2-i.fits',
     )
     gmix_lib = GMixLibrary(
         fname=fname,
         rng=rng,
         rotate=rotate,
         max_nongauss_frac=max_nongauss_frac,
-        threshold=threshold,
     )
 
     return GMixPSF(gmix_lib=gmix_lib, nepoch=nepoch)
@@ -112,9 +106,6 @@ class GMixLibrary:
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         original shapelets.  Default is None, meaning do not make any cuts.
-    threshold: float, optional
-        Lowest allowed value in origial shapelets reconstruction image.
-        Default is None, meaning do not make any cuts.
     """
 
     def __init__(
@@ -123,19 +114,16 @@ class GMixLibrary:
         rng,
         rotate=True,
         max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
-        threshold=DEFAULT_THRESHOLD,
     ):
 
         self.fname = fname
         self.rng = rng
         self.rotate = rotate
         self.max_nongauss_frac = max_nongauss_frac
-        self.threshold = threshold
 
         self.data = cached_gmix_read(
             fname=self.fname,
             max_nongauss_frac=self.max_nongauss_frac,
-            threshold=self.threshold,
         )
 
     def get_psf(self, idx, as_gmix=False):
@@ -205,32 +193,35 @@ class GMixLibrary:
 
 
 @functools.lru_cache(maxsize=8)
-def cached_gmix_read(fname, max_nongauss_frac, threshold):
+def cached_gmix_read(fname, max_nongauss_frac):
     """
     Load the gmix library, possibly limiting the amount of non gaussian power
-    and putting a threshold on the minval of the original shapelets
-    reconstruction image
     """
     import numpy as np
     import fitsio
+    from esutil.numpy_util import between
 
-    print(
-        f'loading {fname} with '
-        f'max_nongauss_frac={max_nongauss_frac} threshold={threshold}'
-    )
+    date_min = 2026010100000
+    date_max = 2026012700000
+
+    print(f'loading {fname}')
+    print(f'    max_nongauss_frac < {max_nongauss_frac}')
+    print(f'    {date_min} <= date <= {date_max}')
 
     with fitsio.FITS(fname) as fits:
         data = fits[1].read()
 
-    if max_nongauss_frac is not None or threshold is not None:
-        logic = np.ones(data.size, dtype=bool)
+    logic = between(
+        data['visit'],
+        date_min,
+        date_max,
+        type='[]',
+    )
+    if max_nongauss_frac is not None:
+        logic &= data['nongaussian_frac'] < max_nongauss_frac
 
-        if max_nongauss_frac is not None:
-            logic &= (data['nongaussian_frac'] < max_nongauss_frac)
-
-        if threshold is not None:
-            logic &= (data['minval'] > threshold)
-
-        data = data[logic]
+    w, = np.where(logic)
+    print(f'    keeping {w.size}/{data.size}')
+    data = data[w]
 
     return data
