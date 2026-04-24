@@ -12,12 +12,6 @@ def main(flist, outfront):
 
     bands = np.unique(data['band'])
 
-    medval = np.nanmedian(data['stat'])
-    print('medval:', medval)
-    if medval < 0.001:
-        print('fixing stat')
-        data['stat'] *= 1000
-
     for band in bands:
         w, = np.where(data['band'] == band)
         bandfile = f'{outfront}-{band}.fits'
