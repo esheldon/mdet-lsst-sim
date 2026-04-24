@@ -11,7 +11,7 @@ AM_G = 2**5
 ZERO_FLUX = 2**6
 
 
-def get_obs(image, mask_nbrs=False, show=False):
+def get_obs(image, no_mask_nbrs=False, show=False):
     import numpy as np
     import ngmix
 
@@ -32,7 +32,7 @@ def get_obs(image, mask_nbrs=False, show=False):
 
     obs.meta['mask_frac'] = 0.0
 
-    if mask_nbrs:
+    if not no_mask_nbrs:
         objs, seg = run_sep(obs)
         cen = ((np.array(obs.image.shape) - 1.0) / 2.0).astype('i4')
         seg_at_cen = seg[cen[0], cen[1]]
@@ -710,7 +710,7 @@ def process_one(
     obs,
     index,
     ngauss,
-    mask_nbrs,
+    no_mask_nbrs,
     saveplots,
     infile,
 ):
@@ -825,7 +825,7 @@ def do_sub_bg(rng, all_obs):
 
 
 def main(
-    flist_file, outfile, seed, ngauss, sub_bg, mask_nbrs, saveplots, show
+    flist_file, outfile, seed, ngauss, sub_bg, no_mask_nbrs, saveplots, show
 ):
     import numpy as np
     import fitsio
@@ -843,7 +843,7 @@ def main(
         nstamps = stamps.shape[0]
 
         all_obs = [
-            get_obs(stamps[i], mask_nbrs=mask_nbrs, show=show)
+            get_obs(stamps[i], no_mask_nbrs=no_mask_nbrs, show=show)
             for i in range(nstamps)
         ]
 
@@ -857,7 +857,7 @@ def main(
                 obs=all_obs[i],
                 index=i,
                 ngauss=ngauss,
-                mask_nbrs=mask_nbrs,
+                no_mask_nbrs=no_mask_nbrs,
                 saveplots=saveplots,
                 infile=infile,
             )
@@ -893,7 +893,7 @@ def get_args():
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--ngauss', type=int, default=5)
     parser.add_argument('--sub-bg', action='store_true')
-    parser.add_argument('--mask-nbrs', action='store_true')
+    parser.add_argument('--no-mask-nbrs', action='store_true')
     parser.add_argument('--show', action='store_true')
     parser.add_argument('--saveplots', action='store_true')
 
@@ -908,7 +908,7 @@ if __name__ == '__main__':
         seed=args.seed,
         ngauss=args.ngauss,
         sub_bg=args.sub_bg,
-        mask_nbrs=args.mask_nbrs,
+        no_mask_nbrs=args.nomask_nbrs,
         show=args.show,
         saveplots=args.saveplots,
     )
