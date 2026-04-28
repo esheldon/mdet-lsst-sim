@@ -89,7 +89,7 @@ def get_command_from_config_file(args):
         command = 'mdet-lsst-sim'
 
     if args.nocancel:
-        command = f'{command} -nocancel'
+        command = f'{command} --nocancel'
 
     return command
 
