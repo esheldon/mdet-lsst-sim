@@ -22,7 +22,7 @@ def make_gmix_psf(
         Whether to randomly rotate PSFs, default True
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
-        original shapelets.  Default is 0.005
+        a shapelets fit.  Default is 0.005
     """
     import os
 
@@ -105,7 +105,7 @@ class GMixLibrary:
         Whether to randomly rotate PSFs, default True
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
-        original shapelets.  Default is None, meaning do not make any cuts.
+        a shapelets fit.  Default is None, meaning do not make any cuts.
     """
 
     def __init__(
