@@ -151,6 +151,8 @@ def main(
             chunk_file = f'sums-{ichunk:06d}.fits'
             condorf.write(f'{chunk_flist_file} {chunk_file}\n')
 
+        condorf.write(')\n')
+
 
 def get_args():
     import argparse
