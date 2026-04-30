@@ -472,13 +472,20 @@ def process_one(config, fname):
     try:
         with fitsio.FITS(fname) as fobj:
             data_1p = fobj['1p'].read()
-            data_1m = fobj['1m'].read()
+            if '1m' in fobj:
+                data_1m = fobj['1m'].read()
+            else:
+                data_1m = None
     except OSError as err:
         print(err)
         return None
 
-    if data_1p is None or data_1m is None:
+    # if data_1p is None or data_1m is None:
+    if data_1p is None:
         return None
+    data_ext = [(data_1p, '1p')]
+    if data_1m is not None:
+        data_ext += [(data_1p, '1p')]
 
     use_weights = config['use_weights']
     weight_type = config.get('weight_type', 'g')
@@ -499,10 +506,7 @@ def process_one(config, fname):
                                 max_star_density=max_star_density,
                             )
                             for stype in ['noshear', '1p', '1m']:
-                                for data, ext in [
-                                    (data_1p, '1p'),
-                                    (data_1m, '1m'),
-                                ]:  # noqa
+                                for data, ext in data_ext:
                                     g_sum, wsum, nsum = get_sums(
                                         stype=stype,
                                         s2n_min=s2n_min,
