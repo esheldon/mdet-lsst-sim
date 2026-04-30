@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-
-SCRIPT_NAME = './run.sh'
-
-
 CONDOR_SUBMIT_TEXT = """
 universe = vanilla
 
@@ -53,10 +49,9 @@ mdet-lsst-sim-dosums     \
 """
 
 
-def write_script(cut_config_file):
+def write_script(script_file, cut_config_file):
     import os
 
-    script_file = SCRIPT_NAME
     script = SCRIPT % {'cut_config': cut_config_file}
 
     with open(script_file, 'w') as fobj:
@@ -71,22 +66,10 @@ def write_chunk_flist(fname, flist):
             fobj.write(f'{fname}\n')
 
 
-def get_sums_file(chunk):
-    fname = f'sums-{chunk:06d}.fits'
-    return fname
-
-
-def get_sums_flist_file(chunk):
-    fname = f'flist-{chunk:06d}.txt'
-    return fname
-
-
-def get_doshear_condor_file():
-    return 'doshear.condor'
-
-
-def chunk_flist(flist, nchunks):
-
+def split_flist(flist, nchunks):
+    """
+    Split the flist in to chunks
+    """
     nf = len(flist)
     chunksize = nf // nchunks
     extra_items = nf % nchunks
@@ -145,15 +128,16 @@ def main(
 ):
     import os
 
-    write_script(cut_config_file)
+    script_file = 'run.sh'
+    write_script(script_file, cut_config_file)
 
     flist = get_flist(directory=directory, limit=limit)
     nf = len(flist)
 
-    flists = chunk_flist(flist, nchunks)
+    flists = split_flist(flist, nchunks)
     chunksize = len(flists[0])
 
-    condor_file = get_doshear_condor_file()
+    condor_file = 'dosums.condor'
     print(f'processing: {nf}')
     print(f'nchunks: {nchunks}')
     print(f'chunksize: {chunksize}')
@@ -163,13 +147,13 @@ def main(
 
     for ichunk, chunk in enumerate(flists):
 
-        chunk_flist_file = get_sums_flist_file(ichunk)
+        chunk_flist_file = f'flist-{ichunk:06d}.txt'
 
         write_chunk_flist(chunk_flist_file, chunk)
 
         # we use the basename because it is expected we run the condor
         # script for that directory
-        chunk_file = get_sums_file(ichunk)
+        chunk_file = f'sums-{ichunk:06d}.fits'
         chunk_file_base = os.path.basename(chunk_file)
         chunk_flist_file_base = os.path.basename(chunk_flist_file)
 
@@ -181,7 +165,7 @@ def main(
     condor_text = CONDOR_SUBMIT_TEXT % {
         'job_name': job_name,
         'mem': mem,
-        'script': SCRIPT_NAME,
+        'script': script_file,
         'input_data': input_data,
         'cut_config': cut_config_file,
     }
