@@ -353,49 +353,6 @@ def get_mc_file(key, nocancel, weight_type, require_primary=True):
     return os.path.join(OUTDIR, fname)
 
 
-def get_sums_file(chunk):
-    fname = f'sums-{chunk:06d}.fits'
-    return fname
-
-
-def get_sums_flist_file(chunk):
-    fname = f'flist-{chunk:06d}.txt'
-    return fname
-
-
-def get_sums_script_file():
-    return 'run.sh'
-
-
-def get_doshear_condor_file():
-    return 'doshear.condor'
-
-
-def chunk_flist(flist, nchunks):
-
-    nf = len(flist)
-    chunksize = nf // nchunks
-    extra_items = nf % nchunks
-
-    flists = []
-
-    start = 0
-    for i in range(nchunks):
-        this_chunksize = chunksize
-        if i <= extra_items:
-            this_chunksize += 1
-
-        end = start + this_chunksize
-
-        chunk = flist[start:end]
-        flists.append(chunk)
-
-        start = start + this_chunksize
-
-    flists = [flist for flist in flists if len(flist) > 0]
-    return flists
-
-
 def get_struct(
     s2n_min,
     s2n_max,

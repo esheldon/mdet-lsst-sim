@@ -71,6 +71,70 @@ def write_chunk_flist(fname, flist):
             fobj.write(f'{fname}\n')
 
 
+def get_sums_file(chunk):
+    fname = f'sums-{chunk:06d}.fits'
+    return fname
+
+
+def get_sums_flist_file(chunk):
+    fname = f'flist-{chunk:06d}.txt'
+    return fname
+
+
+def get_doshear_condor_file():
+    return 'doshear.condor'
+
+
+def chunk_flist(flist, nchunks):
+
+    nf = len(flist)
+    chunksize = nf // nchunks
+    extra_items = nf % nchunks
+
+    flists = []
+
+    start = 0
+    for i in range(nchunks):
+        this_chunksize = chunksize
+        if i <= extra_items:
+            this_chunksize += 1
+
+        end = start + this_chunksize
+
+        chunk = flist[start:end]
+        flists.append(chunk)
+
+        start = start + this_chunksize
+
+    flists = [flist for flist in flists if len(flist) > 0]
+    return flists
+
+
+def get_flist(directory, limit=None):
+    import os
+
+    flist = []
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for basename in files:
+            if (
+                '.fits' in basename
+                and basename[:4] != 'sums'
+                and 'mc-results' not in root
+            ):
+                fname = os.path.join(root, basename)
+                fname = os.path.abspath(fname)
+                flist.append(fname)
+
+    nf = len(flist)
+    if nf == 0:
+        raise RuntimeError('no files found')
+
+    if limit is not None:
+        flist = flist[:limit]
+
+    return flist
+
+
 def main(
     directory,
     job_name,
@@ -80,13 +144,6 @@ def main(
     mem,
 ):
     import os
-    from mdet_lsst_sim.doshear import (
-        get_flist,
-        get_sums_file,
-        get_sums_flist_file,
-        chunk_flist,
-        get_doshear_condor_file,
-    )
 
     write_script(cut_config_file)
 
