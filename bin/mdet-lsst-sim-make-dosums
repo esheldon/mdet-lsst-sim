@@ -91,7 +91,7 @@ def split_flist(flist, nchunks):
     return flists
 
 
-def read_flist(fname, limit):
+def read_flist(fname):
 
     flist = []
     with open(fname) as fobj:
@@ -100,9 +100,6 @@ def read_flist(fname, limit):
             if ls != '':
                 flist.append(ls)
 
-            if limit is not None and (i + 1) == limit:
-                break
-
     return flist
 
 
@@ -110,15 +107,14 @@ def main(
     flist_file,
     cut_config_file,
     nchunks,
-    job_name='sums',
-    mem='1G',
-    limit=None,
+    job_name,
+    mem,
 ):
 
-    script_file = 'run.sh'
+    script_file = f'{job_name}-run.sh'
     write_script(script_file, cut_config_file)
 
-    flist = read_flist(fname=flist_file, limit=limit)
+    flist = read_flist(fname=flist_file)
 
     nf = len(flist)
 
@@ -160,9 +156,8 @@ def get_args():
     parser.add_argument('--flist', required=True)
     parser.add_argument('--cut-config', required=True)
     parser.add_argument('--nchunks', type=int, required=True)
-    parser.add_argument('--job-name', default='sums')
+    parser.add_argument('--job-name', default='dosums')
     parser.add_argument('--mem', default='1G')
-    parser.add_argument('--limit', type=int)
     return parser.parse_args()
 
 
@@ -174,5 +169,4 @@ if __name__ == '__main__':
         nchunks=args.nchunks,
         job_name=args.job_name,
         mem=args.mem,
-        limit=args.limit,
     )
