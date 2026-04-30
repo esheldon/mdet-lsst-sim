@@ -742,6 +742,7 @@ def get_psf(sim_config, draw_method, rng):
         psf = make_gmix_psf(
             rng=rng,
             nepoch=psf_config['nepoch'],
+            fwhm_fac=psf_config['fwhm_fac'],
         )
         assert sim_config['draw_method'] == 'no_pixel'
 
