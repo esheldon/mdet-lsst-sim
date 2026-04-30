@@ -4,30 +4,25 @@ import os
 
 
 CONDOR_SUBMIT_HEAD = """
-universe = vanilla
-
-notification = Never
-
-request_memory = %(mem)s
-
 executable = %(script)s
 arguments = "$(FLIST) $(OUTFILE)"
 
-# must be comma separated
+request_memory = %(mem)s
+
+# Each of the flist will be copied to one jobs.
+# Note the comma separator
 transfer_input_files = $(FLIST), %(cut_config)s
 
 # transfer when the job completes
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT
 
+universe = vanilla
+notification = Never
 getenv = True
-
 kill_sig = SIGINT
-
 environment = "OMP_NUM_THREADS=1"
-
 +experiment = "astro"
-
 +job_name = "%(job_name)s"
 
 """
@@ -111,7 +106,7 @@ def main(
     mem,
 ):
 
-    script_file = f'{job_name}-run.sh'
+    script_file = f'{job_name}.sh'
     write_script(script_file, cut_config_file)
 
     flist = read_flist(fname=flist_file)
@@ -121,7 +116,7 @@ def main(
     flists = split_flist(flist, nchunks)
     chunksize = len(flists[0])
 
-    condor_file = 'dosums.condor'
+    condor_file = f'dosums.condor'
     print(f'processing: {nf}')
     print(f'nchunks: {nchunks}')
     print(f'chunksize: {chunksize}')
