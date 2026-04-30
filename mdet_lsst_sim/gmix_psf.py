@@ -8,6 +8,7 @@ def make_gmix_psf(
     nepoch=1,
     rotate=True,
     max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
+    fwhm_fac=None,
 ):
     """
     Load a compiled shapelet bvec library and reconstruct GalSim PSF objects.
@@ -23,6 +24,9 @@ def make_gmix_psf(
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         a shapelets fit.  Default is 0.005
+    fwhm_fac: float, optional
+        A factor to scale all gaussian sizes.  Default is None, meaning
+        do not scale.
     """
     import os
 
@@ -36,6 +40,7 @@ def make_gmix_psf(
         rng=rng,
         rotate=rotate,
         max_nongauss_frac=max_nongauss_frac,
+        fwhm_fac=fwhm_fac,
     )
 
     return GMixPSF(gmix_lib=gmix_lib, nepoch=nepoch)
@@ -47,8 +52,8 @@ class GMixPSF:
 
     Parameters
     ----------
-    fname:
-        The psf object
+    gmix_lib: GMixLibrary
+        The psf library.
     nepoch: int, optional
         If set greater than 1, stack that many PSFs
     """
@@ -106,6 +111,9 @@ class GMixLibrary:
     max_nongauss_frac: float
         Maximum allowed fraction of the power in non-gaussian parts of
         a shapelets fit.  Default is None, meaning do not make any cuts.
+    fwhm_fac: float, optional
+        A factor to scale all gaussian sizes.  Default is None, meaning
+        do not scale.
     """
 
     def __init__(
@@ -114,12 +122,19 @@ class GMixLibrary:
         rng,
         rotate=True,
         max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
+        fwhm_fac=None,
     ):
 
         self.fname = fname
         self.rng = rng
         self.rotate = rotate
         self.max_nongauss_frac = max_nongauss_frac
+        self.fwhm_fac = fwhm_fac
+
+        if self.fwhm_fac is not None:
+            self.T_fac = fwhm_fac ** 2
+        else:
+            self.T_fac = None
 
         self.data = cached_gmix_read(
             fname=self.fname,
@@ -151,6 +166,9 @@ class GMixLibrary:
         gm = ngmix.GMix(pars=pars)
         gm.set_cen(0.0, 0.0)
         gm.set_flux(1.0)
+
+        if self.T_fac is not None:
+            gm.scale_T(self.T_fac)
 
         if as_gmix:
             return gm

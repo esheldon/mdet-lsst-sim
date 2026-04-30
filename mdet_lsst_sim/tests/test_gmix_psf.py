@@ -30,7 +30,7 @@ def test_gmix_psf_smoke():
 )
 @pytest.mark.parametrize('nepoch', [1, 15])
 @pytest.mark.parametrize('max_nongauss_frac', [0.005, 0.01])
-def test_shapelet_psf(nepoch, max_nongauss_frac):
+def test_gmix_psf(nepoch, max_nongauss_frac):
     rng = np.random.RandomState(7843)
 
     psf = make_gmix_psf(
@@ -44,3 +44,32 @@ def test_shapelet_psf(nepoch, max_nongauss_frac):
     pos = galsim.PositionD(1.5, 2.2)
     opsf = psf.getPSF(pos)
     assert np.allclose(opsf.flux, 1.0)
+
+
+@pytest.mark.skipif(
+    "CATSIM_DIR" not in os.environ,
+    reason='simulation input data is not present',
+)
+@pytest.mark.parametrize('fwhm_fac', [0.8, 1.0])
+def test_gmix_psf_fwhm_fac(fwhm_fac):
+
+    seed = 21
+
+    psf0 = make_gmix_psf(
+        rng=np.random.RandomState(seed)
+    )
+
+    psf_rescaled = make_gmix_psf(
+        rng=np.random.RandomState(seed),
+        fwhm_fac=fwhm_fac,
+    )
+
+    # same rng seeds, so should give same object
+    psf_gmix0 = psf0.gmix_lib.get_psf(3, as_gmix=True)
+    psf_gmix_rescaled = psf_rescaled.gmix_lib.get_psf(3, as_gmix=True)
+
+    T0 = psf_gmix0.get_T()
+    T_rescaled = psf_gmix_rescaled.get_T()
+    T_expected = T0 * fwhm_fac ** 2
+
+    assert np.allclose(T_rescaled, T_expected)
