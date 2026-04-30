@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
-CONDOR_SUBMIT_TEXT = """
+import os
+
+
+CONDOR_SUBMIT_HEAD = """
 universe = vanilla
 
 notification = Never
@@ -27,10 +30,6 @@ environment = "OMP_NUM_THREADS=1"
 
 +job_name = "%(job_name)s"
 
-# This is a two column, space separated list
-queue FLIST OUTFILE from (
-%(input_data)s
-)
 """
 
 SCRIPT = r"""#!/usr/bin/env bash
@@ -50,7 +49,6 @@ mdet-lsst-sim-dosums     \
 
 
 def write_script(script_file, cut_config_file):
-    import os
 
     script = SCRIPT % {'cut_config': cut_config_file}
 
@@ -60,7 +58,7 @@ def write_script(script_file, cut_config_file):
     os.system(f'chmod 755 {script_file}')
 
 
-def write_chunk_flist(fname, flist):
+def write_flist(fname, flist):
     with open(fname, 'w') as fobj:
         for fname in flist:
             fobj.write(f'{fname}\n')
@@ -93,45 +91,35 @@ def split_flist(flist, nchunks):
     return flists
 
 
-def get_flist(directory, limit=None):
-    import os
+def read_flist(fname, limit):
 
     flist = []
-    for root, dirs, files in os.walk(directory, topdown=False):
-        for basename in files:
-            if (
-                '.fits' in basename
-                and basename[:4] != 'sums'
-                and 'mc-results' not in root
-            ):
-                fname = os.path.join(root, basename)
-                fname = os.path.abspath(fname)
-                flist.append(fname)
+    with open(fname) as fobj:
+        for i, line in enumerate(fobj):
+            ls = line.strip()
+            if ls != '':
+                flist.append(ls)
 
-    nf = len(flist)
-    if nf == 0:
-        raise RuntimeError('no files found')
-
-    if limit is not None:
-        flist = flist[:limit]
+            if limit is not None and (i + 1) == limit:
+                break
 
     return flist
 
 
 def main(
-    directory,
-    job_name,
-    nchunks,
+    flist_file,
     cut_config_file,
-    limit,
-    mem,
+    nchunks,
+    job_name='sums',
+    mem='1G',
+    limit=None,
 ):
-    import os
 
     script_file = 'run.sh'
     write_script(script_file, cut_config_file)
 
-    flist = get_flist(directory=directory, limit=limit)
+    flist = read_flist(fname=flist_file, limit=limit)
+
     nf = len(flist)
 
     flists = split_flist(flist, nchunks)
@@ -143,56 +131,46 @@ def main(
     print(f'chunksize: {chunksize}')
     print(f'condor_file: {condor_file}')
 
-    dlist = []
+    with open(condor_file, 'w') as condorf:
+        condor_head = CONDOR_SUBMIT_HEAD % {
+            'job_name': job_name,
+            'mem': mem,
+            'script': script_file,
+            'cut_config': cut_config_file,
+        }
 
-    for ichunk, chunk in enumerate(flists):
+        condorf.write(condor_head)
+        condorf.write('queue FLIST OUTFILE from (\n')
 
-        chunk_flist_file = f'flist-{ichunk:06d}.txt'
+        for ichunk, chunk in enumerate(flists):
 
-        write_chunk_flist(chunk_flist_file, chunk)
+            chunk_flist_file = f'flist-{ichunk:06d}.txt'
 
-        # we use the basename because it is expected we run the condor
-        # script for that directory
-        chunk_file = f'sums-{ichunk:06d}.fits'
-        chunk_file_base = os.path.basename(chunk_file)
-        chunk_flist_file_base = os.path.basename(chunk_flist_file)
+            write_flist(chunk_flist_file, chunk)
 
-        line = f'{chunk_flist_file_base} {chunk_file_base}'
-        dlist.append(line)
-
-    input_data = '\n'.join(dlist)
-
-    condor_text = CONDOR_SUBMIT_TEXT % {
-        'job_name': job_name,
-        'mem': mem,
-        'script': script_file,
-        'input_data': input_data,
-        'cut_config': cut_config_file,
-    }
-
-    with open(condor_file, 'w') as condor_fobj:
-        condor_fobj.write(condor_text)
+            chunk_file = f'sums-{ichunk:06d}.fits'
+            condorf.write(f'{chunk_flist_file} {chunk_file}\n')
 
 
 def get_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--directory', required=True)
+    parser.add_argument('--flist', required=True)
     parser.add_argument('--cut-config', required=True)
     parser.add_argument('--nchunks', type=int, required=True)
     parser.add_argument('--job-name', default='sums')
-    parser.add_argument('--limit', type=int)
     parser.add_argument('--mem', default='1G')
+    parser.add_argument('--limit', type=int)
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = get_args()
     main(
-        directory=args.directory,
-        job_name=args.job_name,
-        nchunks=args.nchunks,
+        flist_file=args.flist,
         cut_config_file=args.cut_config,
-        limit=args.limit,
+        nchunks=args.nchunks,
+        job_name=args.job_name,
         mem=args.mem,
+        limit=args.limit,
     )
