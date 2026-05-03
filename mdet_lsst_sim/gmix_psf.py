@@ -33,7 +33,8 @@ def make_gmix_psf(
     fname = os.path.join(
         os.environ.get('CATSIM_DIR', '.'),
         'gmix-psfs',
-        'gmix-5gauss-dp2-i.fits',
+        'gmix-coellip5-dp2-i.fits',
+        # 'gmix-5gauss-dp2-i.fits',
     )
     gmix_lib = GMixLibrary(
         fname=fname,

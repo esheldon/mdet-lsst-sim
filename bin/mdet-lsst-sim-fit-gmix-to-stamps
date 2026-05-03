@@ -560,7 +560,7 @@ def do_coellip(obs, rng, ngauss):
 
     guesser = ngmix.guessers.CoellipPSFGuesser(
         rng=rng, ngauss=ngauss,
-        # guess_from_moms=True,
+        guess_from_moms=True,
     )
 
     runner = ngmix.runners.Runner(
