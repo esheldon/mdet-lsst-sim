@@ -235,6 +235,9 @@ def cached_gmix_read(fname, max_nongauss_frac):
         date_max,
         type='[]',
     )
+
+    logic &= (data['flags'] == 0)
+
     if max_nongauss_frac is not None:
         logic &= data['nongaussian_frac'] < max_nongauss_frac
 
