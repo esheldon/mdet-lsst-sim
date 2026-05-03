@@ -566,12 +566,13 @@ def do_coellip(obs, rng, ngauss):
     runner = ngmix.runners.Runner(
         fitter=fitter,
         guesser=guesser,
-        ntry=2,
+        ntry=10,
     )
     res = runner.go(obs)
 
     if res['flags'] != 0:
         print(f'Coellip failed {res["flags"]}')
+
         gm = None
         fit_flags = COELLIP_FIT_FAILED
     else:
