@@ -499,17 +499,73 @@ def do_simple(obs, rng, model):
     return res
 
 
+def get_coellip_prior(rng, ngauss):
+    """
+    get a prior for use with the maximum likelihood fitter
+
+    Parameters
+    ----------
+    rng: np.random.RandomState
+        The random number generator
+    cen_prior_sigma: float
+        Sigma for gaussian center prior
+    T_range: (float, float), optional
+        The range for the prior on T
+    F_range: (float, float), optional
+        Fhe range for the prior on flux
+    """
+    import ngmix
+
+    T_range = [-1.0, 1.0e3]
+    F_range = [-100.0, 1.0e9]
+
+    g_prior = ngmix.priors.GPriorBA(sigma=0.5, rng=rng)
+    cen_prior = ngmix.priors.CenPrior(
+        cen1=0,
+        cen2=0,
+        sigma1=0.2,
+        sigma2=0.2,
+        # sigma1=scale * 0.01,
+        # sigma2=scale * 0.01,
+        rng=rng,
+    )
+    T_prior = ngmix.priors.FlatPrior(
+        minval=T_range[0],
+        maxval=T_range[1],
+        rng=rng,
+    )
+    F_prior = ngmix.priors.FlatPrior(
+        minval=F_range[0],
+        maxval=F_range[1],
+        rng=rng,
+    )
+
+    prior = ngmix.joint_prior.PriorCoellipSame(
+        ngauss=ngauss,
+        cen_prior=cen_prior,
+        g_prior=g_prior,
+        T_prior=T_prior,
+        F_prior=F_prior,
+    )
+
+    return prior
+
+
 def do_coellip(obs, rng, ngauss):
     import ngmix
 
-    psf_fitter = ngmix.fitting.CoellipFitter(ngauss=ngauss)
-    psf_guesser = ngmix.guessers.CoellipPSFGuesser(
+    prior = get_coellip_prior(ngauss=ngauss, rng=rng)
+
+    fitter = ngmix.fitting.CoellipFitter(ngauss=ngauss, prior=prior)
+
+    guesser = ngmix.guessers.CoellipPSFGuesser(
         rng=rng, ngauss=ngauss,
         guess_from_moms=True,
     )
+
     psf_runner = ngmix.runners.PSFRunner(
-        fitter=psf_fitter,
-        guesser=psf_guesser,
+        fitter=fitter,
+        guesser=guesser,
         ntry=2,
     )
     res = psf_runner.go(obs)
