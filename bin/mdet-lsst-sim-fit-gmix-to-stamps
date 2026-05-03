@@ -560,15 +560,15 @@ def do_coellip(obs, rng, ngauss):
 
     guesser = ngmix.guessers.CoellipPSFGuesser(
         rng=rng, ngauss=ngauss,
-        guess_from_moms=True,
+        # guess_from_moms=True,
     )
 
-    psf_runner = ngmix.runners.PSFRunner(
+    runner = ngmix.runners.Runner(
         fitter=fitter,
         guesser=guesser,
         ntry=2,
     )
-    res = psf_runner.go(obs)
+    res = runner.go(obs)
 
     if res['flags'] != 0:
         print(f'Coellip failed {res["flags"]}')
