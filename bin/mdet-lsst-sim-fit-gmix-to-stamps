@@ -985,7 +985,7 @@ def get_args():
     parser.add_argument('--outfile', required=True, help='output file')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--ngauss', type=int, default=5)
-    parser.add_argument('--fitter', default='coellip')
+    parser.add_argument('--fitter', default='em')
     parser.add_argument('--sub-bg', action='store_true')
     parser.add_argument('--no-mask-nbrs', action='store_true')
     parser.add_argument('--show', action='store_true')

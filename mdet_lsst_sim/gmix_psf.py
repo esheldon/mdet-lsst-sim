@@ -33,8 +33,7 @@ def make_gmix_psf(
     fname = os.path.join(
         os.environ.get('CATSIM_DIR', '.'),
         'gmix-psfs',
-        'gmix-coellip5-dp2-i.fits',
-        # 'gmix-5gauss-dp2-i.fits',
+        'gmix-5gauss-dp2-i.fits',
     )
     gmix_lib = GMixLibrary(
         fname=fname,
@@ -160,13 +159,8 @@ class GMixLibrary:
         galsim.GSObject
         """
         import galsim
-        import ngmix
 
-        pars = self.data['pars'][idx]
-
-        gm = ngmix.GMix(pars=pars)
-        gm.set_cen(0.0, 0.0)
-        gm.set_flux(1.0)
+        gm = self._get_gmix(idx)
 
         if self.T_fac is not None:
             gm.scale_T(self.T_fac)
@@ -182,6 +176,21 @@ class GMixLibrary:
 
         psf = psf.withFlux(1.0)
         return psf
+
+    def _get_gmix(self, idx):
+        import ngmix
+        # pars = self.data['pars'][idx]
+        #
+        # gm = ngmix.GMix(pars=pars)
+
+        gm = ngmix.GMixModel(
+            model='turb',
+            pars=self.data['turb_pars'][idx],
+        )
+
+        gm.set_cen(0.0, 0.0)
+        gm.set_flux(1.0)
+        return gm
 
     def sample_psf(self, as_gmix=False):
         """
