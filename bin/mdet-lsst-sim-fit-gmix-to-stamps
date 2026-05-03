@@ -9,6 +9,7 @@ AM_FIT_FAILED = 2**3
 GAUSS_FIT_FAILED = 2**4
 AM_G = 2**5
 ZERO_FLUX = 2**6
+COELLIP_FIT_FAILED = 2**7
 
 
 def get_obs(image, no_mask_nbrs=False, show=False):
@@ -498,6 +499,32 @@ def do_simple(obs, rng, model):
     return res
 
 
+def do_coellip(obs, rng, ngauss):
+    import ngmix
+
+    psf_fitter = ngmix.fitting.CoellipFitter(ngauss=ngauss)
+    psf_guesser = ngmix.guessers.CoellipPSFGuesser(
+        rng=rng, ngauss=ngauss,
+        guess_from_moms=True,
+    )
+    psf_runner = ngmix.runners.PSFRunner(
+        fitter=psf_fitter,
+        guesser=psf_guesser,
+        ntry=2,
+    )
+    res = psf_runner.go(obs)
+
+    if res['flags'] != 0:
+        print(f'Coellip failed {res["flags"]}')
+        gm = None
+        fit_flags = COELLIP_FIT_FAILED
+    else:
+        gm = res.get_gmix()
+        fit_flags = 0
+
+    return gm, fit_flags
+
+
 def do_em(obs, rng, ngauss):
     import ngmix
 
@@ -710,6 +737,7 @@ def process_one(
     obs,
     index,
     ngauss,
+    fitter_type,
     no_mask_nbrs,
     saveplots,
     infile,
@@ -753,7 +781,13 @@ def process_one(
     else:
         data['flags'] |= TURB_FIT_FAILED
 
-    gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
+    if fitter_type == 'em':
+        gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
+    elif fitter_type == 'coellip':
+        gm, fit_flags = do_coellip(obs=obs, rng=rng, ngauss=ngauss)
+    else:
+        raise ValueError(f'bad fitter_type {fitter_type}')
+
     data['flags'] |= fit_flags
 
     if data['flags'] == 0:
@@ -825,7 +859,8 @@ def do_sub_bg(rng, all_obs):
 
 
 def main(
-    flist_file, outfile, seed, ngauss, sub_bg, no_mask_nbrs, saveplots, show
+    flist_file, outfile, seed, ngauss, fitter_type, sub_bg, no_mask_nbrs,
+    saveplots, show
 ):
     import numpy as np
     import fitsio
@@ -856,6 +891,7 @@ def main(
                 stamp_data=stamp_data,
                 obs=all_obs[i],
                 index=i,
+                fitter_type=fitter_type,
                 ngauss=ngauss,
                 no_mask_nbrs=no_mask_nbrs,
                 saveplots=saveplots,
@@ -892,6 +928,7 @@ def get_args():
     parser.add_argument('--outfile', required=True, help='output file')
     parser.add_argument('--seed', type=int, required=True)
     parser.add_argument('--ngauss', type=int, default=5)
+    parser.add_argument('--fitter', default='coellip')
     parser.add_argument('--sub-bg', action='store_true')
     parser.add_argument('--no-mask-nbrs', action='store_true')
     parser.add_argument('--show', action='store_true')
@@ -907,8 +944,9 @@ if __name__ == '__main__':
         outfile=args.outfile,
         seed=args.seed,
         ngauss=args.ngauss,
+        fitter_type=args.fitter,
         sub_bg=args.sub_bg,
-        no_mask_nbrs=args.nomask_nbrs,
+        no_mask_nbrs=args.no_mask_nbrs,
         show=args.show,
         saveplots=args.saveplots,
     )
