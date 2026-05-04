@@ -174,8 +174,10 @@ def test_run_gmix_psf():
         'buff': 5,
         'psf': {
             'type': 'gmix',
+            'model': 'turb',
             'dim': 51,
             'nepoch': 3,
+            'fwhm_fac': 1.0,
         }
     }
     run_sim(

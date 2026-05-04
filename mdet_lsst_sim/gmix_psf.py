@@ -5,6 +5,7 @@ DEFAULT_MAX_NONGAUSS_FRAC = 0.005
 
 def make_gmix_psf(
     rng,
+    model='turb',
     nepoch=1,
     rotate=True,
     max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
@@ -17,6 +18,8 @@ def make_gmix_psf(
     ----------
     rng: np.random.RandomState
         The random state
+    model: str, optional
+        The model type, 'turb' or 'em5'
     nepoch: int, optional
         If set greater than 1, stack that many PSFs
     rotate: bool, optional
@@ -37,6 +40,7 @@ def make_gmix_psf(
     )
     gmix_lib = GMixLibrary(
         fname=fname,
+        model=model,
         rng=rng,
         rotate=rotate,
         max_nongauss_frac=max_nongauss_frac,
@@ -104,6 +108,8 @@ class GMixLibrary:
     ----------
     fname: str
         Path to the library
+    model: str, optional
+        The model type, 'turb' or 'em5'
     rng: np.random.RandomState
         The random state
     rotate: bool, optional
@@ -120,13 +126,18 @@ class GMixLibrary:
         self,
         fname,
         rng,
+        model='turb',
         rotate=True,
         max_nongauss_frac=DEFAULT_MAX_NONGAUSS_FRAC,
         fwhm_fac=None,
     ):
 
+        if model not in ['turb', 'em5']:
+            raise ValueError(f'bad model "{model}"')
+
         self.fname = fname
         self.rng = rng
+        self.model = model
         self.rotate = rotate
         self.max_nongauss_frac = max_nongauss_frac
         self.fwhm_fac = fwhm_fac
@@ -179,14 +190,18 @@ class GMixLibrary:
 
     def _get_gmix(self, idx):
         import ngmix
-        # pars = self.data['pars'][idx]
-        #
-        # gm = ngmix.GMix(pars=pars)
 
-        gm = ngmix.GMixModel(
-            model='turb',
-            pars=self.data['turb_pars'][idx],
-        )
+        if self.model == 'turb':
+            gm = ngmix.GMixModel(
+                model='turb',
+                pars=self.data['turb_pars'][idx],
+            )
+        elif self.model == 'em5':
+            gm = ngmix.GMix(
+                pars=self.data['pars'][idx],
+            )
+        else:
+            raise ValueError(f'bad model "{self.model}"')
 
         gm.set_cen(0.0, 0.0)
         gm.set_flux(1.0)
