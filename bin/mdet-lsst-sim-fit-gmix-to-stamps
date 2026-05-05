@@ -559,7 +559,8 @@ def do_coellip(obs, rng, ngauss):
     fitter = ngmix.fitting.CoellipFitter(ngauss=ngauss, prior=prior)
 
     guesser = ngmix.guessers.CoellipPSFGuesser(
-        rng=rng, ngauss=ngauss,
+        rng=rng,
+        ngauss=ngauss,
         guess_from_moms=True,
     )
 
@@ -580,6 +581,67 @@ def do_coellip(obs, rng, ngauss):
         fit_flags = 0
 
     return gm, fit_flags
+
+
+def calc_fwhm(obs, res=None):
+    import scipy.special
+
+    thresh = 0.5
+
+    image = obs.image
+
+    maxval = image.max()
+
+    nim = image.copy()
+    maxval = image.max()
+    nim /= maxval
+
+    # medweight = np.median(obs.weight)
+    # noise = 1 / np.sqrt(medweight)
+    # smooth = noise / maxval
+    smooth = 0.1
+
+    arg = (nim - thresh) / smooth
+
+    vals = 0.5 * (1 + scipy.special.erf(arg))
+
+    area = np.sum(vals)
+    fwhm_arcsec = 2 * np.sqrt(area / np.pi) * obs.jacobian.scale
+
+    if False:
+        import matplotlib.pyplot as mplt
+        import espy.images
+        import espy.plotting
+
+        rad, profile = espy.images.get_profile(nim)
+
+        maxrad = 2 * fwhm_arcsec
+
+        fig, ax = mplt.subplots(figsize=(8, 6))
+        ax.set(
+            xlabel='radius [arcsec]',
+            xlim=[0, maxrad],
+            ylim=[-0.01, 1.1],
+        )
+
+        ax.scatter(rad * obs.jacobian.scale, profile)
+
+        ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
+        ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
+
+        espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
+
+        if res is not None and res['flags'] == 0:
+            import ngmix
+            rT = res.get_gmix().get_T()
+            rfwhm = ngmix.moments.T_to_fwhm(rT)
+            espy.plotting.ntext(
+                ax, 0.8, 0.87, f'gauss fwhm: {rfwhm:.2f}',
+            )
+
+        mplt.show()
+
+    return fwhm_arcsec
 
 
 def do_em(obs, rng, ngauss):
@@ -632,7 +694,7 @@ def get_nongaussian_frac(obs, gm):
 
     bvec_mask = list(range(6, 10)) + list(range(15, 24))
 
-    allpower = np.sum(bvec ** 2)
+    allpower = np.sum(bvec**2)
 
     nongaussian_power = np.sum(bvec[bvec_mask] ** 2)
     nongaussian_frac = nongaussian_power / allpower
@@ -661,6 +723,7 @@ def make_output(ngauss, stamp_data, index, n=1):
         ('stat', 'f4'),
         ('bg', 'f4'),
         ('bg_err', 'f4'),
+        ('fwhm_calc', 'f4'),
         ('nongaussian_frac', 'f4'),
     ]
 
@@ -675,7 +738,13 @@ def make_output(ngauss, stamp_data, index, n=1):
 
     output['band'] = stamp_data['band']
     for n in [
-        'pars', 'turb_pars', 'stat', 'am_T', 'am_g', 'gauss_T', 'gauss_g',
+        'pars',
+        'turb_pars',
+        'stat',
+        'am_T',
+        'am_g',
+        'gauss_T',
+        'gauss_g',
     ]:
         output[n] = np.nan
 
@@ -833,6 +902,8 @@ def process_one(
 
     turb_res = do_simple(obs=obs, rng=rng, model='turb')
 
+    data['fwhm_calc'] = calc_fwhm(obs, res=gauss_res)
+
     if turb_res['flags'] == 0:
         data['turb_pars'] = turb_res['pars']
     else:
@@ -916,8 +987,15 @@ def do_sub_bg(rng, all_obs):
 
 
 def main(
-    flist_file, outfile, seed, ngauss, fitter_type, sub_bg, no_mask_nbrs,
-    saveplots, show
+    flist_file,
+    outfile,
+    seed,
+    ngauss,
+    fitter_type,
+    sub_bg,
+    no_mask_nbrs,
+    saveplots,
+    show,
 ):
     import numpy as np
     import fitsio
