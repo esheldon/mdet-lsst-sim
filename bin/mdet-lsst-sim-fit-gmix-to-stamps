@@ -220,7 +220,83 @@ def _check_keep(val, mean, sigma, nsig, ipass):
     return keep
 
 
-def doplots(obs, model, turb_model, data, index, name, plotfront):
+def doplots(obs, model, data, index, name, plotfront):
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+    import esutil as eu
+
+    image = obs.image
+    cmap = mplt.colormaps.get_cmap('inferno')
+
+    noise = np.sqrt(1.0 / np.median(obs.weight))
+    norm = AsinhNorm(
+        linear_width=noise,
+        clip=False,
+    )
+
+    stat = data['stat']
+
+    maxval = 1.0
+    image_mod = image.copy()
+
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(
+            nrows=2,
+            ncols=2,
+            figsize=(10, 10),
+        )
+        # axs[0, 1].axis('off')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 0],
+            image=image_mod / maxval,
+            cmap=cmap,
+            norm=norm,
+            title=f'image {index} stat: {stat:.4g}',
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 1],
+            image=model / maxval,
+            cmap=cmap,
+            norm=norm,
+            title=name,
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[1, 0],
+            image=(image - model) / maxval,
+            cmap=cmap,
+            title=f'image - {name}',
+        )
+
+        axs[1, 1].set_title('seg')
+        plot_seg(axs[1, 1], obs.meta['seg'])
+
+        if True:
+            fname = [
+                f'{data["raft"]}',
+                f'{data["detector"]:03d}',
+                f'{index:04d}',
+                f'{name}',
+            ]
+            fname = '-'.join(fname) + '.png'
+            fname = f'{plotfront}-{fname}'
+            print('writing:', fname)
+
+            eu.ostools.makedirs_fromfile(fname)
+
+            fig.savefig(fname)
+        else:
+            mplt.show()
+
+        mplt.close(fig)
+
+
+def doplots_manymodels(obs, model, turb_model, data, index, name, plotfront):
     import matplotlib.pyplot as mplt
     from matplotlib.colors import AsinhNorm
     import esutil as eu
@@ -583,7 +659,69 @@ def do_coellip(obs, rng, ngauss):
     return gm, fit_flags
 
 
-def calc_fwhm(obs, res=None):
+def calc_fwhm_from_model(obs, res):
+    import scipy.special
+    import ngmix
+
+    thresh = 0.5
+
+    fine_dim = obs.image.shape[0] * 8 + 1
+    fine_dims = [fine_dim] * 2
+
+    fine_cen = (np.array(fine_dims) - 1.0) / 2.0
+    jacobian = ngmix.DiagonalJacobian(
+        row=fine_cen[0],
+        col=fine_cen[1],
+        scale=0.2 * obs.image.shape[0] / fine_dim,
+    )
+
+    gm = res.get_gmix()
+    image = gm.make_image(fine_dims, jacobian=jacobian)
+
+    maxval = image.max()
+
+    nim = image.copy()
+    maxval = image.max()
+    nim /= maxval
+
+    smooth = 0.05
+
+    arg = (nim - thresh) / smooth
+
+    vals = 0.5 * (1 + scipy.special.erf(arg))
+
+    area = np.sum(vals)
+    fwhm_arcsec = 2 * np.sqrt(area / np.pi) * jacobian.scale
+
+    if False:
+        import matplotlib.pyplot as mplt
+        import espy.images
+        import espy.plotting
+
+        rad, profile = espy.images.get_profile(nim)
+
+        maxrad = 2 * fwhm_arcsec
+
+        fig, ax = mplt.subplots(figsize=(8, 6))
+        ax.set(
+            xlabel='radius [arcsec]',
+            xlim=[0, maxrad],
+            ylim=[-0.01, 1.1],
+        )
+
+        ax.scatter(rad * jacobian.scale, profile)
+
+        ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
+        ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
+
+        espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
+
+        mplt.show()
+
+    return fwhm_arcsec
+
+
+def calc_fwhm_from_data(obs):
     import scipy.special
 
     thresh = 0.5
@@ -630,14 +768,6 @@ def calc_fwhm(obs, res=None):
         ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
 
         espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
-
-        if res is not None and res['flags'] == 0:
-            import ngmix
-            rT = res.get_gmix().get_T()
-            rfwhm = ngmix.moments.T_to_fwhm(rT)
-            espy.plotting.ntext(
-                ax, 0.8, 0.87, f'gauss fwhm: {rfwhm:.2f}',
-            )
 
         mplt.show()
 
@@ -745,6 +875,7 @@ def make_output(ngauss, stamp_data, index, n=1):
         'am_g',
         'gauss_T',
         'gauss_g',
+        'fwhm_calc',
     ]:
         output[n] = np.nan
 
@@ -902,12 +1033,13 @@ def process_one(
 
     turb_res = do_simple(obs=obs, rng=rng, model='turb')
 
-    data['fwhm_calc'] = calc_fwhm(obs, res=gauss_res)
-
     if turb_res['flags'] == 0:
         data['turb_pars'] = turb_res['pars']
     else:
         data['flags'] |= TURB_FIT_FAILED
+
+    if turb_res['flags'] == 0:
+        data['fwhm_calc'] = calc_fwhm_from_model(obs, res=turb_res)
 
     if fitter_type == 'em':
         gm, fit_flags = do_em(obs=obs, rng=rng, ngauss=ngauss)
@@ -945,7 +1077,7 @@ def process_one(
             doplots(
                 obs=obs,
                 model=model,
-                turb_model=turb_model,
+                # turb_model=turb_model,
                 data=data,
                 index=index,
                 name=f'gmix{ngauss}',
