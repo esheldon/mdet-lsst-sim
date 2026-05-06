@@ -1,0 +1,341 @@
+#!/usr/bin/env python
+
+SCALE = 0.2
+FIT_FAILED_FLAG = 2 ** 1
+
+
+def get_obs(image):
+    import numpy as np
+    import ngmix
+
+    cen = (np.array(image.shape) - 1.0) / 2.0
+    jac = ngmix.DiagonalJacobian(
+        row=cen[0],
+        col=cen[1],
+        scale=SCALE,
+    )
+    return ngmix.Observation(
+        image=image,
+        jacobian=jac,
+    )
+
+
+def plot_with_colorbar(fig, ax, image, title=None, **kw):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    pim = ax.imshow(image, **kw)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(pim, cax=cax)
+
+    if title is not None:
+        ax.set_title(title)
+
+
+def dotext(ax, x, y, text):
+    ax.text(
+        x,
+        y,
+        text,
+        transform=ax.transAxes,
+        color='black',
+    )
+    ax.text(
+        x + 0.002,
+        y + 0.002,
+        text,
+        transform=ax.transAxes,
+        color='white',
+    )
+
+
+def doshow(image, model, data, index):
+    import numpy as np
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+
+    cmap = mplt.colormaps.get_cmap('inferno')
+    cmap.set_bad(color='red')  # Set NaN color
+
+    norm = AsinhNorm(
+        linear_width=0.0001,
+        vmin=0.0,
+        # vmin=-0.0002,
+        # vmin=-0.002,
+        # vmax=1.0,
+        clip=False,
+    )
+
+    stat = data['stat']
+
+    # maxval = image.max()
+    maxval = 1.0
+    image_mod = image.copy()
+    wb = np.where(image < 0)
+    image_mod[wb] = np.nan
+
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(
+            nrows=2,
+            ncols=2,
+            # layout='constrained',
+            figsize=(10, 9),
+        )
+        axs[1, 1].axis('off')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 0],
+            image=image_mod / maxval,
+            cmap=cmap,
+            norm=norm,
+            title=f'shapelets {index}',
+        )
+
+        ngf = data['nongaussian_frac']
+        mv = data['minval']
+
+        dotext(axs[0, 0], 0.1, 0.9, f'nongauss frac: {ngf:.4f}')
+        dotext(axs[0, 0], 0.1, 0.85, f'minval: {mv:.4g}')
+        dotext(axs[0, 0], 0.1, 0.80, f'stat: {stat:.4g}')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 1],
+            image=model / maxval,
+            cmap=cmap,
+            norm=norm,
+            title='gmix 5',
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[1, 0],
+            image=(image - model) / maxval,
+            cmap=cmap,
+            title='shapelets - gmix5',
+        )
+        if True:
+            fname = f'shapelet-gmix5-comp/shapelet-gmix5-comp-{index:06d}.png'
+            print('writing:', fname)
+            fig.savefig(fname)
+        else:
+            mplt.show()
+
+        mplt.close(fig)
+
+
+def do_em(obs, rng, ngauss, show=False):
+    import ngmix
+
+    obs_with_sky, sky = ngmix.em.prep_obs(obs)
+
+    fitter = ngmix.em.EMFitter(maxiter=5000)
+    guesser = ngmix.guessers.GMixPSFGuesser(
+        rng=rng,
+        ngauss=ngauss,
+        guess_from_moms=True,
+    )
+
+    for itrial in range(10):
+        guess = guesser(obs_with_sky)
+        res = fitter.go(obs=obs_with_sky, guess=guess, sky=sky)
+        if res['flags'] == 0:
+            break
+
+    if res['flags'] != 0:
+        print(f'failed {res["message"]}')
+        gm = None
+        fit_flags = FIT_FAILED_FLAG
+    else:
+        gm = res.get_gmix()
+        fit_flags = 0
+
+    return gm, fit_flags
+
+
+def make_output(ngauss, n=1):
+    import numpy as np
+
+    descr = [
+        ('index', 'i4'),
+        ('flags', 'i4'),
+        ('minval', 'f4'),
+        ('nongaussian_frac', 'f8'),
+        ('pars', 'f4', 6 * ngauss),
+        ('stat', 'f4'),
+    ]
+
+    output = np.zeros(n, dtype=descr)
+    output['pars'] = np.nan
+    output['stat'] = np.nan
+    return output
+
+
+def get_stat(gm):
+    # import numpy as np
+    # import esutil as eu
+
+    gmdata = gm.get_data()
+
+    row, col = gm.get_cen()
+
+    rowdiff = gmdata['row'] - row
+    coldiff = gmdata['col'] - col
+
+    p = gmdata['p']
+    ipsum = 1.0 / p.sum()
+
+    irr = ((gmdata['irr'] + rowdiff ** 2) * p).sum() * ipsum
+    icc = ((gmdata['icc'] + coldiff ** 2) * p).sum() * ipsum
+
+    irrf = (gmdata['irr'] * p).sum() * ipsum
+    iccf = (gmdata['icc'] * p).sum() * ipsum
+
+    T = irr + icc
+    Tf = irrf + iccf
+
+    stat = T / Tf
+
+    # _, _, row_std = eu.stat.wmom(gmdata['row'], gmdata['p'], sdev=True)
+    # _, _, col_std = eu.stat.wmom(gmdata['col'], gmdata['p'], sdev=True)
+    #
+    # psig = 0.5 * np.sqrt(gmdata['row'].var() + gmdata['col'].var())
+    # sig = np.sqrt(gm.get_T() / 2.0)
+
+    # perr = 0.1
+    # stat = psig / perr
+    # stat = psig / sig
+    return stat
+
+
+def process_one(rng, shlib, index, ngauss, show):
+    import numpy as np
+
+    darray = make_output(ngauss)
+
+    data = darray[0]
+    data['index'] = index
+    data['nongaussian_frac'] = shlib.data['nongaussian_frac'][index]
+
+    psf = shlib.get_psf(index)
+
+    image = shlib.draw(
+        psf,
+        n=51,
+        pixel_scale=SCALE,
+    ).array
+
+    data['minval'] = image.min()
+
+    obs = get_obs(image)
+
+    gm, fit_flags = do_em(obs, rng, ngauss, show=show)
+    data['flags'] |= fit_flags
+
+    if fit_flags == 0:
+        data['stat'] = get_stat(gm)
+        data['pars'] = gm.get_full_pars()
+        assert np.all(darray['pars'][0] == data['pars'])
+
+        model = gm.make_image(obs.image.shape, jacobian=obs.jacobian)
+        assert np.all(model > 0.0)
+
+        if show:
+            doshow(obs.image, model, data, index)
+
+    return darray
+
+
+def make_meta(infile, seed, ngauss, rotate):
+    import os
+    import numpy as np
+
+    bname = os.path.basename(infile)
+    dtype = [
+        ('infile', 'U%d' % len(bname)),
+        ('seed', 'i8'),
+        ('ngauss', 'i4'),
+        ('rotate', bool),
+    ]
+    meta = np.zeros(1, dtype=dtype)
+    meta['infile'] = bname
+    meta['seed'] = seed
+    meta['ngauss'] = ngauss
+    meta['rotate'] = rotate
+    return meta
+
+
+def main(infile, outfile, seed, ngauss, show, start, end):
+    import numpy as np
+    import mdet_lsst_sim
+    import fitsio
+    from tqdm import trange
+
+    rotate = False
+
+    rng = np.random.RandomState(seed)
+
+    shlib = mdet_lsst_sim.shapelet_psf.ShapeletPSFLibrary(
+        npz_path=infile,
+        rng=rng,
+        rotate=rotate,
+    )
+
+    if end is None:
+        end = len(shlib)
+
+    dlist = []
+    for i in trange(start, end, ascii=True, ncols=70):
+
+        data = process_one(
+            rng=rng,
+            shlib=shlib,
+            index=i,
+            ngauss=ngauss,
+            show=show,
+        )
+        dlist.append(data)
+
+    output = np.concatenate(dlist)
+
+    meta = make_meta(
+        infile=infile,
+        seed=seed,
+        ngauss=ngauss,
+        rotate=rotate,
+    )
+
+    print('writing:', outfile)
+    with fitsio.FITS(outfile, 'rw', clobber=True) as fits:
+        fits.write(output, extname='fits')
+        fits.write(meta, extname='meta')
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--infile', required=True, help='shapelets file')
+    parser.add_argument('--outfile', required=True, help='output file')
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--start', type=int, default=0)
+    parser.add_argument('--end', type=int)
+    parser.add_argument('--ngauss', type=int, default=5)
+    parser.add_argument('--show', action='store_true')
+
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        infile=args.infile,
+        outfile=args.outfile,
+        seed=args.seed,
+        start=args.start,
+        end=args.end,
+        ngauss=args.ngauss,
+        show=args.show,
+    )

@@ -106,8 +106,8 @@ def run_sim_phot(
     infolist = []
 
     for trial in range(ntrial):
-        logger.info('-'*70)
-        logger.info('trial: %d/%d' % (trial+1, ntrial))
+        logger.info('-' * 70)
+        logger.info('trial: %d/%d' % (trial + 1, ntrial))
 
         galaxy_catalog = make_galaxy_catalog(
             rng=rng,
@@ -139,7 +139,8 @@ def run_sim_phot(
             )
         elif sim_config['randomize_psf']:
             psf = make_rand_psf(
-                psf_type=sim_config["psf_type"], rng=rng,
+                psf_type=sim_config["psf_type"],
+                rng=rng,
             )
         else:
             psf = make_fixed_psf(psf_type=sim_config["psf_type"])
@@ -173,8 +174,7 @@ def run_sim_phot(
 
         tmcoadd0 = time.time()
         coadd_data = util.coadd_sim_data(
-            rng=rng, sim_data=sim_data,
-            **coadd_config
+            rng=rng, sim_data=sim_data, **coadd_config
         )
 
         if show:
@@ -194,8 +194,7 @@ def run_sim_phot(
             # just going to the noise level
             sim_data['bright_info']['radius_pixels'] += ap_padding
             apply_apodized_bright_masks_mbexp(
-                bright_info=sim_data['bright_info'],
-                **coadd_data
+                bright_info=sim_data['bright_info'], **coadd_data
             )
             if show:
                 # lsst_vis.show_image_and_mask(coadd_data['mbexp'])
@@ -221,7 +220,9 @@ def run_sim_phot(
         tmmeas0 = time.time()
 
         res = run_photometry(
-            rng=rng, config=mdet_config, show=show,
+            rng=rng,
+            config=mdet_config,
+            show=show,
             mbexp=coadd_data['mbexp'],
             mfrac_mbexp=coadd_data['mfrac_mbexp'],
             ormasks=coadd_data['ormasks'],
@@ -254,9 +255,9 @@ def run_sim_phot(
             else:
                 comb_data['primary'] = True
 
-    tm_seconds = time.time()-tm0
-    tm_minutes = tm_seconds/60.0
-    tm_per_trial = tm_seconds/ntrial
+    tm_seconds = time.time() - tm0
+    tm_minutes = tm_seconds / 60.0
+    tm_per_trial = tm_seconds / ntrial
     print('time: %g minutes' % tm_minutes)
     print('time sim: %g minutes' % (tmsim / 60))
     print('time coadd: %g minutes' % (tmcoadd / 60))
