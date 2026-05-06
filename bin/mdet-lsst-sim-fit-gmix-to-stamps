@@ -659,6 +659,32 @@ def do_coellip(obs, rng, ngauss):
     return gm, fit_flags
 
 
+def _plot_fwhm(nim, fwhm_arcsec, jacobian):
+    import matplotlib.pyplot as mplt
+    import espy.images
+    import espy.plotting
+
+    rad, profile = espy.images.get_profile(nim)
+
+    maxrad = 2 * fwhm_arcsec
+
+    fig, ax = mplt.subplots(figsize=(8, 6))
+    ax.set(
+        xlabel='radius [arcsec]',
+        xlim=[0, maxrad],
+        ylim=[-0.01, 1.1],
+    )
+
+    ax.scatter(rad * jacobian.scale, profile)
+
+    ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
+    ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
+
+    espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
+
+    mplt.show()
+
+
 def calc_fwhm_from_model(obs, res):
     import scipy.special
     import ngmix
@@ -694,29 +720,7 @@ def calc_fwhm_from_model(obs, res):
     fwhm_arcsec = 2 * np.sqrt(area / np.pi) * jacobian.scale
 
     if False:
-        import matplotlib.pyplot as mplt
-        import espy.images
-        import espy.plotting
-
-        rad, profile = espy.images.get_profile(nim)
-
-        maxrad = 2 * fwhm_arcsec
-
-        fig, ax = mplt.subplots(figsize=(8, 6))
-        ax.set(
-            xlabel='radius [arcsec]',
-            xlim=[0, maxrad],
-            ylim=[-0.01, 1.1],
-        )
-
-        ax.scatter(rad * jacobian.scale, profile)
-
-        ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
-        ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
-
-        espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
-
-        mplt.show()
+        _plot_fwhm(nim, fwhm_arcsec, jacobian)
 
     return fwhm_arcsec
 
