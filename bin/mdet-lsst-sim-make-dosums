@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import os
-
 
 CONDOR_SUBMIT_HEAD = """
 executable = %(script)s
@@ -44,6 +42,7 @@ mdet-lsst-sim-dosums     \
 
 
 def write_script(script_file, cut_config_file):
+    import os
 
     script = SCRIPT % {'cut_config': cut_config_file}
 
@@ -116,7 +115,7 @@ def main(
     flists = split_flist(flist, nchunks)
     chunksize = len(flists[0])
 
-    condor_file = f'dosums.condor'
+    condor_file = 'dosums.condor'
     print(f'processing: {nf}')
     print(f'nchunks: {nchunks}')
     print(f'chunksize: {chunksize}')

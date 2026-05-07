@@ -1,22 +1,228 @@
 #!/usr/bin/env python
-import argparse
-import fitsio
-import esutil as eu
-from esutil.pbar import pbar
-from pprint import pprint
+
+NSIGMA = 3
+PERC = '99.7'
+OUTDIR = 'mc-results'
+
+
+def print_stats(st):
+    print(f'nobj: {st["nobj"][0]:_}')
+    print(f'R11: {st["R11"][0]:g}')
+    print(
+        'm1err: %g +/- %g (%s%%)'
+        % (st['m1err'][0] * NSIGMA, st['m1err_err'][0] * NSIGMA, PERC)
+    )
+
+    print_range(st['m1'][0], st['m1err'][0], 'm1')
+    print_range(st['c1'][0], st['c1err'][0], 'c1')
+    print_range(st['c2'][0], st['c2err'][0], 'c2')
+
+
+def print_range(val, err, name):
+    """
+    print the confidence range 99.7% confidence
+    """
+
+    tup = (
+        val - err * NSIGMA,
+        name,
+        val + err * NSIGMA,
+        PERC,
+    )
+
+    print('%g < %s < %g (%s%%)' % tup)
+
+
+def read_config(fname):
+    import yaml
+
+    print('reading config:', fname)
+    with open(fname) as fobj:
+        return yaml.safe_load(fobj)
+
+
+def get_c2(data):
+    g2_1p = data['g_ns_sum_1p'][1] / data['wsum_ns_1p']
+    g2_1m = data['g_ns_sum_1m'][1] / data['wsum_ns_1m']
+
+    c2 = (g2_1p + g2_1m) / 2
+    return c2
+
+
+def get_m1_c1(data, nocancel):
+    g1_1p = data['g_ns_sum_1p'][0] / data['wsum_ns_1p']
+    g1_1p_1p = data['g_1p_sum_1p'][0] / data['wsum_1p_1p']
+    g1_1m_1p = data['g_1m_sum_1p'][0] / data['wsum_1m_1p']
+
+    R11_1p = (g1_1p_1p - g1_1m_1p) / 0.02  # noqa
+
+    s1_1p = g1_1p / R11_1p
+
+    # import pdb; pdb.set_trace()
+    import IPython; IPython.embed()
+
+    g1_1m = data['g_ns_sum_1m'][0] / data['wsum_ns_1m']
+    g1_1p_1m = data['g_1p_sum_1m'][0] / data['wsum_1p_1m']
+    g1_1m_1m = data['g_1m_sum_1m'][0] / data['wsum_1m_1m']
+
+    R11_1m = (g1_1p_1m - g1_1m_1m) / 0.02  # noqa
+
+    s1_1m = g1_1m / R11_1m
+
+    if nocancel:
+        R11 = R11_1p
+        m1 = s1_1p / 0.02 - 1
+    else:
+        R11 = 0.5 * (R11_1p + R11_1m)  # noqa
+        m1 = (s1_1p - s1_1m) / 0.04 - 1
+
+    c1 = (g1_1p + g1_1m) / 2 / R11
+
+    return m1, c1, R11
+
+
+def get_summed(data):
+    sdata = data[0].copy()
+
+    for n in sdata.dtype.names:
+        sdata[n] = data[n].sum(axis=0)
+
+    return sdata
+
+
+def get_jackknife_struct(data, err_err=False):
+    import numpy as np
+
+    dt = [
+        ('s2n_min', 'f8'),
+        ('s2n_max', 'f8'),
+        ('max_mask_frac', 'f8'),
+        ('max_mfrac', 'f8'),
+        ('Tratio_min', 'f8'),
+        ('max_star_density', 'f8'),
+        ('nobj', 'i8'),
+        ('R11', 'f8'),
+        ('m1', 'f8'),
+        ('m1err', 'f8'),
+        ('m1err_err', 'f8'),
+        ('c1', 'f8'),
+        ('c1err', 'f8'),
+        ('c2', 'f8'),
+        ('c2err', 'f8'),
+    ]
+
+    jdata = np.zeros(1, dtype=dt)
+    jdata['s2n_min'][0] = data['s2n_min'][0]
+    jdata['s2n_max'][0] = data['s2n_max'][0]
+    jdata['max_mask_frac'][0] = data['max_mask_frac'][0]
+    jdata['max_mfrac'][0] = data['max_mfrac'][0]
+    jdata['Tratio_min'][0] = data['Tratio_min'][0]
+    jdata['max_star_density'][0] = data['max_star_density'][0]
+    return jdata
+
+
+def sub1(data, subdata):
+    odata = data.copy()
+
+    for n in data.dtype.names:
+        odata[n] -= subdata[n]
+
+    return odata
+
+
+def jackknife(data, nocancel):
+    """
+    jackknife the errors
+
+    Parameters
+    ----------
+    data: array
+        The data to be jackknifed
+    nocancel: bool
+        Don't use the noise cancelling trick
+    """
+    import numpy as np
+
+    st = get_jackknife_struct(data)
+
+    sdata = get_summed(data)
+    import IPython; IPython.embed()
+    m1, c1, R11 = get_m1_c1(sdata, nocancel=nocancel)  # noqa
+
+    c2 = get_c2(sdata)
+    c2 /= R11
+
+    m1vals = np.zeros(data.size)
+    c1vals = np.zeros(data.size)
+    c2vals = np.zeros(data.size)
+
+    for i in range(m1vals.size):
+        subdata = sub1(sdata, data[i])
+        tm1, tc1, tR11 = get_m1_c1(subdata, nocancel=nocancel)
+        tc2 = get_c2(subdata)
+        m1vals[i] = tm1
+        c1vals[i] = tc1
+        c2vals[i] = tc2 / tR11
+
+    nchunks = m1vals.size
+    fac = (nchunks - 1) / float(nchunks)
+
+    m1cov = fac * ((m1 - m1vals) ** 2).sum()
+    m1err = np.sqrt(m1cov)
+
+    c1cov = fac * ((c1 - c1vals) ** 2).sum()
+    c1err = np.sqrt(c1cov)
+
+    c2cov = fac * ((c2 - c2vals) ** 2).sum()
+    c2err = np.sqrt(c2cov)
+
+    st['nobj'] = sdata['nsum_ns_1p']
+    st['R11'] = R11
+    st['m1'] = m1
+    st['m1err'] = m1err
+    st['m1err_err'] = m1err / np.sqrt(2 * m1vals.size)
+    st['c1'] = c1
+    st['c1err'] = c1err
+    st['c2'] = c2
+    st['c2err'] = c2err
+
+    return st
+
+
+def get_mc_file(key, nocancel, weight_type, require_primary=True):
+    import os
+
+    nlist = []
+
+    if nocancel:
+        nlist += ['nocancel']
+
+    if not require_primary:
+        nlist += ['noprimary']
+
+    if weight_type is not None:
+        nlist += [weight_type + 'weight']
+
+    nlist += [
+        'mc',
+        key,
+    ]
+    fname = '-'.join(nlist) + '.fits'
+    return os.path.join(OUTDIR, fname)
 
 
 def main(flist, config_file, nocancel):
-    from mdet_lsst_sim.doshear import (
-        jackknife, print_stats, get_mc_file, read_config,
-    )
+    from pprint import pprint
+    import fitsio
+    import esutil as eu
+    from esutil.pbar import pbar
 
     config = read_config(config_file)
 
     pprint(config)
     print('processing:', len(flist))
 
-    nf = len(flist)
+    # nf = len(flist)
     data = {}
 
     for i, fname in enumerate(pbar(flist)):
@@ -55,6 +261,7 @@ def main(flist, config_file, nocancel):
 
 
 def get_args():
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', required=True)
     parser.add_argument('--flist', nargs='+', required=True)
