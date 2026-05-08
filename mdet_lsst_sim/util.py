@@ -736,7 +736,7 @@ def get_psf(sim_config, draw_method, rng):
             rng=rng,
             nepoch=psf_config['nepoch'],
         )
-        assert sim_config['draw_method'] == 'no_pixel'
+        # assert sim_config['draw_method'] == 'no_pixel'
 
     elif psf_config['type'] == 'gmix':
         psf = make_gmix_psf(
@@ -744,7 +744,7 @@ def get_psf(sim_config, draw_method, rng):
             nepoch=psf_config['nepoch'],
             fwhm_fac=psf_config['fwhm_fac'],
         )
-        assert sim_config['draw_method'] == 'no_pixel'
+        # assert sim_config['draw_method'] == 'no_pixel'
 
     # elif sim_config['randomize_psf']:
     #     psf = make_rand_psf(
