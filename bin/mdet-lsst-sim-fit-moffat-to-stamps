@@ -1,0 +1,1070 @@
+#!/usr/bin/env python
+import numpy as np
+from numba import njit
+import ngmix
+
+SCALE = 0.2
+GAUSS_FIT_FAILED = 2 ** 0
+MOFFAT_FIT_FAILED = 2 ** 1
+ZERO_FLUX = 2 ** 2
+
+
+def get_obs(image, no_mask_nbrs=False, show=False):
+    import numpy as np
+    import ngmix
+
+    noise = get_edge_std(image, 4, 4)
+
+    cen = (np.array(image.shape) - 1.0) / 2.0
+    jac = ngmix.DiagonalJacobian(
+        row=cen[0],
+        col=cen[1],
+        scale=SCALE,
+    )
+    obs = ngmix.Observation(
+        image=image,
+        weight=image * 0 + 1.0 / noise**2,
+        jacobian=jac,
+        ignore_zero_weight=False,
+    )
+
+    obs.meta['mask_frac'] = 0.0
+
+    if not no_mask_nbrs:
+        objs, seg = run_sep(obs)
+        cen = ((np.array(obs.image.shape) - 1.0) / 2.0).astype('i4')
+        seg_at_cen = seg[cen[0], cen[1]]
+        w = np.where((seg != 0) & (seg != seg_at_cen))
+        if w[0].size > 0:
+            weight = obs.weight.copy()
+            weight[w] = 0.0
+            obs.weight = weight
+            obs.meta['mask_frac'] = w[0].size / obs.image.size
+
+        if show:
+            plot_im_wt_seg(obs.image, obs.weight, seg)
+
+        obs.meta['seg'] = seg
+
+    return obs
+
+
+def plot_seg(ax, seg, rng=None):
+    """
+    plot the seg map with randomized colors for better display
+    """
+
+    if rng is None:
+        rng = np.random.RandomState()
+
+    max_seg = seg.max()
+
+    low = 50 / 255
+    high = 255 / 255
+    n = (max_seg + 1) * 3
+    colors = rng.uniform(low=low, high=high, size=n).reshape(
+        (max_seg + 1, 3),
+    )
+
+    cseg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype='f4')
+
+    _make_color_seg(seg, cseg, colors)
+
+    ax.imshow(cseg)
+
+
+@njit
+def _make_color_seg(seg, cseg, colors):
+    nrow, ncol = seg.shape
+    for row in range(nrow):
+        for col in range(ncol):
+            val = seg[row, col]
+            if val > 0:
+                r, g, b = colors[val]
+                cseg[row, col, 0] = r
+                cseg[row, col, 1] = g
+                cseg[row, col, 2] = b
+
+
+def plot_im_wt_seg(image, weight, seg):
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+
+    noise = np.sqrt(1.0 / np.median(weight))
+
+    fig, axs = mplt.subplots(
+        nrows=2,
+        ncols=2,
+        figsize=(10, 10),
+    )
+    axs[1, 1].axis('off')
+
+    norm = AsinhNorm(
+        linear_width=noise,
+        clip=False,
+    )
+    plot_with_colorbar(
+        fig=fig,
+        ax=axs[0, 0],
+        image=image,
+        cmap='inferno',
+        norm=norm,
+        title='image',
+    )
+    plot_with_colorbar(
+        fig=fig,
+        ax=axs[0, 1],
+        image=weight,
+        cmap='inferno',
+        norm=norm,
+        title='weight',
+    )
+    axs[1, 0].set_title('seg')
+    plot_seg(ax=axs[1, 0], seg=seg)
+    # plot_with_colorbar(
+    #     fig=fig,
+    #     ax=axs[1, 0],
+    #     image=seg,
+    #     cmap='inferno',
+    #     norm=norm,
+    #     title='seg',
+    # )
+    mplt.show()
+    mplt.close(fig)
+
+
+def plot_with_colorbar(fig, ax, image, title=None, **kw):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    pim = ax.imshow(image, **kw)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(pim, cax=cax)
+
+    if title is not None:
+        ax.set_title(title)
+
+
+def dotext(ax, x, y, text):
+    ax.text(
+        x,
+        y,
+        text,
+        transform=ax.transAxes,
+        color='black',
+    )
+    ax.text(
+        x + 0.002,
+        y + 0.002,
+        text,
+        transform=ax.transAxes,
+        color='white',
+    )
+
+
+@njit
+def get_edge_std(im, nsig, npass):
+    mean = -9999.0
+    sigma = -9999.0
+    for ipass in range(npass):
+        xsum = 0.0
+        x2sum = 0.0
+
+        nrow, ncol = im.shape
+
+        nsum = 0
+        for icol in range(ncol):
+            val = im[0, icol]
+            if _check_keep(val, mean, sigma, nsig, ipass):
+                xsum += val
+                x2sum += val**2
+                nsum += 1
+
+            val = im[-1, icol]
+            if _check_keep(val, mean, sigma, nsig, ipass):
+                xsum += val
+                x2sum += val**2
+                nsum += 1
+
+        for irow in range(nrow):
+            val = im[irow, 0]
+            if _check_keep(val, mean, sigma, nsig, ipass):
+                xsum += val
+                x2sum += val**2
+                nsum += 1
+
+            val = im[irow, -1]
+            if _check_keep(val, mean, sigma, nsig, ipass):
+                xsum += val
+                x2sum += val**2
+                nsum += 1
+
+        mean = xsum / nsum
+        var = x2sum / nsum - mean**2
+        sigma = np.sqrt(var)
+
+    return sigma
+
+
+@njit
+def _check_keep(val, mean, sigma, nsig, ipass):
+    keep = True
+    if ipass > 0:
+        if abs(val - mean) > nsig * sigma:
+            keep = False
+
+    return keep
+
+
+def doplots(obs, model, data, index, name, plotfront):
+    import matplotlib.pyplot as mplt
+    from matplotlib.colors import AsinhNorm
+    import esutil as eu
+
+    image = obs.image
+    cmap = mplt.colormaps.get_cmap('inferno')
+
+    noise = np.sqrt(1.0 / np.median(obs.weight))
+    norm = AsinhNorm(
+        linear_width=noise,
+        clip=False,
+    )
+
+    ngfrac = data['nongaussian_frac']
+
+    maxval = 1.0
+    image_mod = image.copy()
+
+    with mplt.style.context('dark_background'):
+        fig, axs = mplt.subplots(
+            nrows=2,
+            ncols=2,
+            figsize=(10, 10),
+        )
+        # axs[0, 1].axis('off')
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 0],
+            image=image_mod / maxval,
+            cmap=cmap,
+            norm=norm,
+            title=f'image {index} ng frac: {ngfrac:.4g}',
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[0, 1],
+            image=model / maxval,
+            cmap=cmap,
+            norm=norm,
+            title=name,
+        )
+
+        plot_with_colorbar(
+            fig=fig,
+            ax=axs[1, 0],
+            image=(image - model) / maxval,
+            cmap=cmap,
+            title=f'image - {name}',
+        )
+
+        axs[1, 1].set_title('seg')
+        plot_seg(axs[1, 1], obs.meta['seg'])
+
+        if True:
+            fname = [
+                f'{data["raft"]}',
+                f'{data["detector"]:03d}',
+                f'{index:04d}',
+                f'{name}',
+            ]
+            fname = '-'.join(fname) + '.png'
+            fname = f'{plotfront}-{fname}'
+            print('writing:', fname)
+
+            eu.ostools.makedirs_fromfile(fname)
+
+            fig.savefig(fname)
+        else:
+            mplt.show()
+
+        mplt.close(fig)
+
+
+def make_kernel(fwhm):
+    import ngmix
+
+    # this is 0.8 arcseconds at 0.2 arcseconds per pixel
+    fwhm = fwhm / 0.2  # pixels
+    T = ngmix.moments.fwhm_to_T(fwhm)
+    kernel_gm = ngmix.GMixModel(
+        pars=[0.0, 0.0, 0.0, 0.0, T, 1.0],
+        model='gauss',
+    )
+    return kernel_gm.make_image([7, 7])
+
+
+def run_sep(obs, kernel_fwhm=0.8):
+    import numpy as np
+    import sep
+
+    medwt = np.median(obs.weight)
+    noise = 1 / np.sqrt(medwt)
+
+    kernel = make_kernel(kernel_fwhm)
+
+    config = {
+        'deblend_cont': 0.0001,
+        'deblend_nthresh': 64,
+        'minarea': 4,
+        'filter_type': 'conv',
+        'filter_kernel': kernel,
+    }
+
+    with obs.writeable():
+        objs, seg = sep.extract(
+            obs.image,
+            # thresh=0.8,
+            thresh=1.0,
+            err=noise,
+            segmentation_map=True,
+            **config,
+        )
+
+    return objs, seg
+
+
+def get_simple_prior(rng, scale=0.2, T_range=None, F_range=None):
+    """
+    get a prior for use with the maximum likelihood fitter
+
+    Parameters
+    ----------
+    rng: np.random.RandomState
+        The random number generator
+    scale: float
+        Pixel scale
+    T_range: (float, float), optional
+        The range for the prior on T
+    F_range: (float, float), optional
+        Fhe range for the prior on flux
+    """
+    import ngmix
+
+    if T_range is None:
+        T_range = [-1.0, 1.0e3]
+
+    if F_range is None:
+        F_range = [-100.0, 1.0e9]
+
+    g_prior = ngmix.priors.GPriorBA(sigma=0.3, rng=rng)
+    cen_prior = ngmix.priors.CenPrior(
+        cen1=0,
+        cen2=0,
+        sigma1=scale,
+        sigma2=scale,
+        rng=rng,
+    )
+    T_prior = ngmix.priors.FlatPrior(
+        minval=T_range[0], maxval=T_range[1], rng=rng
+    )
+    F_prior = ngmix.priors.FlatPrior(
+        minval=F_range[0], maxval=F_range[1], rng=rng
+    )
+
+    prior = ngmix.joint_prior.PriorSimpleSep(
+        cen_prior=cen_prior,
+        g_prior=g_prior,
+        T_prior=T_prior,
+        F_prior=F_prior,
+    )
+
+    return prior
+
+
+def do_simple(obs, rng, model):
+    import ngmix
+
+    prior = get_simple_prior(rng=rng)
+
+    fitter = ngmix.fitting.Fitter(model=model, prior=prior)
+
+    guesser = ngmix.guessers.SimplePSFGuesser(
+        rng=rng,
+        guess_from_moms=True,
+    )
+
+    runner = ngmix.runners.PSFRunner(
+        fitter=fitter,
+        guesser=guesser,
+        ntry=10,
+    )
+    res = runner.go(obs)
+
+    if res['flags'] != 0:
+        print(f'{model} failed {res["flags"]}')
+
+    return res
+
+
+class PriorMoffatSep(ngmix.joint_prior.PriorSimpleSep):
+    """
+    Separate priors on each parameter
+
+    Parameters
+    ----------
+    cen_prior:
+        The center prior
+    g_prior:
+        The prior on g (g1,g2).
+    beta_prior:
+        Prior on beta
+    fwhm_prior:
+        Prior on fwhm or some size parameter
+    F_prior:
+        Prior on Flux.  Can be a list for a multi-band prior.
+    """
+
+    def __init__(
+        self,
+        cen_prior,
+        g_prior,
+        fwhm_prior,
+        beta_prior,
+        F_prior,
+    ):
+
+        self.cen_prior = cen_prior
+        self.g_prior = g_prior
+        self.fwhm_prior = fwhm_prior
+        self.beta_prior = beta_prior
+
+        if isinstance(F_prior, (list, tuple)):
+            self.nband = len(F_prior)
+        else:
+            self.nband = 1
+            F_prior = [F_prior]
+
+        self.F_priors = F_prior
+
+        self.set_bounds()
+
+    def __call__(self, obs):
+        return self.sample()
+
+    def set_bounds(self):
+        """
+        set possibe bounds
+        """
+        bounds = [
+            (None, None),  # c1
+            (None, None),  # c2
+            (None, None),  # g1
+            (None, None),  # g2
+        ]
+
+        allp = [
+            self.fwhm_prior,
+            self.beta_prior,
+        ] + self.F_priors
+
+        some_have_bounds = False
+        for i, p in enumerate(allp):
+            if p.has_bounds():
+                some_have_bounds = True
+                bounds.append((p.bounds[0], p.bounds[1]))
+            else:
+                bounds.append((None, None))
+
+        if not some_have_bounds:
+            bounds = None
+
+        self.bounds = bounds
+
+    def fill_fdiff(self, pars, fdiff):
+        """
+        (model-data)/err
+        but "data" here is the central value of a prior.
+
+        Parameters
+        ----------
+        pars: array
+            Array of parameters values
+        fdiff: array
+            the fdiff array to fill
+        """
+        index = 0
+
+        fdiff1, fdiff2 = self.cen_prior.get_fdiff(pars[0], pars[1])
+
+        fdiff[index] = fdiff1
+        index += 1
+        fdiff[index] = fdiff2
+        index += 1
+
+        fdiff[index] = self.g_prior.get_fdiff(pars[2], pars[3])
+        index += 1
+        fdiff[index] = self.fwhm_prior.get_fdiff(pars[4])
+        index += 1
+
+        fdiff[index] = self.beta_prior.get_fdiff(pars[5])
+        index += 1
+
+        for i in range(self.nband):
+            F_prior = self.F_priors[i]
+            fdiff[index] = F_prior.get_fdiff(pars[6 + i])
+            index += 1
+
+        return index
+
+    def sample(self, nrand=None):
+        """
+        Get random samples
+
+        Parameters
+        ----------
+        nrand: int, optional
+            Number of samples, default to a single set with size [npars].  If n
+            is sent the result will have shape [n, npars]
+        """
+
+        if nrand is None:
+            is_scalar = True
+            nrand = 1
+        else:
+            is_scalar = False
+
+        samples = np.zeros((nrand, 6 + self.nband))
+
+        cen1, cen2 = self.cen_prior.sample(nrand)
+        g1, g2 = self.g_prior.sample2d(nrand)
+        fwhm = self.fwhm_prior.sample(nrand)
+        beta = self.beta_prior.sample(nrand)
+
+        samples[:, 0] = cen1
+        samples[:, 1] = cen2
+        samples[:, 2] = g1
+        samples[:, 3] = g2
+        samples[:, 4] = fwhm
+        samples[:, 5] = beta
+
+        for i in range(self.nband):
+            F_prior = self.F_priors[i]
+            F = F_prior.sample(nrand)
+            samples[:, 6 + i] = F
+
+        if is_scalar:
+            samples = samples[0, :]
+
+        return samples
+
+    def __repr__(self):
+        reps = []
+        reps += [
+            str(self.cen_prior),
+            str(self.g_prior),
+            str(self.T_prior),
+            str(self.beta_prior),
+        ]
+
+        for p in self.F_priors:
+            reps.append(str(p))
+
+        rep = "\n".join(reps)
+        return rep
+
+
+def get_moffat_prior(rng, scale=0.2):
+    """
+    get a prior for use with the maximum likelihood fitter
+
+    Parameters
+    ----------
+    rng: np.random.RandomState
+        The random number generator
+    scale: float
+        Pixel scale
+    """
+    import ngmix
+
+    g_prior = ngmix.priors.GPriorBA(sigma=0.3, rng=rng)
+
+    cen_prior = ngmix.priors.CenPrior(
+        cen1=0,
+        cen2=0,
+        sigma1=scale,
+        sigma2=scale,
+        rng=rng,
+    )
+
+    fwhm_prior = ngmix.priors.Normal(
+        1.0, 0.5,
+        bounds=[0.4, 3.0], rng=rng
+    )
+
+    F_prior = ngmix.priors.FlatPrior(
+        minval=0.1, maxval=2.0, rng=rng
+    )
+
+    beta_prior = ngmix.priors.Normal(
+        3.0, 0.1, rng=rng,
+        bounds=[2.0, 10.0],
+    )
+
+    prior = PriorMoffatSep(
+        cen_prior=cen_prior,
+        g_prior=g_prior,
+        fwhm_prior=fwhm_prior,
+        beta_prior=beta_prior,
+        F_prior=F_prior,
+    )
+
+    return prior
+
+
+def do_moffat(obs, rng):
+    import ngmix
+
+    prior = get_moffat_prior(rng=rng)
+
+    fitter = ngmix.fitting.GalsimMoffatFitter(prior=prior, size_type='fwhm')
+
+    guesser = prior
+
+    runner = ngmix.runners.Runner(
+        fitter=fitter,
+        guesser=guesser,
+        ntry=10,
+    )
+    res = runner.go(obs)
+
+    if res['flags'] != 0:
+        print(f'moffat failed {res["flags"]}')
+
+    return res
+
+
+def _plot_fwhm(nim, fwhm_arcsec, scale):
+    import matplotlib.pyplot as mplt
+    import espy.images
+    import espy.plotting
+
+    rad, profile = espy.images.get_profile(nim)
+
+    maxrad = 2 * fwhm_arcsec
+
+    fig, ax = mplt.subplots(figsize=(8, 6))
+    ax.set(
+        xlabel='radius [arcsec]',
+        xlim=[0, maxrad],
+        ylim=[-0.01, 1.1],
+    )
+
+    ax.scatter(rad * scale, profile)
+
+    ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
+    ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
+
+    espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
+
+    mplt.show()
+
+
+def calc_fwhm_from_model(obs, res):
+    import scipy.special
+
+    thresh = 0.5
+
+    fine_dim = obs.image.shape[0] * 8 + 1
+
+    fine_scale = 0.2 * obs.image.shape[0] / fine_dim
+
+    # print()
+    # ngmix.print_pars(res['pars'])
+    # print()
+    model = res.make_model(res['pars'])
+
+    image = model.drawImage(
+        nx=fine_dim,
+        ny=fine_dim,
+        scale=fine_scale,
+    ).array
+
+    maxval = image.max()
+
+    nim = image.copy()
+    maxval = image.max()
+    nim /= maxval
+
+    smooth = 0.05
+
+    arg = (nim - thresh) / smooth
+
+    vals = 0.5 * (1 + scipy.special.erf(arg))
+
+    area = np.sum(vals)
+    fwhm_arcsec = 2 * np.sqrt(area / np.pi) * fine_scale
+
+    if False:
+        _plot_fwhm(nim, fwhm_arcsec, fine_scale)
+
+    return fwhm_arcsec
+
+
+def calc_fwhm_from_data(obs):
+    import scipy.special
+
+    thresh = 0.5
+
+    image = obs.image
+
+    maxval = image.max()
+
+    nim = image.copy()
+    maxval = image.max()
+    nim /= maxval
+
+    # medweight = np.median(obs.weight)
+    # noise = 1 / np.sqrt(medweight)
+    # smooth = noise / maxval
+    smooth = 0.1
+
+    arg = (nim - thresh) / smooth
+
+    vals = 0.5 * (1 + scipy.special.erf(arg))
+
+    area = np.sum(vals)
+    fwhm_arcsec = 2 * np.sqrt(area / np.pi) * obs.jacobian.scale
+
+    if False:
+        import matplotlib.pyplot as mplt
+        import espy.images
+        import espy.plotting
+
+        rad, profile = espy.images.get_profile(nim)
+
+        maxrad = 2 * fwhm_arcsec
+
+        fig, ax = mplt.subplots(figsize=(8, 6))
+        ax.set(
+            xlabel='radius [arcsec]',
+            xlim=[0, maxrad],
+            ylim=[-0.01, 1.1],
+        )
+
+        ax.scatter(rad * obs.jacobian.scale, profile)
+
+        ax.plot([0, fwhm_arcsec / 2], [0.5, 0.5], color='red')
+        ax.plot([fwhm_arcsec / 2, fwhm_arcsec / 2], [0.5, 0.0], color='red')
+
+        espy.plotting.ntext(ax, 0.8, 0.9, f'fwhm: {fwhm_arcsec:.2f}')
+
+        mplt.show()
+
+    return fwhm_arcsec
+
+
+def get_nongaussian_frac(obs, gm):
+    import galsim
+
+    gsimage = galsim.Image(obs.image, scale=obs.jacobian.scale)
+    sigma = gm.get_sigma()
+
+    v, u = gm.get_cen()
+    row, col = obs.jacobian.get_rowcol(v, u)
+    cen = galsim.PositionD(x=col, y=row)
+
+    sh = galsim.Shapelet.fit(
+        sigma=sigma,
+        order=6,
+        image=gsimage,
+        center=cen,
+    )
+
+    bvec = sh.bvec
+
+    bvec_mask = list(range(6, 10)) + list(range(15, 24))
+
+    allpower = np.sum(bvec**2)
+
+    nongaussian_power = np.sum(bvec[bvec_mask] ** 2)
+    nongaussian_frac = nongaussian_power / allpower
+    return nongaussian_frac
+
+
+def make_output(stamp_data, index, n=1):
+    import numpy as np
+
+    descr = [
+        ('flags', 'i4'),
+        ('cx', 'f4'),
+        ('cy', 'f4'),
+        ('detector', 'i4'),
+        ('raft', 'U3'),
+        ('visit', 'i8'),
+        ('band', 'U1'),
+        ('n_stack', 'i4'),
+        ('mask_frac', 'f4'),
+        ('gauss_T', 'f4'),
+        ('gauss_g', 'f4', 2),
+        ('moffat_pars', 'f4', 7),
+        ('fwhm_calc', 'f4'),
+        ('nongaussian_frac', 'f4'),
+    ]
+
+    output = np.zeros(n, dtype=descr)
+
+    for name in stamp_data.keys():
+        if name == 'band':
+            continue
+
+        if name in output.dtype.names:
+            output[name] = stamp_data[name][index]
+
+    output['band'] = stamp_data['band']
+    for n in [
+        'moffat_pars',
+        'gauss_T',
+        'gauss_g',
+        'fwhm_calc',
+    ]:
+        output[n] = np.nan
+
+    return output
+
+
+def get_sky(rng, all_obs):
+    """
+    Estimate the background from all input observations
+
+    Make two passes
+    """
+    from sfitsky.coellip_fitter import get_coellip_runner_with_sky
+    import esutil as eu
+
+    mednoise = np.median([np.sqrt(1 / obs.weight[0, 0]) for obs in all_obs])
+
+    current_bg = 0.0
+    current_bg_sigma = mednoise
+
+    for ipass in range(2):
+        dlist = []
+        for obs in all_obs:
+            scale = obs.jacobian.scale
+            runner = get_coellip_runner_with_sky(
+                rng,
+                ngauss=5,
+                cen_prior_sigma=scale * 0.01,
+                sky_prior_mean=current_bg,
+                sky_prior_sigma=current_bg_sigma,
+            )
+            res = runner.go(obs)
+
+            tmp = np.zeros(1, dtype=[('bg', 'f8'), ('bg_err', 'f8')])
+            tmp['bg'] = res['sky']
+            tmp['bg_err'] = res['sky_err']
+
+            dlist.append(tmp)
+
+        st = eu.numpy_util.combine_arrlist(dlist)
+        current_bg, current_bg_sigma, bg_err = eu.stat.sigma_clip(
+            st['bg'],
+            get_err=True,
+        )
+
+    return current_bg, bg_err
+
+
+def process_one(
+    rng,
+    stamp_data,
+    obs,
+    index,
+    no_mask_nbrs,
+    saveplots,
+    infile,
+):
+    import os
+    import numpy as np
+
+    darray = make_output(stamp_data, index)
+
+    data = darray[0]
+
+    data['mask_frac'] = obs.meta['mask_frac']
+
+    gauss_res = do_simple(rng=rng, obs=obs, model='gauss')
+
+    if gauss_res['flags'] == 0:
+        data['gauss_T'] = gauss_res['T']
+        data['gauss_g'] = gauss_res['g']
+
+        gm = gauss_res.get_gmix()
+
+        data['nongaussian_frac'] = get_nongaussian_frac(
+            obs=obs,
+            gm=gm,
+        )
+
+    else:
+        data['flags'] |= GAUSS_FIT_FAILED
+
+    moffat_res = do_moffat(obs=obs, rng=rng)
+
+    if moffat_res['flags'] == 0:
+        data['moffat_pars'] = moffat_res['pars']
+    else:
+        data['flags'] |= MOFFAT_FIT_FAILED
+
+    if moffat_res['flags'] == 0:
+        data['fwhm_calc'] = calc_fwhm_from_model(obs, res=moffat_res)
+
+    if data['flags'] == 0:
+        moffat_model = moffat_res.make_model(data['moffat_pars'])
+
+        model_image = moffat_model.drawImage(
+            nx=obs.image.shape[1],
+            ny=obs.image.shape[0],
+            scale=obs.jacobian.scale,
+        ).array
+
+        assert np.all(darray['moffat_pars'][0] == data['moffat_pars'])
+
+        if saveplots:
+            dim = obs.image.shape[0]
+            dname = f'plots{dim}'
+            plotfront = os.path.join(
+                dname, os.path.basename(infile).replace('.npz', '')
+            )
+
+            doplots(
+                obs=obs,
+                model=model_image,
+                data=data,
+                index=index,
+                name='moffat',
+                plotfront=plotfront,
+            )
+
+    return darray
+
+
+def make_meta(seed):
+    import numpy as np
+
+    dtype = [
+        ('seed', 'i8'),
+    ]
+    meta = np.zeros(1, dtype=dtype)
+    meta['seed'] = seed
+    return meta
+
+
+def get_flist(fname):
+    with open(fname) as fobj:
+        lines = [line.strip() for line in fobj]
+
+    return lines
+
+
+def do_sub_bg(rng, all_obs):
+    bg, bg_err = get_sky(rng=rng, all_obs=all_obs)
+    print(f'bg: {bg} +/- {bg_err}')
+
+    for obs in all_obs:
+        with obs.writeable():
+            obs.image = obs.image - bg
+
+    return bg, bg_err
+
+
+def main(
+    flist_file,
+    outfile,
+    seed,
+    sub_bg,
+    no_mask_nbrs,
+    saveplots,
+    show,
+):
+    import numpy as np
+    import fitsio
+    from tqdm import tqdm
+
+    flist = get_flist(flist_file)
+
+    rng = np.random.RandomState(seed)
+
+    dlist = []
+
+    for infile in tqdm(flist, ascii=True, ncols=70):
+        stamp_data = np.load(infile)
+        stamps = stamp_data['stamps']
+        nstamps = stamps.shape[0]
+
+        all_obs = [
+            get_obs(stamps[i], no_mask_nbrs=no_mask_nbrs, show=show)
+            for i in range(nstamps)
+        ]
+
+        if sub_bg:
+            bg, bg_err = do_sub_bg(rng=rng, all_obs=all_obs)
+
+        for i in range(stamp_data['cx'].size):
+            data = process_one(
+                rng=rng,
+                stamp_data=stamp_data,
+                obs=all_obs[i],
+                index=i,
+                no_mask_nbrs=no_mask_nbrs,
+                saveplots=saveplots,
+                infile=infile,
+            )
+
+            if sub_bg:
+                data['bg'], data['bg_err'] = bg, bg_err
+
+            dlist.append(data)
+
+    output = np.concatenate(dlist)
+
+    meta = make_meta(seed=seed)
+
+    print('writing:', outfile)
+    with fitsio.FITS(outfile, 'rw', clobber=True) as fits:
+        fits.write(output, extname='fits')
+        fits.write(meta, extname='meta')
+
+
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--flist',
+        help='file with list of stamps files',
+        required=True,
+    )
+    parser.add_argument('--outfile', required=True, help='output file')
+    parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--sub-bg', action='store_true')
+    parser.add_argument('--no-mask-nbrs', action='store_true')
+    parser.add_argument('--show', action='store_true')
+    parser.add_argument('--saveplots', action='store_true')
+
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = get_args()
+    main(
+        flist_file=args.flist,
+        outfile=args.outfile,
+        seed=args.seed,
+        sub_bg=args.sub_bg,
+        no_mask_nbrs=args.no_mask_nbrs,
+        show=args.show,
+        saveplots=args.saveplots,
+    )
