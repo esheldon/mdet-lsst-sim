@@ -17,15 +17,10 @@ from pprint import pformat
 
 from descwl_shear_sims.sim import (
     make_sim,
-    get_sim_config,
+    # get_sim_config,
     get_se_dim,
 )
 from descwl_shear_sims.galaxies import make_galaxy_catalog
-from descwl_shear_sims.psfs import (
-    make_fixed_psf,
-    make_ps_psf,
-    make_rand_psf,
-)
 from descwl_shear_sims.stars import make_star_catalog
 from descwl_shear_sims.constants import SCALE
 import metadetect.lsst.vis as lsst_vis
@@ -40,7 +35,6 @@ import fitsio
 import esutil as eu
 
 from . import util, vis
-from .shapelet_psf import make_shapelet_psf
 
 
 def run_sim(
@@ -115,7 +109,7 @@ def run_sim(
         'there is no poisson noise in the sim'
     )
 
-    sim_config = get_sim_config(config=sim_config)
+    sim_config = util.get_sim_config(config=sim_config)
 
     if sim_config['se_dim'] is None:
         sim_config['se_dim'] = get_se_dim(
@@ -125,8 +119,12 @@ def run_sim(
             rotate=sim_config['rotate'],
         )
 
-    if sim_config['gal_type'] != 'wldeblend':
-        gal_config = sim_config.get('gal_config', None)
+    if sim_config['gal']['type'] != 'wldeblend':
+        gal_config = {
+            key: val for key, val in sim_config['gal'].items()
+            if key != 'type'
+        }
+        # gal_config = sim_config.get('gal_config', None)
     else:
         logger.info("setting wldeblend layout to None")
         sim_config["layout"] = None
@@ -153,7 +151,7 @@ def run_sim(
 
         galaxy_catalog = make_galaxy_catalog(
             rng=rng,
-            gal_type=sim_config['gal_type'],
+            gal_type=sim_config['gal']['type'],
             coadd_dim=sim_config['coadd_dim'],
             buff=sim_config['buff'],
             layout=sim_config['layout'],
@@ -193,27 +191,11 @@ def run_sim(
             )
             logger.info('shear: %.3f, %.3f theta: %s', g1, g2, theta)
 
-            if sim_config['psf_type'] == 'ps':
-                psf = make_ps_psf(
-                    rng=trial_rng,
-                    dim=sim_config['se_dim'],
-                    median_seeing=sim_config['psf_fwhm'],
-                    variation_factor=sim_config['psf_variation_factor'],
-                )
-            elif sim_config['psf_type'] == 'shapelet':
-                psf = make_shapelet_psf(rng=trial_rng)
-
-            elif sim_config['randomize_psf']:
-                psf = make_rand_psf(
-                    psf_type=sim_config["psf_type"],
-                    psf_fwhm_mean=sim_config['psf_fwhm'],
-                    rng=trial_rng,
-                )
-            else:
-                psf = make_fixed_psf(
-                    psf_type=sim_config["psf_type"],
-                    psf_fwhm=sim_config['psf_fwhm'],
-                )
+            psf = util.get_psf(
+                sim_config=sim_config,
+                draw_method=sim_config['draw_method'],
+                rng=trial_rng,
+            )
 
             tmsim0 = time.time()
             sim_data = make_sim(
@@ -226,7 +208,7 @@ def run_sim(
                 psf=psf,
                 star_catalog=star_catalog,
                 draw_stars=sim_config['draw_stars'],
-                psf_dim=sim_config['psf_dim'],
+                psf_dim=sim_config['psf']['dim'],
                 dither=sim_config['dither'],
                 rotate=sim_config['rotate'],
                 bands=sim_config['bands'],
@@ -236,6 +218,7 @@ def run_sim(
                 bad_columns=sim_config['bad_columns'],
                 star_bleeds=sim_config['star_bleeds'],
                 sky_n_sigma=sim_config['sky_n_sigma'],
+                draw_method=sim_config['draw_method'],
             )
             tmsim += time.time() - tmsim0
 

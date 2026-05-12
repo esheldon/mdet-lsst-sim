@@ -6,7 +6,7 @@ from ..run_sim import run_sim
 def test_nowarp(nowarp):
 
     sim_config = {
-        'gal_type': 'fixed',
+        'gal': {'type': 'fixed'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,
@@ -29,7 +29,7 @@ def test_nowarp(nowarp):
 def test_nowarp_errors(inputs):
 
     sim_config = {
-        'gal_type': 'fixed',
+        'gal': {'type': 'fixed'},
         'layout': 'random',
         'coadd_dim': 101,
         'buff': 5,

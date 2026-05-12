@@ -78,15 +78,18 @@ def write_script(job_name, main_seed, ntrial, sim_config, command):
     os.system('chmod 755 %s' % script_file)
 
 
-def get_command_from_config_file(config_file):
+def get_command_from_config_file(args):
     import yaml
-    with open(config_file) as fobj:
-        config = yaml.load(fobj, Loader=yaml.SafeLoader)
+    with open(args.config) as fobj:
+        config = yaml.safe_load(fobj)
 
     if config.get('do_photometry', False):
         command = 'mdet-lsst-sim-phot'
     else:
         command = 'mdet-lsst-sim'
+
+    if args.nocancel:
+        command = f'{command} --nocancel'
 
     return command
 
@@ -106,6 +109,8 @@ def get_args():
                         help='number of sim pairs to run for each job')
     parser.add_argument('--config', required=True, help='config file')
 
+    parser.add_argument('--nocancel', action='store_true')
+
     parser.add_argument('--mem', default='1.5G', help='expected mem usage')
 
     return parser.parse_args()
@@ -119,7 +124,7 @@ def main(args):
     if os.path.exists(condor_file):
         raise RuntimeError('script already exists: %s' % condor_file)
 
-    command = get_command_from_config_file(args.config)
+    command = get_command_from_config_file(args)
 
     copy_config_file(args.config)
     sim_config_local = os.path.basename(args.config)

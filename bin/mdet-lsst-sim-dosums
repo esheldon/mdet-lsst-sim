@@ -1,10 +1,338 @@
 #!/usr/bin/env python
-from pprint import pprint
-import fitsio
+
+def process_set(inputs):
+    config, flist = inputs
+
+    nf = len(flist)
+    sums = {}
+    for i, fname in enumerate(flist):
+        print(f'{i + 1}/{nf} {fname}')
+        tsums = process_one(config, fname)
+        if tsums is not None:
+            add_more_sums(sums, tsums)
+
+    return sums
+
+
+def process_one(config, fname):
+    import fitsio
+
+    try:
+        with fitsio.FITS(fname) as fobj:
+            data_1p = fobj['1p'].read()
+            if '1m' in fobj:
+                data_1m = fobj['1m'].read()
+            else:
+                data_1m = None
+    except OSError as err:
+        print(err)
+        return None
+
+    # if data_1p is None or data_1m is None:
+    if data_1p is None:
+        return None
+
+    data_ext = [(data_1p, '1p')]
+    if data_1m is not None:
+        data_ext += [(data_1m, '1m')]
+
+    use_weights = config['use_weights']
+    weight_type = config.get('weight_type', 'g')
+
+    data_dict = {}
+    for s2n_min in config['s2n_min']:
+        for s2n_max in config['s2n_max']:
+            for Tratio_min in config['Tratio_min']:
+                for max_mask_frac in config['max_mask_frac']:
+                    for max_mfrac in config['max_mfrac']:
+                        for max_star_density in config['max_star_density']:
+                            d = get_struct(
+                                s2n_min=s2n_min,
+                                s2n_max=s2n_max,
+                                max_mask_frac=max_mask_frac,
+                                max_mfrac=max_mfrac,
+                                Tratio_min=Tratio_min,
+                                max_star_density=max_star_density,
+                            )
+                            for stype in ['noshear', '1p', '1m']:
+                                for data, ext in data_ext:
+                                    g_sum, wsum, nsum = get_sums(
+                                        stype=stype,
+                                        s2n_min=s2n_min,
+                                        s2n_max=s2n_max,
+                                        Tratio_min=Tratio_min,
+                                        max_mask_frac=max_mask_frac,
+                                        max_mfrac=max_mfrac,
+                                        max_star_density=max_star_density,
+                                        use_weights=use_weights,
+                                        weight_type=weight_type,
+                                        shapenoise=config['shapenoise'],
+                                        require_primary=config[
+                                            'require_primary'
+                                        ],  # noqa
+                                        data=data,
+                                    )
+                                    if stype == 'noshear':
+                                        sn = 'ns'
+                                    else:
+                                        sn = stype
+
+                                    d[f'g_{sn}_sum_{ext}'] = g_sum
+                                    d[f'wsum_{sn}_{ext}'] = wsum
+                                    d[f'nsum_{sn}_{ext}'] = nsum
+
+                            key = get_key(
+                                s2n_min=s2n_min,
+                                s2n_max=s2n_max,
+                                Tratio_min=Tratio_min,
+                                max_mask_frac=max_mask_frac,
+                                max_mfrac=max_mfrac,
+                                max_star_density=max_star_density,
+                                use_weights=use_weights,
+                            )
+                            data_dict[key] = d
+
+    return data_dict
+
+
+def get_key(
+    s2n_min,
+    s2n_max,
+    Tratio_min,
+    max_mask_frac,
+    max_mfrac,
+    max_star_density,
+    use_weights,
+):
+
+    klist = []
+    if use_weights:
+        klist += ['weighted']
+
+    klist += [
+        f's2n-{s2n_min}-{s2n_max}',
+        f'mask_frac-{max_mask_frac:.2f}',
+        f'mfrac-{max_mfrac:.2f}',
+        f'Tratio-{Tratio_min:.1f}',
+        f'sdens-{max_star_density:03d}',
+    ]
+    return '-'.join(klist)
+
+
+def add_more_sums(sums, tsums):
+    for key in tsums:
+        if key not in sums:
+            sums[key] = tsums[key]
+        else:
+            for datakey in tsums[key].dtype.names:
+                if 'sum' in datakey:
+                    # only need to add the sum columns, others indicate the
+                    # cut which is constant
+                    sums[key][datakey] += tsums[key][datakey]
+
+
+def get_sums(
+    stype,
+    s2n_min,
+    s2n_max,
+    Tratio_min,
+    max_mask_frac,
+    max_mfrac,
+    max_star_density,
+    require_primary,
+    use_weights,
+    weight_type,
+    shapenoise,
+    data,
+):
+    import numpy as np
+
+    if 'wmom_g' in data.dtype.names:
+        model = 'wmom'
+    elif 'ksigma_g' in data.dtype.names:
+        model = 'ksigma'
+    elif 'am_g' in data.dtype.names:
+        model = 'am'
+    elif 'gap_g' in data.dtype.names:
+        model = 'gap'
+    elif 'pgauss_g' in data.dtype.names:
+        model = 'pgauss'
+    else:
+        model = 'gauss'
+
+    if 'flags' in data.dtype.names:
+        flags = data['flags']
+    else:
+        flags = data[f'{model}_flags']
+
+    s2n = data[f'{model}_s2n']
+    T_ratio = data[f'{model}_T_ratio']
+    gvals = data[f'{model}_g'].astype('f8')
+    g = np.sqrt(gvals[:, 0] ** 2 + gvals[:, 1] ** 2)
+
+    if stype == 'noshear':
+        logic = (
+            (data['shear_type'] == stype)
+            | (data['shear_type'] == 'ns')
+            | (data['shear_type'] == 'no')
+        )
+    else:
+        logic = data['shear_type'] == stype
+
+    logic = logic & (
+        ((flags == 0) | (flags == 2**19))
+        & (s2n >= s2n_min)
+        & (s2n <= s2n_max)
+        & (T_ratio > Tratio_min)
+        &
+        # (g < 1) &
+        (g < 3)
+    )
+
+    if 'bmask' in data.dtype.names:
+        logic &= data['bmask'] == 0
+
+    if 'primary' in data.dtype.names and require_primary:
+        logic &= data['primary']
+
+    if 'mask_frac' in data.dtype.names:
+        logic &= data['mask_frac'] < max_mask_frac
+
+    if 'mfrac' in data.dtype.names:
+        logic &= data['mfrac'] < max_mfrac
+
+    if 'true_star_density' in data.dtype.names:
+        logic &= data['true_star_density'] < max_star_density
+
+    (w,) = np.where(logic)
+
+    if use_weights and w.size > 0:
+        wts = get_weights(
+            data,
+            w,
+            model,
+            weight_type=weight_type,
+            sn=shapenoise,
+        )
+        w2, = np.where(np.isfinite(wts))
+        if w2.size != w.size:
+            w = w[w2]
+            wts = wts[w2]
+
+    g_sum = np.zeros(2)
+    wsum = 0.0
+
+    if w.size > 0:
+        if use_weights:
+            g_sum[0] = (wts * gvals[w, 0]).sum()
+            g_sum[1] = (wts * gvals[w, 1]).sum()
+            wsum = wts.sum()
+        else:
+            g_sum[0] = gvals[w, 0].sum()
+            g_sum[1] = gvals[w, 1].sum()
+            wsum = w.size
+
+    nobj = w.size
+    return g_sum, wsum, nobj
+
+
+def get_weights(data, ind, model, weight_type, sn, get_cov_weights=False):
+    import numpy as np
+
+    name = '%s_g_cov' % model
+    if name in data.dtype.names:
+        g_cov = data[name]
+        err_term = 0.5 * (g_cov[ind, 0, 0] + g_cov[ind, 1, 1])
+    else:
+        name = '%s_g_err' % model
+        err_term = data[name][ind] ** 2
+
+    weights = 1.0 / (sn**2 + err_term)
+    if get_cov_weights:
+        cov_weights = weights.copy()
+
+    if weight_type == 'g':
+        import ngmix
+
+        prior = ngmix.priors.GPriorBA(0.3, rng=np.random.RandomState())
+        g = data['%s_g' % model]
+        pvals = prior.get_prob_array2d(g[ind, 0], g[ind, 1])
+        weights *= pvals
+    elif weight_type == 'covar':
+        pass
+    else:
+        raise ValueError(f'bad weight_type {weight_type}')
+
+    if get_cov_weights:
+        return weights, cov_weights
+    else:
+        return weights
+
+
+def get_struct(
+    s2n_min,
+    s2n_max,
+    max_mask_frac,
+    max_mfrac,
+    Tratio_min,
+    max_star_density,
+):
+    import numpy as np
+
+    dt = [
+        ('s2n_min', 'f8'),
+        ('s2n_max', 'f8'),
+        ('max_mask_frac', 'f8'),
+        ('max_mfrac', 'f8'),
+        ('Tratio_min', 'f8'),
+        ('max_star_density', 'f8'),
+        ('g_ns_sum_1p', ('f8', 2)),
+        ('g_1p_sum_1p', ('f8', 2)),
+        ('g_1m_sum_1p', ('f8', 2)),
+        ('wsum_ns_1p', 'f8'),
+        ('wsum_1p_1p', 'f8'),
+        ('wsum_1m_1p', 'f8'),
+        ('nsum_ns_1p', 'i8'),
+        ('nsum_1p_1p', 'i8'),
+        ('nsum_1m_1p', 'i8'),
+        ('g_ns_sum_1m', ('f8', 2)),
+        ('g_1p_sum_1m', ('f8', 2)),
+        ('g_1m_sum_1m', ('f8', 2)),
+        ('wsum_ns_1m', 'f8'),
+        ('wsum_1p_1m', 'f8'),
+        ('wsum_1m_1m', 'f8'),
+        ('nsum_ns_1m', 'i8'),
+        ('nsum_1p_1m', 'i8'),
+        ('nsum_1m_1m', 'i8'),
+    ]
+
+    data = np.zeros(1, dtype=dt)
+    data['s2n_min'] = s2n_min
+    data['s2n_max'] = s2n_max
+    data['max_mask_frac'] = max_mask_frac
+    data['max_mfrac'] = max_mfrac
+    data['Tratio_min'] = Tratio_min
+    data['max_star_density'] = max_star_density
+    return data
+
+
+def read_flist(fname):
+    with open(fname) as fobj:
+        flist = [line.strip() for line in fobj]
+    return flist
+
+
+def read_config(fname):
+    import yaml
+
+    print('reading config:', fname)
+    with open(fname) as fobj:
+        return yaml.safe_load(fobj)
 
 
 def main(cut_config_file, flist_file, output_file):
-    from mdet_lsst_sim.doshear import process_set, read_config
+    from pprint import pprint
+    import fitsio
 
     flist = read_flist(flist_file)
 
@@ -19,12 +347,6 @@ def main(cut_config_file, flist_file, output_file):
     with fitsio.FITS(output_file, 'rw', clobber=True) as fits:
         for key in sums:
             fits.write(sums[key], extname=key)
-
-
-def read_flist(fname):
-    with open(fname) as fobj:
-        flist = [line.strip() for line in fobj]
-    return flist
 
 
 def get_args():

@@ -17,7 +17,8 @@ def test_shapelet_psf_smoke():
     assert psf.nepoch == 1
 
     pos = galsim.PositionD(1.5, 2.2)
-    _ = psf.getPSF(pos)
+    opsf = psf.getPSF(pos)
+    assert np.allclose(opsf.flux, 1.0)
 
 
 @pytest.mark.skipif(
@@ -39,4 +40,5 @@ def test_shapelet_psf(nepoch, threshold):
     assert psf.threshold == threshold
 
     pos = galsim.PositionD(1.5, 2.2)
-    _ = psf.getPSF(pos)
+    opsf = psf.getPSF(pos)
+    assert np.allclose(opsf.flux, 1.0)
