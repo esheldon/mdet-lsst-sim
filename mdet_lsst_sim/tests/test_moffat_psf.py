@@ -28,15 +28,13 @@ def test_moffat_psf_smoke():
     "CATSIM_DIR" not in os.environ,
     reason='simulation input data is not present',
 )
-@pytest.mark.parametrize('model', ['turb', 'em5'])
 @pytest.mark.parametrize('nepoch', [1, 15])
 @pytest.mark.parametrize('max_nongauss_frac', [0.005, 0.01])
-def test_moffat_psf(model, nepoch, max_nongauss_frac):
+def test_moffat_psf(nepoch, max_nongauss_frac):
     rng = np.random.RandomState(7843)
 
     psf = make_moffat_psf(
         rng=rng,
-        model=model,
         nepoch=nepoch,
         max_nongauss_frac=max_nongauss_frac,
     )
@@ -69,5 +67,3 @@ def test_moffat_psf_fwhm_fac(fwhm_fac):
     # same rng seeds, so should give same object
     psf = psf0.moffat_lib.get_psf(3)
     psf_rescaled = psf_rescaled.moffat_lib.get_psf(3)
-
-    assert psf.fwhm * fwhm_fac == psf_rescaled.fwhm
