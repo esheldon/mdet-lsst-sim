@@ -707,6 +707,7 @@ def get_psf(sim_config, draw_method, rng):
     )
     from .shapelet_psf import make_shapelet_psf
     from .gmix_psf import make_gmix_psf
+    from .moffat_psf import make_moffat_psf
     from .coadd_ps_psf import make_coadd_ps_psf
 
     psf_config = sim_config['psf']
@@ -745,6 +746,13 @@ def get_psf(sim_config, draw_method, rng):
             fwhm_fac=psf_config['fwhm_fac'],
         )
         # assert sim_config['draw_method'] == 'no_pixel'
+
+    elif psf_config['type'] == 'moffat':
+        psf = make_moffat_psf(
+            rng=rng,
+            nepoch=psf_config['nepoch'],
+            fwhm_fac=psf_config['fwhm_fac'],
+        )
 
     # elif sim_config['randomize_psf']:
     #     psf = make_rand_psf(

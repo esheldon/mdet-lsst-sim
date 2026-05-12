@@ -140,6 +140,32 @@ def test_run_star_bleeds():
     'CATSIM_DIR' not in os.environ,
     reason='simulation input data is not present',
 )
+def test_run_moffat_psf():
+    sim_config = {
+        'draw_method': 'auto',
+        'gal': {'type': 'wldeblend'},
+        'layout': 'random',
+        'coadd_dim': 101,
+        'buff': 5,
+        'psf': {
+            'type': 'moffat',
+            'dim': 51,
+            'nepoch': 3,
+            'fwhm_fac': 1.0,
+        }
+    }
+    run_sim(
+        sim_config=sim_config,
+        seed=251,
+        ntrial=1,
+        output=None,
+    )
+
+
+@pytest.mark.skipif(
+    'CATSIM_DIR' not in os.environ,
+    reason='simulation input data is not present',
+)
 def test_run_shapelet_psf():
     sim_config = {
         'draw_method': 'no_pixel',
