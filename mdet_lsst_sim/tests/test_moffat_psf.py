@@ -65,5 +65,5 @@ def test_moffat_psf_fwhm_fac(fwhm_fac):
     )
 
     # same rng seeds, so should give same object
-    psf = psf0.moffat_lib.get_psf(3)
-    psf_rescaled = psf_rescaled.moffat_lib.get_psf(3)
+    psf0.moffat_lib.get_psf(3)
+    psf_rescaled.moffat_lib.get_psf(3)
